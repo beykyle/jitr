@@ -16,7 +16,15 @@ jobs:
     permissions:
       id-token: write  
     steps:
-    # retrieve your distributions here
-
+    - name: Install package and dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install twine build
+    - name: Build, check and upload wheel and sdist
+      run: |
+        python3 -m build --sdist --wheel 
+        python3 -m twine check dist/*
+        python3 -m twine upload --repository dist/*
+        
     - name: Publish package distributions to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
