@@ -38,4 +38,4 @@ jobs:
     - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        password: ${{ secrets.PAT }}
+        password: ${{ secrets.PYPI_ACCESS_TOKEN }}
