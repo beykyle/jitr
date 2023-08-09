@@ -5,7 +5,16 @@ from scipy.special import spherical_jn, spherical_yn, eval_legendre, roots_legen
 from scipy.interpolate import interp1d
 from scipy.misc import derivative
 from scipy.linalg import solve, ishermitian
-from .utils import block, H_plus, H_plus_prime, H_minus, H_minus_prime, VH_plus, VH_minus, smatrix
+from .utils import (
+    block,
+    H_plus,
+    H_plus_prime,
+    H_minus,
+    H_minus_prime,
+    VH_plus,
+    VH_minus,
+    smatrix,
+)
 from .bloch_se import (
     ProjectileTargetSystem,
     RadialSEChannel,

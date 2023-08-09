@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import alpha, hbarc
 
+
 def woods_saxon_potential(r, params):
     V, W, R, a = params
     return -(V + 1j * W) / (1 + np.exp((r - R) / a))
