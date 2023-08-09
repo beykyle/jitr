@@ -65,14 +65,14 @@ def local_interaction_example():
         reduced_mass=939,
         channel_radius=nodes_within_radius * (2 * np.pi),
         Ztarget=40,
-        # Zproj=1
+        Zproj=1
     )
 
     se = RadialSEChannel(
         l=1,
         system=sys,
         interaction=lambda r: woods_saxon_potential(r, params),
-        # coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(zz, r, R0)
+        coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(zz, r, R0)
     )
 
     s_values = np.linspace(0.01, sys.channel_radius, 200)
@@ -97,7 +97,6 @@ def local_interaction_example():
 
     R_lm, S_lm, u_lm = solver_lm.solve_wavefunction()
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
-
     u_lm = u_lm(r_values)
 
     delta_lm, atten_lm = delta(S_lm)
@@ -218,4 +217,4 @@ def rmse_RK_LM():
 if __name__ == "__main__":
     channel_radius_dependence_test()
     local_interaction_example()
-    rmse_RK_LM()
+    #rmse_RK_LM()
