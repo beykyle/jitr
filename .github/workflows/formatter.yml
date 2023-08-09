@@ -1,21 +1,35 @@
 name: auto-format
+
 on: pull_request
+
 jobs:
   format:
     # Check if the PR is not from a fork
+    
     if: github.event.pull_request.head.repo.full_name == github.repository
+    
     runs-on: ubuntu-latest
+    
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the changed files back to the repository.
+      contents: write
+
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
         with:
           ref: ${{ github.head_ref }}
+   
       - name: black
         uses: lgeiger/black-action@v1.0.1
         with:
           args: .
+   
       - name: Check for modified files
         id: git-check
         run: echo "modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi)" >> $GITHUB_OUTPUT
+   
       - name: Push changes
         if: steps.git-check.outputs.modified == 'true'
         uses: stefanzweifel/git-auto-commit-action@v4
+          with:
+            token: ${{ secrets.PAT }}
