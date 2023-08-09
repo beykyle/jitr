@@ -8,23 +8,34 @@ on:
   
 jobs:
   pypi-publish:
-    name: Upload release to PyPI
+    name: Build and upload release to PyPI
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/lagrange-rmatrix/
+      url: https://pypi.org/project/lagrange-rmatrix/    
     permissions:
       id-token: write  
     steps:
-    - name: Install package and dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install twine build
-    - name: Build wheel and sdist
-      run: |
-        python3 -m build --sdist --wheel 
-        
-    - name: Publish package distributions to PyPI
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.x"
+    - name: Install pypa/build
+      run: >-
+        python3 -m
+        pip install
+        build
+        --user
+    - name: Build a binary wheel and a source tarball
+      run: >-
+        python3 -m
+        build
+        --sdist
+        --wheel
+        --outdir dist/
+        .
+    - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.PAT }}
+      with:
+        password: ${{ secrets.PAT }}
