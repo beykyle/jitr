@@ -1,3 +1,4 @@
+[![Python package](https://github.com/beykyle/lagrange_rmatrix/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/lagrange_rmatrix/actions/workflows/python-package.yml)
 # Lagrange R-Matrix
 ## Quick start
 ```
