@@ -8,3 +8,61 @@ with the primary difference being that this code uses a dimensionless domain for
 Capable of:
 - non-local interactions
 - coupled-channels calculations
+
+
+# Simple example
+
+The following is an example of solving a simple local Woods-Saxon + Coulomb interaction
+```python
+  
+  from lagrange_rmatrix import (
+    ProjectileTargetSystem,       # defines channel-independent data for the system
+    RadialSEChannel,              # channel description
+    LagrangeRMatrix,              # solver
+    woods_saxon_potential,        # short-range nuclear interaction
+    coulomb_potential,            # long-range EM interaction
+    delta,                        # function to calculate phase shift 
+  )
+
+  # Woods-Saxon potential parameters
+  V0 = 60  # real potential strength
+  W0 = 20  # imag potential strength
+  R0 = 4  # Woods-Saxon potential radius
+  a0 = 0.5  # Woods-Saxon potential diffuseness
+  params = (V0, W0, R0, a0)
+
+  # We want to have 5 nodes of the wavefunction within the channel radius -
+  # this should allow for the wavefunction to reach its asymptotic phase
+  nodes_within_radius = 5
+
+  # set up the system
+  sys = ProjectileTargetSystem(
+    incident_energy=20, # [MeV]
+    reduced_mass=939,   # [MeV/c^2]
+    Ztarget=40,         # charged target and projectile
+    Zproj=1
+    channel_radius=nodes_within_radius * (2 * np.pi),
+  )
+
+  # set up the Bloch-SE equation 
+  se = RadialSEChannel(
+    l=1,             # p-wave scattering
+    system=sys,
+    interaction=lambda r: woods_saxon_potential(r, params),
+    coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(zz, r, R0)
+  )
+
+  solver = LagrangeRMatrix(40, sys, se)
+  R_l, S_l, _ = solver_lm.solve()   # Get the R and S-Matrices
+  delta_l, atten_l = delta(S_lm)    # get the phase shift
+  print(f"phase shift: {delta_lm:.4f} + i {atten_lm:.4f} [deg]")
+```
+which should produce the output:
+```
+phase shift: 38.8723 + i 53.7059 [deg]
+```
+
+# Example result for a coupled-channel toy problem 
+Here we show a simple toy coupled-channels problem with 3 0 $^+$ levels, and flux incident on the $n=0$ (elastic) channel:
+
+
