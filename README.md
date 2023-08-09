@@ -5,7 +5,7 @@
 ```
 
 ## Description
-Solves the Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh, following 
+Solves the Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh, following:
 - Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219,
 - Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
 
