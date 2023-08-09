@@ -1,4 +1,10 @@
 # Lagrange R-Matrix
+## Quick start
+```
+ pip install lagrange-rmatrix
+```
+
+## Description
 Solves the Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh, following 
 - Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219,
 - Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -10,7 +16,7 @@ Capable of:
 - coupled-channels
 
 
-# Simple example
+## Simple example
 
 The following is an example of solving a simple local Woods-Saxon + Coulomb interaction problem in the elastic channel
 ```python
@@ -44,7 +50,7 @@ The following is an example of solving a simple local Woods-Saxon + Coulomb inte
     channel_radius=nodes_within_radius * (2 * np.pi),
   )
 
-  # set up the Bloch-SE equation 
+  # set up the Bloch-SE equation in the elastic channel
   se = RadialSEChannel(
     l=1,             # p-wave scattering
     system=sys,
@@ -52,7 +58,9 @@ The following is an example of solving a simple local Woods-Saxon + Coulomb inte
     coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(zz, r, R0)
   )
 
-  solver = LagrangeRMatrix(40, sys, se)
+  # set up and run solver
+  nbasis = 30 # number of Lagrange-Legendre functions in the basis
+  solver = LagrangeRMatrix(nbasis, sys, se)
   R_l, S_l, _ = solver_lm.solve()   # Get the R and S-Matrices
   delta_l, atten_l = delta(S_lm)    # get the phase shift
   print(f"phase shift: {delta_lm:.4f} + i {atten_lm:.4f} [deg]")
@@ -62,7 +70,7 @@ which should produce the output:
 phase shift: 38.8723 + i 53.7059 [deg]
 ```
 
-# Example result for a coupled-channel toy problem 
+## Example result for a coupled-channel toy problem 
 Here we show a simple toy coupled-channels problem with 3 0 $^+$ levels, and flux incident on the $n=0$ (elastic) channel. For more information, see [`examples/couped`](https://github.com/beykyle/lagrange_rmatrix/blob/main/examples/coupled.py):
 
 ![3-channel problem](https://github.com/beykyle/lagrange_rmatrix/blob/main/assets/cc.png)
