@@ -63,6 +63,6 @@ phase shift: 38.8723 + i 53.7059 [deg]
 ```
 
 # Example result for a coupled-channel toy problem 
-Here we show a simple toy coupled-channels problem with 3 0 $^+$ levels, and flux incident on the $n=0$ (elastic) channel:
+Here we show a simple toy coupled-channels problem with 3 0 $^+$ levels, and flux incident on the $n=0$ (elastic) channel. For more information, see [`examples/couped`](https://github.com/beykyle/lagrange_rmatrix/blob/main/examples/coupled.py):
 
 ![3-channel problem](https://github.com/beykyle/lagrange_rmatrix/blob/main/assets/cc.png)
