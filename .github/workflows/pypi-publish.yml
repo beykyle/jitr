@@ -1,6 +1,6 @@
 # This workflow will publish releases to https://pypi.org/project/lagrange-rmatrix/
 
-name: Pypi publish
+name: PyPI publish
 
 on:
   release:
