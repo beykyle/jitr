@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lagrange_rmatrix"
-version = "0.1"
+version = "0.1.5"
 authors = [
   {name="Kyle Beyer", email="beykyle@umich.edu"}
 ]
