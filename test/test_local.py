@@ -11,6 +11,7 @@ from lagrange_rmatrix import (
     schrodinger_eqn_ivp_order1,
 )
 
+
 def rmse_RK_LM():
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -78,10 +79,9 @@ def rmse_RK_LM():
 
         return np.real(error_matrix), np.imag(error_matrix)
 
+
 def test_local():
-    rtol = 1.0E-2
+    rtol = 1.0e-2
     real_err, imag_err = rmse_RK_LM()
-    assert not np.any(real_err/180 > rtol)
-    assert not np.any(imag_err/180 > rtol)
-
-
+    assert not np.any(real_err / 180 > rtol)
+    assert not np.any(imag_err / 180 > rtol)
