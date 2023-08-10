@@ -17,15 +17,17 @@ jobs:
       contents: write
 
     runs-on: ubuntu-latest
+    
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9"]
+    
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.head_ref }}
         token: ${{ secrets.PAT }}
+        ref: ${{ github.head_ref }}
  
     - name: black
       uses: lgeiger/black-action@v1.0.1
