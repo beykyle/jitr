@@ -19,3 +19,4 @@ from .bloch_se import (
     schrodinger_eqn_ivp_order1,
 )
 from .lagrange_rmatrix import LagrangeRMatrix
+from .__version__ import __version__
