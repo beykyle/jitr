@@ -98,7 +98,7 @@ def coupled_channels_example(visualize=False):
 
     lines = []
     for i in range(system.num_channels):
-        u_values = uint[i].uint(units="s")(s_values)
+        u_values = uint[i].uint()(s_values)
         (p1,) = plt.plot(s_values, np.real(u_values), label=r"$n=%d$" % i)
         (p2,) = plt.plot(s_values, np.imag(u_values), ":", color=p1.get_color())
         lines.append([p1, p2])

@@ -144,40 +144,33 @@ class Wavefunction:
 
         self.callable = self.u()
 
-    def __call__(self, r):
-        return self.callable(r)
+    def __call__(self, s):
+        return self.callable(s)
 
-    def calculate_s(self, units):
-        if units == "r":
-            return lambda r: r * self.se.k
-        elif units == "s":
-            return lambda s: s
-
-    def uext(self, units="r"):
-        out = lambda r: np.array(
-            self.S * VH_plus(self.calculate_s(units)(r), self.se.l, self.se.eta),
+    def uext(self):
+        out = lambda s: np.array(
+            self.S * VH_plus(s, self.se.l, self.se.eta),
             dtype=complex,
         )
         if self.is_entrance_channel:
-            return lambda r: np.array(
-                VH_minus(self.calculate_s(units)(r), self.se.l, self.se.eta) + out(r),
+            return lambda s: np.array(
+                VH_minus(s, self.se.l, self.se.eta) + out(s),
                 dtype=complex,
             )
         else:
             return out
 
-    def uint(self, units="r"):
-        return lambda r: np.sum(
+    def uint(self):
+        return lambda s: np.sum(
             [
-                self.coeffs[n - 1] * self.lm.f(n, self.calculate_s(units)(r))
+                self.coeffs[n - 1] * self.lm.f(n, s)
                 for n in range(1, self.lm.N + 1)
             ],
             axis=0,
         )
 
-    def u(self, units="r"):
-        ch_radius = self.se.a / self.se.k
-        uint = self.uint(units)
-        uext = self.uext(units)
-        factor = 1.0
-        return lambda r: np.where(r < ch_radius, uint(r), factor * uext(r))
+    def u(self):
+        uint = self.uint()
+        uext = self.uext()
+        ch_radius = self.se.a
+        return lambda s: np.where(s < ch_radius, uint(s), uext(s))
