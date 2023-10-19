@@ -17,13 +17,13 @@ spec = [
     ("E", np.float64),
     ("k", np.float64),
     ("eta", np.float64),
-    ("domain" , np.float64[:]),
+    ("domain", np.float64[:]),
 ]
+
 
 @jitclass(spec)
 class ChannelData:
-    """
-    """
+    """ """
 
     def __init__(
         self,
@@ -34,8 +34,7 @@ class ChannelData:
         k: np.float64,
         eta: np.float64,
     ):
-        """
-        """
+        """ """
         self.l = l
         self.mass = reduced_mass
         self.E = E

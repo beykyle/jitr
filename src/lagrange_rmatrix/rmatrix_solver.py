@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.special as sc
 
-from .bloch_se import ProjectileTargetSystem
+from .system import ProjectileTargetSystem
 from .rmatrix_kernel import LagrangeRMatrixKernel
 
 
@@ -14,9 +14,17 @@ class LagrangeRMatrixSolver:
         """
         if not isinstance(a, np.array):
             a = np.ones((nchannels,)) * a
+
+        x, w = np.polynomial.legendre.leggauss(nbasis)
+        abscissa = 0.5 * (x + 1)
+        weights = 0.5 * w
         self.a = a
-        self.kernel = LagrangeRMatrixKernel(nbasis, nchannels)
-        # TODO precompute b for each channel
+        self.kernel = LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
+        # precompute b for each channel
+        b = [
+            [self.f(n, a[i]) for n in range(1, self.nbasis + 1)]
+            for i in range(self.nchannels)
+        ]
         # TODO precompute Zlpus, Zminus
         # TODO add wrapper for solve that passes in an interaction, energy, k, l and args
 
@@ -40,7 +48,12 @@ class LagrangeRMatrixSolver:
             / (x - xn)
         )
 
-    def solve(
-        self, system: ProjectileTargetSystem, interaction_matrix: InteractionMatrix
-    ):
-        pass
+    def solve(self, interaction_matrix: np.array, channel_matrix: np.array, args=()):
+        if self.kernel.nchannels == 1:
+            return kernel.solve_single_channel(
+                self.b[0], interaction_matrix[0, 0], channel_matrix[0, 0], args
+            )
+        else:
+            return kernel.solve_coupled_channel(
+                self.b, self.Zplus, self.Zmins, interaction_matrix, channel_matrix, args
+            )

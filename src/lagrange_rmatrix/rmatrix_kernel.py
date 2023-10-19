@@ -2,7 +2,8 @@ import numpy as np
 from numba.experimental import jitclass
 from numba import int32, float32
 
-from .bloch_se import ProjectileTargetSystem
+from .system import InteractionMatrix
+from .channel import ChannelData
 from .utils import eval_scaled_interaction, eval_scaled_nolocal_interaction, block
 
 
@@ -10,7 +11,7 @@ spec = [
     ("nbasis", int32),
     ("nchannels", int32),
     ("abscissa", float64[:]),
-    ("nchannels", float64[:]),
+    ("weights", float64[:]),
 ]
 
 
@@ -24,7 +25,7 @@ class LagrangeRMatrixKernel:
     asymptotic kinetic energy in the channel T_i = E_inc - E_i
     """
 
-    def __init__(self, nbasis, nchannels):
+    def __init__(self, nbasis, nchannels, abscissa, weights):
         """
         Constructs the Bloch-Schroedinger equation in a basis of nbasis
         Lagrange-Legendre functions shifted and scaled onto [0,k*a] and regulated by 1/k*r,
@@ -33,13 +34,11 @@ class LagrangeRMatrixKernel:
         """
         self.nbasis = nbasis
         self.nchannels = nchannels
+        self.abscissa = abscissa
+        self.weights = weights
+        self.I = np.identity(self.nbasis * self.nchannels)
 
-        # generate Lagrange-Legendre quadrature and weights shifted to [0,1] from [-1,1]
-        x, w = np.polynomial.legendre.leggauss(self.nbasis)
-        self.abscissa = 0.5 * (x + 1)
-        self.weights = 0.5 * w
-
-    def local_potential(self, n, m, a, interaction, energy, k):
+    def local_potential(self, n, m, interaction, ch: ChannelData, args=()):
         """
         evaluates the (n,m)th matrix element for the given local interaction
         """
@@ -50,11 +49,13 @@ class LagrangeRMatrixKernel:
             return 0  # local potentials are diagonal
 
         xn = self.abscissa[n - 1]
+
+        a = ch.domain[1]
         s = xn * a
 
-        return eval_scaled_interaction(s, interaction, energy, k)
+        return eval_scaled_interaction(s, interaction, ch, args)
 
-    def nonlocal_potential(self, n, m, a, interaction, energy, k):
+    def nonlocal_potential(self, n, m, a, interaction, ch, args=()):
         """
         evaluates the (n,m)th matrix element for the given non-local interaction
         """
@@ -66,14 +67,16 @@ class LagrangeRMatrixKernel:
         wn = self.weights[n - 1]
         wm = self.weights[m - 1]
 
+        a = ch.domain[1]
+
         s = xn * a
         sp = xm * a
 
-        utilde = eval_scaled_nolocal_interaction(s, sp, interaction, energy, k)
+        utilde = eval_scaled_nolocal_interaction(s, sp, interaction, ch, args)
 
         return utilde * np.sqrt(wm * wn) * a
 
-    def kinetic_bloch(self, n, m, l, a):
+    def kinetic_bloch(self, n, m, ch):
         """
         evaluates the (n,m)th matrix element for the kinetic energy + Bloch operator
         """
@@ -82,6 +85,9 @@ class LagrangeRMatrixKernel:
 
         xn, xm = self.abscissa[n - 1], self.abscissa[m - 1]
         N = self.nbasis
+
+        a = ch.domain[1]
+        l = ch.l
 
         if n == m:
             centrifugal = l * (l + 1) / (a * xn) ** 2
@@ -103,7 +109,13 @@ class LagrangeRMatrixKernel:
                 / a**2
             )
 
-    def bloch_se_matrix(self, interactions, energies, ks, ls):
+    def bloch_se_matrix(
+        self, interaction_matrix: np.array, channel_matrix: np.array, args=()
+    ):
+        assert interaction_matrix.shape == channel_matrix.shape
+        assert interaction_matrix.shape[0] == interaction_matrix[1]
+        assert interaction_matrix.shape[0] == self.nchannels
+
         sz = self.nbasis * self.nchannels
         C = np.zeros((sz, sz), dtype=np.cdouble)
         for i in range(self.nchannels):
@@ -112,33 +124,45 @@ class LagrangeRMatrixKernel:
                     i * self.nbasis : i * self.nbasis + self.nbasis,
                     j * self.nbasis : j * self.nbasis + self.nbasis,
                 ] = self.single_channel_bloch_se_matrix(
-                    i, j, interactions[i, j], energies[i], ks[i], ls[i]
+                    i, j, interaction_matrix[i, j], channel_matrix[i, j], args
                 )
         return C
 
-    def single_channel_bloch_se_matrix(self, i, j, interaction, energy, k, l):
+    def single_channel_bloch_se_matrix(
+        self, i, j, interaction, ch: ChannelData, args=()
+    ):
         C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
         # Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr
         # diagonal submatrices in channel space
         # include full bloch-SE
         if i == j:
             element = lambda n, m: (
-                self.kinetic_bloch(n, m, i, j)
-                + self.potential(n, m, i, j)
-                + self.coulomb_potential(n, m, i, j)
+                self.kinetic_bloch(n, m, ch, args)
+                + self.potential(n, m, interaction, ch, args)
+                + self.coulomb_potential(n, m, interaction, ch, args)
                 - (1.0 if n == m else 0.0)
             )
+
         # off-diagonal terms only include coupling potentials
         else:
-            element = lambda n, m: self.potential(n, m, i, j)
+            element = lambda n, m: self.potential(n, m, interaction, ch)
 
+        # build matrix for channel
         for n in range(1, self.nbasis + 1):
             for m in range(1, self.nbasis + 1):
                 C[n - 1, m - 1] = element(n, m)
 
         return C
 
-    def solve_coupled_channel(self, a, b, l, eta, Z_plus, Z_minus):
+    def solve_coupled_channel(
+        self,
+        b,
+        Z_plus,
+        Z_minus,
+        interaction_matrix: np.array,
+        channel_matrix: np.array,
+        args=(),
+    ):
         """
         Returns the R-Matrix and the S-matrix, as well as the Green's function in Lagrange-Legendre
         coordinates
@@ -148,14 +172,14 @@ class LagrangeRMatrixKernel:
         An R-matrix package for coupled-channel problems in nuclear physics.
         Computer physics communications, 200, 199-219.
         """
-        A = self.bloch_se_matrix(interaction)
+        A = self.bloch_se_matrix(interaction_matrix, channel_matrix, args)
 
         ach = np.diag(a)
 
         # b source term - basis functions evaluated at each channel radius
 
         # find Green's function explicitly in Lagrange-Legendre coords
-        G = np.linalg.inv(A)
+        G = np.linalg.solve(A, self.I)  # invert A
 
         # calculate R-matrix
         # Eq. 15 in [Descouvemont, 2016]
@@ -171,7 +195,7 @@ class LagrangeRMatrixKernel:
 
         return R, S, G
 
-    def solve_single_channel(self, a, b, l, eta):
+    def solve_single_channel(self, b, interaction, channel: ChannelData, args=()):
         """
         Returns the R-Matrix and the S-matrix, as well as the Green's function in Lagrange-Legendre
         coordinates
@@ -181,12 +205,10 @@ class LagrangeRMatrixKernel:
         An R-matrix package for coupled-channel problems in nuclear physics.
         Computer physics communications, 200, 199-219.
         """
-        A = self.bloch_se_matrix()
+        A = self.bloch_se_matrix(interaction, channel, args)
 
         # Eq. 6.11 in [Baye, 2015]
-        # b = np.array([self.f(n, a) for n in range(1, self.nbasis + 1)])
-        G = np.linalg.inv(A)
-        x = np.dot(G, b)
-        R = np.dot(x, b) / (a * a)
+        G = np.linalg.solve(A, b)  # invert A
+        R = np.dot(G, b) / (a * a)
         S = smatrix(R, a, l, eta)
         return R, S, G

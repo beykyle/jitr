@@ -42,13 +42,13 @@ def Gamow_factor(l, eta):
 
 @njit
 def second_derivative_op(s, channel, interaction, args=()):
-    r""" second derivative operator of reduced, scaled radial Schrodinger equation
-    """
+    r"""second derivative operator of reduced, scaled radial Schrodinger equation"""
     return (
         eval_scaled_interaction(s, interaction, channel.E, channel.k, args)
         + channel.l * (channel.l + 1) / s**2  # orbital angular momentum
         - 1.0  # energy term
     )
+
 
 @njit
 def schrodinger_eqn_ivp_order1(s, y, channel, interaction, args=()):
@@ -57,7 +57,7 @@ def schrodinger_eqn_ivp_order1(s, y, channel, interaction, args=()):
     2 coupled 1st order ODEs
     """
     u, uprime = y
-    return [uprime, second_derivative_op(s, channel, interaction, args)*u ]
+    return [uprime, second_derivative_op(s, channel, interaction, args) * u]
 
 
 class FreeAsymptotics:
