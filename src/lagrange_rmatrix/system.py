@@ -13,10 +13,13 @@ class InteractionMatrix:
         self.is_local = np.ones((self.nchannels, self.nchannels), dtype=bool)
         self.is_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
 
-    def set_interaction(interaction, i: int = 0, j: int = 0, is_local=True, is_symmetric=True):
+    def set_interaction(
+        interaction, i: int = 0, j: int = 0, is_local=True, is_symmetric=True
+    ):
         self.matrix[i, j] = interaction
         self.is_local[i, j] = is_local
         self.is_symmetric[i, j] = is_symmetric
+
 
 system_spec = [
     (incident_energy, float64),

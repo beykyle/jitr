@@ -124,29 +124,43 @@ class LagrangeRMatrixKernel:
                     i * self.nbasis : i * self.nbasis + self.nbasis,
                     j * self.nbasis : j * self.nbasis + self.nbasis,
                 ] = self.single_channel_bloch_se_matrix(
-                    i, j, interaction_matrix.matrix[i, j], channel_matrix[i, j], is_local, is_symmetric, args
+                    i,
+                    j,
+                    interaction_matrix.matrix[i, j],
+                    channel_matrix[i, j],
+                    is_local,
+                    is_symmetric,
+                    args,
                 )
         return C
 
     def single_channel_bloch_se_matrix(
-            self, i, j, interaction, ch: ChannelData, is_local : bool = True,  is_symmetric : bool = True, args=()
+        self,
+        i,
+        j,
+        interaction,
+        ch: ChannelData,
+        is_local: bool = True,
+        is_symmetric: bool = True,
+        args=(),
     ):
-        #TODO handle case of local plus non-local potential in a given channel (e.g. non-local plus coulomb)
+        # TODO handle case of local plus non-local potential in a given channel (e.g. non-local plus coulomb)
         C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
         # Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr
         # diagonal submatrices in channel space
         # include full bloch-SE
 
         if is_local:
-            potential = lambda n, m : self.local_potential(n,m, interaction, ch, args)
+            potential = lambda n, m: self.local_potential(n, m, interaction, ch, args)
         else:
-            potential = lambda n , m : self.nonlocal_potential(n, m, interaction, ch, args)
+            potential = lambda n, m: self.nonlocal_potential(
+                n, m, interaction, ch, args
+            )
 
         if i == j:
             element = lambda n, m: (
-
                 self.kinetic_bloch(n, m, ch, args)
-                + potential(n,m)
+                + potential(n, m)
                 - (1.0 if n == m else 0.0)
             )
 
