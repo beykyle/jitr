@@ -1,6 +1,8 @@
 from numba.experimental import jitclass
+from numba import float64, int32
 import numpy as np
 
+from .utils import hbarc, c
 from .channel import ChannelData
 
 
@@ -19,16 +21,47 @@ class InteractionMatrix:
         self.is_local[i, j] = False
 
 
-@jitclass()
+system_spec = [
+    (incident_energy, float64),
+    (reduced_mass, float64),
+    (channel_radii, float64),
+    (l, array),
+    (Ztarget, float64),
+    (Zproj, float64),
+    (nchannels, int32),
+    (level_energies, float64[:]),
+    (incoming_weights, float64[:]),
+]
+
+
+@jitclass(system_spec)
 class ProjectileTargetSystem:
-    incident_energy: np.float64  # [MeV]
-    reduced_mass: np.float64  # [MeV]
-    channel_radius: np.float64  # [dimensionless]
-    Ztarget: np.float64 = 0
-    Zproj: np.float64 = 0
-    num_channels: np.int32 = 1
-    level_energies: np.array
-    l: np.array
+    def __init__(
+        self,
+        incident_energy: np.float64,
+        reduced_mass: np.float64,
+        channel_radii: np.float64,
+        l: np.array,
+        Ztarget: np.float64,
+        Zproj: np.float64,
+        nchannels: np.int32 = 1,
+        level_energies: np.array = None,
+        incoming_weights: np.array = None,
+    ):
+        self.incident_energy = incident_energy
+        self.reduced_mass = reduced_mass
+        self.channel_radii = channel_radii
+        self.Ztarget = Ztarget
+        self.Zproj = Zproj
+        self.nchannels = nchannels
+        if level_energies is None:
+            level_energies = np.zeros(self.nchannels)
+        self.level_energies = level_energies
+        if incoming_weights is None:
+            incoming_weights = np.zeros(self.nchannels)
+            incoming_weights[0] = 1
+        self.incoming_weights = incoming_weights
+        self.l = l
 
     def k(self):
         r"""
@@ -40,6 +73,9 @@ class ProjectileTargetSystem:
             )
             / hbarc
         )
+
+    def velocity(self):
+        return np.sqrt(2 * hbarc * self.k() / self.reduced_mass) * c
 
     def eta(self):
         r"""
@@ -57,7 +93,7 @@ class ProjectileTargetSystem:
                 ChannelData[i, j] = RadialSEChannel(
                     l[i],
                     self.reduced_mass,
-                    self.channel_radius,
+                    self.channel_radius[i],
                     self.incident_energy - self.level_energies[i],
                     k[i],
                     eta[i],

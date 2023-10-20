@@ -118,6 +118,7 @@ class LagrangeRMatrixKernel:
 
         sz = self.nbasis * self.nchannels
         C = np.zeros((sz, sz), dtype=np.cdouble)
+        # TODO only do upper triangular
         for i in range(self.nchannels):
             for j in range(self.nchannels):
                 C[
@@ -154,61 +155,47 @@ class LagrangeRMatrixKernel:
 
         return C
 
-    def solve_coupled_channel(
-        self,
-        b,
-        Z_plus,
-        Z_minus,
-        interaction_matrix: np.array,
-        channel_matrix: np.array,
-        args=(),
-    ):
-        """
-        Returns the R-Matrix and the S-matrix, as well as the Green's function in Lagrange-Legendre
-        coordinates
 
-        For the coupled-channels case this follows:
-        Descouvemont, P. (2016).
-        An R-matrix package for coupled-channel problems in nuclear physics.
-        Computer physics communications, 200, 199-219.
-        """
-        A = self.bloch_se_matrix(interaction_matrix, channel_matrix, args)
+@njit
+def rmsolve_smatrix(
+    A: np.array,
+    b: np.array,
+    asymptotics: tuple,
+    incoming_weights: np.array,
+    a: np.array,
+    nchannels: np.int32,
+    nbasis: np.int32,
+):
+    """
+    Returns the R-Matrix, S-matrix wavefunction coefficients, all in Lagrange-Legendre coordinates,
+    and derivative of asymptotic channel Wavefunctions evaluated at the channel radius. all as block-
+    matrices and block vectors in channel space. Uses `numpy.linalg.solve`, which should be faster
+    than alternatives (e.g. scipy) for mid-size (n<100) Hermitian matrices. Note: speed will be
+    dependent on numpy backend for linear algebra.
 
-        ach = np.diag(a)
+    This follows:
+    Descouvemont, P. (2016).
+    An R-matrix package for coupled-channel problems in nuclear physics.
+    Computer physics communications, 200, 199-219.
+    """
+    (Hp, Hm, Hpp, Hmp) = asymptotics
 
-        # b source term - basis functions evaluated at each channel radius
+    # Eqn 15 in Descouvemont, 2016
+    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
+    R = x @ b.reshape(nchannels, nbasis).T
 
-        # find Green's function explicitly in Lagrange-Legendre coords
-        G = np.linalg.solve(A, self.I)  # invert A
+    # Eqn 17 in Descouvemont, 2016
+    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]) / np.sqrt(
+        a[:, np.newaxis]
+    )
+    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]) / np.sqrt(
+        a[:, np.newaxis]
+    )
 
-        # calculate R-matrix
-        # Eq. 15 in [Descouvemont, 2016]
-        R = np.zeros((self.nchannels, self.nchannels), dtype=np.cdouble)
-        for i in range(self.nchannels):
-            for j in range(self.nchannels):
-                submatrix = block(G, (i, j), (self.nbasis, self.nbasis))
-                b1 = b[i * self.nbasis : i * self.nbasis + self.nbasis]
-                b2 = b[j * self.nbasis : j * self.nbasis + self.nbasis]
-                R[i, j] = np.dot(b1, np.dot(submatrix, b2)) / (a[i, j] * a[i, j])
+    # Eqn 16 in Descouvemont, 2016
+    S = np.linalg.solve(Zp, Zm)
 
-        S = solve(Z_plus, Z_minus)
+    # TODO should there be a factor of k/sqrt(v) here?
+    uext_prime_asym = Hmp * incoming_weights - S @ Hpp
 
-        return R, S, G
-
-    def solve_single_channel(self, b, interaction, channel: ChannelData, args=()):
-        """
-        Returns the R-Matrix and the S-matrix, as well as the Green's function in Lagrange-Legendre
-        coordinates
-
-        For the coupled-channels case this follows:
-        Descouvemont, P. (2016).
-        An R-matrix package for coupled-channel problems in nuclear physics.
-        Computer physics communications, 200, 199-219.
-        """
-        A = self.bloch_se_matrix(interaction, channel, args)
-
-        # Eq. 6.11 in [Baye, 2015]
-        G = np.linalg.solve(A, b)  # invert A
-        R = np.dot(G, b) / (a * a)
-        S = smatrix(R, a, l, eta)
-        return R, S, G
+    return R, S, x, uext_prime_asym

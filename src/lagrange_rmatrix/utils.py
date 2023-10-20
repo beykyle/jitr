@@ -8,6 +8,7 @@ from scipy.misc import derivative
 
 alpha = 1.0 / 137.0359991  # dimensionless fine structure constant
 hbarc = 197.3  # MeV fm
+c = 2.99792458e23  # fm/s
 
 
 @njit
