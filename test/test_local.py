@@ -12,16 +12,19 @@ from lagrange_rmatrix import (
     schrodinger_eqn_ivp_order1,
 )
 
+
 @njit
 def interaction(r, *args):
     (V0, W0, R0, a0, zz, r_c) = args
-    return woods_saxon_potential(r, (V0, W0, R0, a0)) + coulomb_charged_sphere(r, zz, r_c)
+    return woods_saxon_potential(r, (V0, W0, R0, a0)) + coulomb_charged_sphere(
+        r, zz, r_c
+    )
 
 
-def rmse_RK_LM(nchannels : int =5):
-    r""" Test with simple Woods-Saxon plus coulomb without spin-orbit coupling """
+def rmse_RK_LM(nchannels: int = 5):
+    r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, nchannels-1, 1)
+    lgrid = np.arange(0, nchannels - 1, 1)
     egrid = np.linspace(0.01, 100, 10)
     nodes_within_radius = 5
 
@@ -31,8 +34,8 @@ def rmse_RK_LM(nchannels : int =5):
     sys = ProjectileTargetSystem(
         939,
         np.ones(nchannels) * nodes_within_radius * (2 * np.pi),
-        incident_energy = None,
-        l = None,
+        incident_energy=None,
+        l=None,
         Ztarget=40,
         Zproj=1,
         nchannels=nchannels,
@@ -50,7 +53,7 @@ def rmse_RK_LM(nchannels : int =5):
     W0 = 20  # imag potential strength
     R0 = 4  # Woods-Saxon potential radius
     a0 = 0.5  # Woods-Saxon potential diffuseness
-    RC = R0 # Coulomb cutoff
+    RC = R0  # Coulomb cutoff
 
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 
@@ -65,7 +68,9 @@ def rmse_RK_LM(nchannels : int =5):
 
             # Runge-Kutta
             sol_rk = solve_ivp(
-                lambda s, y,: schrodinger_eqn_ivp_order1(s, y, ch, interaction_matrix[l], params),
+                lambda s, y,: schrodinger_eqn_ivp_order1(
+                    s, y, ch, interaction_matrix[l], params
+                ),
                 ch.domain,
                 ch.initial_conditions(),
                 dense_output=True,
@@ -77,7 +82,7 @@ def rmse_RK_LM(nchannels : int =5):
             S_rk = smatrix(R_rk, se.a, se.l, se.eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x = solver_lm.solve( interaction_matrix, ch, params )
+            R_lm, S_lm, x = solver_lm.solve(interaction_matrix, ch, params)
             print(S_lm)
             print(S_rk)
 
