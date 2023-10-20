@@ -2,35 +2,51 @@ from numba.experimental import jitclass
 from numba import float64, int32
 import numpy as np
 
-from .utils import hbarc, c
+from .utils import hbarc, c, null
 from .channel import ChannelData
 
 
 class InteractionMatrix:
-    def __init__(self, nchannels):
-        self.nchannels = nchannels
-        self.matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
-        self.is_local = np.ones((self.nchannels, self.nchannels), dtype=bool)
-        self.is_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
+    r"""Represents the interaction potentials in each channel as numpy object arrays,
+    one for local interactions and one for nonlocal
+    """
 
-    def set_interaction(
-        interaction, i: int = 0, j: int = 0, is_local=True, is_symmetric=True
+    def __init__(self, nchannels: np.int32 = 1):
+        r"""Initialize the InteractionMatrix
+
+        Parameters:
+            - nchannels (int) : the number of channels
+        """
+        self.nchannels = nchannels
+        self.local_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
+        self.nonlocal_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
+        self.nonlocal_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
+
+        # initialize local interaction to 0's
+        for i in range(nchannels):
+            for j in range(nchannels):
+                self.local_matrix[i, j] = null
+
+    def set_nonlocal_interaction(
+        interaction, i: int = 0, j: int = 0, is_symmetric=True
     ):
-        self.matrix[i, j] = interaction
-        self.is_local[i, j] = is_local
-        self.is_symmetric[i, j] = is_symmetric
+        self.nonlocal_matrix[i, j] = interaction
+        self.nonlocal_matrix_symmetric[i, j] = is_symmetric
+
+    def set_local_interaction(interaction, i: int = 0, j: int = 0):
+        self.local_matrix[i, j] = interaction
 
 
 system_spec = [
-    (incident_energy, float64),
-    (reduced_mass, float64),
-    (channel_radii, float64),
-    (l, array),
-    (Ztarget, float64),
-    (Zproj, float64),
-    (nchannels, int32),
-    (level_energies, float64[:]),
-    (incoming_weights, float64[:]),
+    ("incident_energy", float64),
+    ("reduced_mass", float64),
+    ("channel_radii", float64[:]),
+    ("l", int32[:]),
+    ("Ztarget", float64),
+    ("Zproj", float64),
+    ("nchannels", int32),
+    ("level_energies", float64[:]),
+    ("incoming_weights", float64[:]),
 ]
 
 
@@ -38,12 +54,12 @@ system_spec = [
 class ProjectileTargetSystem:
     def __init__(
         self,
-        incident_energy: np.float64,
         reduced_mass: np.float64,
-        channel_radii: np.float64,
-        l: np.array,
-        Ztarget: np.float64,
-        Zproj: np.float64,
+        channel_radii: np.array,
+        incident_energy: np.float64 = None,
+        l: np.array = None,
+        Ztarget: np.float64 = 0,
+        Zproj: np.float64 = 0,
         nchannels: np.int32 = 1,
         level_energies: np.array = None,
         incoming_weights: np.array = None,
@@ -54,14 +70,27 @@ class ProjectileTargetSystem:
         self.Ztarget = Ztarget
         self.Zproj = Zproj
         self.nchannels = nchannels
+
         if level_energies is None:
             level_energies = np.zeros(self.nchannels)
+
         self.level_energies = level_energies
+
         if incoming_weights is None:
             incoming_weights = np.zeros(self.nchannels)
             incoming_weights[0] = 1
+
         self.incoming_weights = incoming_weights
+
+        if l is None:
+            l = np.empty(self.nchannels)
+
         self.l = l
+
+        assert channel_radii.shape == (nchannels,)
+        assert l.shape == (nchannels,)
+        assert level_energies.shape == (nchannels,)
+        assert incoming_weights.shape == (nchannels,)
 
     def k(self):
         r"""

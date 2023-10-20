@@ -2,7 +2,7 @@ import numpy as np
 import scipy.special as sc
 import scipy.linalg as la
 
-from .util import (
+from .utils import (
     hbarc,
     c,
     CoulombAsymptotics,
@@ -12,7 +12,7 @@ from .util import (
     H_plus_prime,
     H_minus_prime,
 )
-from .system import ProjectileTargetSystem
+from .system import ProjectileTargetSystem, InteractionMatrix
 from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix
 
 
@@ -32,53 +32,49 @@ class LagrangeRMatrixSolver:
         abscissa = 0.5 * (x + 1)
         weights = 0.5 * w
         self.kernel = LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
-
+        self.sys = sys
         self.incoming_weights = sys.incoming_weights
-        self.a = sys.channel_radius
-        self.k = sys.k()
-        self.eta = sys.eta()
-        self.l = sys.l
+        b, asym = self.precompute_asymptotics(self.sys.a, self.sys.l, self.sys.eta())
+        self.b = b
+        self.asym = asym
 
+    def precompute_asymptotics(self, a, l, eta):
         # precompute asymptotic values of Lagrange-Legendre for each channel
-        self.b = np.hstack(
+        b = np.hstack(
             [
-                [self.f(n, self.a[i]) / self.a[i] for n in range(1, self.nbasis + 1)]
+                [self.f(n, a[i]) / a[i] for n in range(1, self.nbasis + 1)]
                 for i in range(self.nchannels)
             ]
         )
 
         # precompute asymoptotic wavefunction and derivartive in each channel
-        self.Hp = np.array(
+        Hp = np.array(
+            [H_plus(ai, li, etai, asym=asym) for (ai, li, etai) in zip(a, l, eta)]
+        )
+        Hm = np.array(
+            [H_minus(ai, li, etai, asym=asym) for (ai, li, etai) in zip(a, l, eta)]
+        )
+        Hpp = np.array(
+            [H_plus_prime(ai, li, etai, asym=asym) for (ai, li, etai) in zip(a, l, eta)]
+        )
+        Hmp = np.array(
             [
-                H_plus(a, l, eta, asym=asym)
-                for (a, l, eta) in zip(self.a, self.l, self.eta)
+                H_minus_prime(ai, li, etai, asym=asym)
+                for (ai, li, etai) in zip(a, l, eta)
             ]
         )
-        self.Hm = np.array(
-            [
-                H_minus(a, l, eta, asym=asym)
-                for (a, l, eta) in zip(self.a, self.l, self.eta)
-            ]
-        )
-        self.Hpp = np.array(
-            [
-                H_plus_prime(a, l, eta, asym=asym)
-                for (a, l, eta) in zip(self.a, self.l, self.eta)
-            ]
-        )
-        self.Hmp = np.array(
-            [
-                H_minus_prime(a, l, eta, asym=asym)
-                for (a, l, eta) in zip(self.a, self.l, self.eta)
-            ]
-        )
-        self.asymptotics = (self.Hp, self.Hm, self.Hpp.self.Hmp)
+        asymptotics = (Hp, Hm, Hpp.Hmp)
 
-    def update_energy():
+        return b, asymptotics
+
+    def update_energy(Ecom: np.float64):
         r"""update precomputed values for new energy"""
-        pass
+        self.sys.incident_energy = Ecom
+        b, asym = self.precompute_asymptotics(self.sys.a, self.sys.l, self.sys.eta())
+        self.b = b
+        self.asym = asym
 
-    def f(self, n, s):
+    def f(self, n, i, s):
         """
         nth basis function in channel i - Lagrange-Legendre polynomial of degree n shifted onto
         [0,a_i] and regularized by s/( a_i * xn)
@@ -86,7 +82,7 @@ class LagrangeRMatrixSolver:
         """
         assert n <= self.kernel.nbasis and n >= 1
 
-        x = s / self.a
+        x = s / self.sys.a[i]
         xn = self.kernel.abscissa[n - 1]
 
         # Eqn 3.122 in [Baye, 2015], with s = kr
@@ -98,14 +94,23 @@ class LagrangeRMatrixSolver:
             / (x - xn)
         )
 
-    def solve(self, interaction_matrix: np.array, channel_matrix: np.array, args=()):
-        A = self.kernel.bloch_se_matrix(interaction_matrix, channel_matrix, args)
+    def solve(
+        self, interaction_matrix: InteractionMatrix, channel_matrix: np.array, args=()
+    ):
+        local_matrix = interaction_matrix.local_matrix
+        nonlocal_matrix = interaction_matrix.nonlocal_matrix
+        nonlocal_symmetric = interaction_matrix.nonlocal_symmetric
+
+        A = self.solve(
+            local_matrix, nonlocal_matrix, is_symmetric, channel_matrix, args
+        )
+
         return rmsolve_smatrix(
             A,
             self.b,
             self.asymptotics,
             self.incoming_weights,
-            self.a,
+            self.sys.a,
             self.kernel.nchannels,
             self.kernel.nbasis,
         )

@@ -1,6 +1,7 @@
 from .potentials import *
-from .system import ProjectileTargetSystem
-from .channel import RadialSEChannel, NonlocalRadialSEChannel
+from .utils import delta, smatrix, schrodinger_eqn_ivp_order1
+from .system import ProjectileTargetSystem, InteractionMatrix
+from .channel import ChannelData, Wavefunction
 from .rmatrix_solver import LagrangeRMatrixSolver
 from .rmatrix_kernel import LagrangeRMatrixKernel
 from .__version__ import __version__

@@ -1,10 +1,11 @@
 from numba.experimental import jitclass
+from numba import float64, int32
 import numpy as np
 
 from .utils import (
     Gamow_factor,
-    VH_plus,
-    VH_minus,
+    H_plus,
+    H_minus,
     alpha,
     hbarc,
     eval_scaled_interaction,
@@ -12,12 +13,12 @@ from .utils import (
 )
 
 spec = [
-    ("l", np.int32),
-    ("mass", np.float64),
-    ("E", np.float64),
-    ("k", np.float64),
-    ("eta", np.float64),
-    ("domain", np.float64[:]),
+    ("l", int32),
+    ("mass", float64),
+    ("E", float64),
+    ("k", float64),
+    ("eta", float64),
+    ("domain", float64[:]),
 ]
 
 
