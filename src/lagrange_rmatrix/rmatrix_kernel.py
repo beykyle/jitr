@@ -55,7 +55,7 @@ class LagrangeRMatrixKernel:
 
         return eval_scaled_interaction(s, interaction, ch, args)
 
-    def nonlocal_potential(self, n, m, a, interaction, ch, args=()):
+    def nonlocal_potential(self, n, m, interaction, ch, args=()):
         """
         evaluates the (n,m)th matrix element for the given non-local interaction
         """
@@ -118,29 +118,35 @@ class LagrangeRMatrixKernel:
 
         sz = self.nbasis * self.nchannels
         C = np.zeros((sz, sz), dtype=np.cdouble)
-        # TODO only do upper triangular
         for i in range(self.nchannels):
             for j in range(self.nchannels):
                 C[
                     i * self.nbasis : i * self.nbasis + self.nbasis,
                     j * self.nbasis : j * self.nbasis + self.nbasis,
                 ] = self.single_channel_bloch_se_matrix(
-                    i, j, interaction_matrix[i, j], channel_matrix[i, j], args
+                    i, j, interaction_matrix.matrix[i, j], channel_matrix[i, j], is_local, is_symmetric, args
                 )
         return C
 
     def single_channel_bloch_se_matrix(
-        self, i, j, interaction, ch: ChannelData, args=()
+            self, i, j, interaction, ch: ChannelData, is_local : bool = True,  is_symmetric : bool = True, args=()
     ):
+        #TODO handle case of local plus non-local potential in a given channel (e.g. non-local plus coulomb)
         C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
         # Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr
         # diagonal submatrices in channel space
         # include full bloch-SE
+
+        if is_local:
+            potential = lambda n, m : self.local_potential(n,m, interaction, ch, args)
+        else:
+            potential = lambda n , m : self.nonlocal_potential(n, m, interaction, ch, args)
+
         if i == j:
             element = lambda n, m: (
+
                 self.kinetic_bloch(n, m, ch, args)
-                + self.potential(n, m, interaction, ch, args)
-                + self.coulomb_potential(n, m, interaction, ch, args)
+                + potential(n,m)
                 - (1.0 if n == m else 0.0)
             )
 
@@ -149,9 +155,17 @@ class LagrangeRMatrixKernel:
             element = lambda n, m: self.potential(n, m, interaction, ch)
 
         # build matrix for channel
-        for n in range(1, self.nbasis + 1):
-            for m in range(1, self.nbasis + 1):
-                C[n - 1, m - 1] = element(n, m)
+        if is_symmetric:
+            for n in range(1, self.nbasis + 1):
+                for m in range(n, self.nbasis + 1):
+                    C[n - 1, m - 1] = element(n, m)
+
+            C = C + (C - np.diag(C)).Ts
+
+        else:
+            for n in range(1, self.nbasis + 1):
+                for m in range(1, self.nbasis + 1):
+                    C[n - 1, m - 1] = element(n, m)
 
         return C
 
