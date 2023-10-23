@@ -1,5 +1,5 @@
 from numba.experimental import jitclass
-from numba import float64, int32
+from numba import float64, int64
 import numpy as np
 
 from .utils import (
@@ -12,8 +12,8 @@ from .utils import (
     null,
 )
 
-spec = [
-    ("l", int32),
+spec_ch = [
+    ("l", int64),
     ("mass", float64),
     ("E", float64),
     ("k", float64),
@@ -22,13 +22,13 @@ spec = [
 ]
 
 
-@jitclass(spec)
+@jitclass(spec_ch)
 class ChannelData:
     """ """
 
     def __init__(
         self,
-        l: np.int32,
+        l: np.int64,
         reduced_mass: np.float64,
         a: np.float64,
         E: np.float64,
@@ -41,18 +41,16 @@ class ChannelData:
         self.E = E
         self.k = k
         self.eta = eta
-        self.domain = np.array([1.0e-10, self.a], dtype=np.float64)
+        self.domain = np.array([1.0e-3, a], dtype=np.float64)
 
     def initial_conditions(self):
         """
         initial conditions for numerical integration in coordinate (s) space
         """
         s_0 = self.domain[0]
-        l = self.l
-        C_l = Gamow_factor(l, self.eta)
-        rho_0 = (s_0 / C_l) ** (1 / (l + 1))
-        u0 = C_l * rho_0 ** (l + 1)
-        uprime0 = C_l * (l + 1) * rho_0**l
+        C_l = Gamow_factor(self.l, self.eta)
+        u0 = C_l * s_0 ** (self.l + 1)
+        uprime0 = C_l * (self.l + 1) * s_0**self.l
         return np.array([u0 * (1 + 0j), uprime0 * (1 + 0j)])
 
     def s_grid(self, size=200):

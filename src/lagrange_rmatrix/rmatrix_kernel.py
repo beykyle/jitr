@@ -36,7 +36,6 @@ class LagrangeRMatrixKernel:
         self.nchannels = nchannels
         self.abscissa = abscissa
         self.weights = weights
-        self.I = np.identity(self.nbasis * self.nchannels)
 
     def local_potential(self, n, m, interaction, ch: ChannelData, args=()):
         """

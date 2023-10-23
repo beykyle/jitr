@@ -36,7 +36,7 @@ def regular_inverse_r(r, r_c):
     else:
         ii = np.where(r <= r_c)[0]
         jj = np.where(r > r_c)[0]
-        return np.hstack([1 / (2 * s_c) * (3 - (s[ii] / s_c) ** 2), 1 / s[jj]])
+        return np.hstack([1 / (2 * r_c) * (3 - (r[ii] / r_c) ** 2), 1 / r[jj]])
 
 
 @njit

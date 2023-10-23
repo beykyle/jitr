@@ -30,6 +30,18 @@ def block(matrix: np.array, block, block_size):
 
 @njit
 def Gamow_factor(l, eta):
+    r"""This returns the... Gamow factor.
+    See [Wikipedia](https://en.wikipedia.org/wiki/Gamow_factor).
+
+    Parameters:
+        l (int): angular momentum
+        eta (float): Sommerfeld parameter (see
+            [Wikipedia](https://en.wikipedia.org/wiki/Sommerfeld_parameter))
+
+    Returns:
+        C_l (float): Gamow factor
+
+    """
     if eta == 0.0:
         if l == 0:
             return 1

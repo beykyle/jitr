@@ -3,6 +3,7 @@ from scipy.integrate import solve_ivp
 from numba import njit
 from lagrange_rmatrix import (
     ProjectileTargetSystem,
+    InteractionMatrix,
     ChannelData,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
@@ -21,10 +22,10 @@ def interaction(r, *args):
     )
 
 
-def rmse_RK_LM(nchannels: int = 5):
+def rmse_RK_LM(nwaves: int = 5):
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, nchannels - 1, 1)
+    lgrid = np.arange(0, nwaves - 1, 1)
     egrid = np.linspace(0.01, 100, 10)
     nodes_within_radius = 5
 
@@ -32,21 +33,20 @@ def rmse_RK_LM(nchannels: int = 5):
     # so just set up a single channel system. We will set
     # incident energy and l later
     sys = ProjectileTargetSystem(
-        939,
-        np.ones(nchannels) * nodes_within_radius * (2 * np.pi),
-        incident_energy=None,
-        l=None,
+        np.array([939.0]),
+        np.array([nodes_within_radius * (2 * np.pi)]),
+        l=np.array([0]),
         Ztarget=40,
         Zproj=1,
-        nchannels=nchannels,
+        nchannels=1,
     )
 
-    # Lagrange-Mesh
-    solver_lm = LagrangeRMatrixSolver(40, 1, sys)
+    # Lagrange-Mesh solver, don't set the energy
+    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
 
     # use same interaction for all channels
     interaction_matrix = InteractionMatrix(1)
-    interaction_matrix.set_local_interaction(i, i, interaction)
+    interaction_matrix.set_local_interaction(interaction, 0,0 )
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -60,16 +60,15 @@ def rmse_RK_LM(nchannels: int = 5):
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
     for i, e in enumerate(egrid):
-        sys.incident_energy = e
-
         for l in lgrid:
             sys.l = np.array([l])
-            ch = sys.build_channels()
+            ch = sys.build_channels(e)[0]
+            a = ch.domain[1]
 
             # Runge-Kutta
             sol_rk = solve_ivp(
                 lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, ch, interaction_matrix[l], params
+                    s, y, ch, interaction_matrix.local_matrix[0,0], params
                 ),
                 ch.domain,
                 ch.initial_conditions(),
@@ -78,14 +77,15 @@ def rmse_RK_LM(nchannels: int = 5):
                 rtol=1.0e-9,
             ).sol
 
-            R_rk = sol_rk(se.a)[0] / (se.a * sol_rk(se.a)[1])
-            S_rk = smatrix(R_rk, se.a, se.l, se.eta)
-
-            # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x = solver_lm.solve(interaction_matrix, ch, params)
-            print(S_lm)
+            R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
+            S_rk = smatrix(R_rk, a, l, ch.eta)
             print(S_rk)
 
+            # Lagrange-Legendre R-Matrix
+            R_lm, S_lm, x = solver_lm.solve(interaction_matrix, ch, params, ecom=e)
+            print(S_lm)
+
+            # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
             delta_rk, atten_rk = delta(S_rk)
 

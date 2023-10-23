@@ -1,8 +1,8 @@
 from numba.experimental import jitclass
-from numba import float64, int32
+from numba import float64, int64
 import numpy as np
 
-from .utils import hbarc, c, null
+from .utils import hbarc, c, alpha, null
 from .channel import ChannelData
 
 
@@ -11,7 +11,7 @@ class InteractionMatrix:
     one for local interactions and one for nonlocal
     """
 
-    def __init__(self, nchannels: np.int32 = 1):
+    def __init__(self, nchannels: np.int64 = 1):
         r"""Initialize the InteractionMatrix
 
         Parameters:
@@ -23,28 +23,27 @@ class InteractionMatrix:
         self.nonlocal_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
 
         # initialize local interaction to 0's
-        for i in range(nchannels):
-            for j in range(nchannels):
+        for i in range(self.nchannels):
+            for j in range(self.nchannels):
                 self.local_matrix[i, j] = null
 
     def set_nonlocal_interaction(
-        interaction, i: int = 0, j: int = 0, is_symmetric=True
+        self, interaction, i: np.int64 = 0, j: np.int64 = 0, is_symmetric=True
     ):
         self.nonlocal_matrix[i, j] = interaction
         self.nonlocal_matrix_symmetric[i, j] = is_symmetric
 
-    def set_local_interaction(interaction, i: int = 0, j: int = 0):
+    def set_local_interaction(self, interaction, i: np.int64 = 0, j: np.int64 = 0):
         self.local_matrix[i, j] = interaction
 
 
 system_spec = [
-    ("incident_energy", float64),
-    ("reduced_mass", float64),
+    ("reduced_mass", float64[:]),
     ("channel_radii", float64[:]),
-    ("l", int32[:]),
+    ("l", int64[:]),
     ("Ztarget", float64),
     ("Zproj", float64),
-    ("nchannels", int32),
+    ("nchannels", int64),
     ("level_energies", float64[:]),
     ("incoming_weights", float64[:]),
 ]
@@ -54,19 +53,18 @@ system_spec = [
 class ProjectileTargetSystem:
     def __init__(
         self,
-        reduced_mass: np.float64,
+        reduced_mass: np.array,
         channel_radii: np.array,
-        incident_energy: np.float64 = None,
         l: np.array = None,
         Ztarget: np.float64 = 0,
         Zproj: np.float64 = 0,
-        nchannels: np.int32 = 1,
+        nchannels: np.int64 = 1,
         level_energies: np.array = None,
         incoming_weights: np.array = None,
     ):
-        self.incident_energy = incident_energy
         self.reduced_mass = reduced_mass
         self.channel_radii = channel_radii
+        self.l = l
         self.Ztarget = Ztarget
         self.Zproj = Zproj
         self.nchannels = nchannels
@@ -82,50 +80,41 @@ class ProjectileTargetSystem:
 
         self.incoming_weights = incoming_weights
 
-        if l is None:
-            l = np.empty(self.nchannels)
-
-        self.l = l
-
         assert channel_radii.shape == (nchannels,)
         assert l.shape == (nchannels,)
         assert level_energies.shape == (nchannels,)
         assert incoming_weights.shape == (nchannels,)
 
-    def k(self):
+    def k(self, ecom):
         r"""
         Wavenumber in each channel
         """
-        return (
-            np.sqrt(
-                2 * (self.incident_energy - self.level_energies) / self.reduced_mass
-            )
-            / hbarc
-        )
+        return np.sqrt(2 * (ecom - self.level_energies) / self.reduced_mass) / hbarc
 
-    def velocity(self):
-        return np.sqrt(2 * hbarc * self.k() / self.reduced_mass) * c
+    def velocity(self, ecom):
+        return np.sqrt(2 * hbarc * self.k(ecom) / self.reduced_mass) * c
 
-    def eta(self):
+    def eta(self, ecom):
         r"""
         Sommerfield parameter in each channel
         """
-        k = self.k()
+        k = self.k(ecom)
         return (alpha * self.Zproj * self.Ztarget) * self.reduced_mass / (hbarc * k)
 
-    def build_channels(self):
-        k = self.k()
-        eta = self.eta()
-        channels = np.empty((self.num_channels, self.num_channels), dtype=object)
-        for i in range(self.num_channels):
-            for j in range(self.num_channels):
-                ChannelData[i, j] = RadialSEChannel(
-                    l[i],
+    def build_channels(self, ecom):
+        k = self.k(ecom)
+        eta = self.eta(ecom)
+        channels = list()
+        for i in range(self.nchannels):
+            channels.append(
+                ChannelData(
+                    self.l[i],
                     self.reduced_mass,
-                    self.channel_radius[i],
-                    self.incident_energy - self.level_energies[i],
+                    self.channel_radii[i],
+                    ecom - self.level_energies[i],
                     k[i],
                     eta[i],
                 )
+            )
 
         return channels
