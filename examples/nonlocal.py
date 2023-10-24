@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from lagrange_rmatrix import (
+from jitr import (
     ProjectileTargetSystem,
     NonlocalRadialSEChannel,
     LagrangeRMatrix,

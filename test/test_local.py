@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 from numba import njit
-from lagrange_rmatrix import (
+from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
     ChannelData,

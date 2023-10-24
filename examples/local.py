@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
-from lagrange_rmatrix import (
+from jitr import (
     ProjectileTargetSystem,
     RadialSEChannel,
     LagrangeRMatrix,
