@@ -79,11 +79,9 @@ def rmse_RK_LM(nwaves: int = 5):
 
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, ch.eta)
-            print(S_rk)
 
             # Lagrange-Legendre R-Matrix
             R_lm, S_lm, x = solver_lm.solve(interaction_matrix, ch, params, ecom=e)
-            print(S_lm)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
