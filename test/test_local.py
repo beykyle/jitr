@@ -46,7 +46,7 @@ def rmse_RK_LM(nwaves: int = 5):
 
     # use same interaction for all channels
     interaction_matrix = InteractionMatrix(1)
-    interaction_matrix.set_local_interaction(interaction, 0,0 )
+    interaction_matrix.set_local_interaction(interaction, 0, 0)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -68,7 +68,7 @@ def rmse_RK_LM(nwaves: int = 5):
             # Runge-Kutta
             sol_rk = solve_ivp(
                 lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, ch, interaction_matrix.local_matrix[0,0], params
+                    s, y, ch, interaction_matrix.local_matrix[0, 0], params
                 ),
                 ch.domain,
                 ch.initial_conditions(),

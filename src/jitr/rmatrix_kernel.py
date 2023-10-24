@@ -194,7 +194,7 @@ def rmsolve_smatrix(
 
     # Eqn 15 in Descouvemont, 2016
     x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T / np.sqrt(np.outer(a,a))
+    R = x @ b.reshape(nchannels, nbasis).T / np.sqrt(np.outer(a, a))
 
     # Eqn 17 in Descouvemont, 2016
     sqrta = np.sqrt(a[:, np.newaxis])
