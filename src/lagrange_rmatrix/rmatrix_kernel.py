@@ -37,7 +37,19 @@ class LagrangeRMatrixKernel:
         self.abscissa = abscissa
         self.weights = weights
 
-    def local_potential(self, n, m, interaction, ch: ChannelData, args=()):
+    def interaction_matrix_element(
+        self, n, m, local_interaction, nonlocal_interaction, ch: ChannelData, args=()
+    ):
+        Vnm = self.local_potential_matrix_element(n, m, local_interaction, ch, args)
+        if nonlocal_interaction is not None:
+            Vnm += self.nonlocal_potential_matrix_element(
+                n, m, nonlocal_interaction, ch, args
+            )
+        return Vnm
+
+    def local_potential_matrix_element(
+        self, n, m, interaction, ch: ChannelData, args=()
+    ):
         """
         evaluates the (n,m)th matrix element for the given local interaction
         """
@@ -54,7 +66,7 @@ class LagrangeRMatrixKernel:
 
         return eval_scaled_interaction(s, interaction, ch, args)
 
-    def nonlocal_potential(self, n, m, interaction, ch, args=()):
+    def nonlocal_potential_matrix_element(self, n, m, interaction, ch, args=()):
         """
         evaluates the (n,m)th matrix element for the given non-local interaction
         """
@@ -75,7 +87,7 @@ class LagrangeRMatrixKernel:
 
         return utilde * np.sqrt(wm * wn) * a
 
-    def kinetic_bloch(self, n, m, ch):
+    def kinetic_bloch_matrix_element(self, n, m, ch):
         """
         evaluates the (n,m)th matrix element for the kinetic energy + Bloch operator
         """
@@ -108,36 +120,15 @@ class LagrangeRMatrixKernel:
                 / a**2
             )
 
-    def bloch_se_matrix(
-        self,
-        local_matrix: np.array,
-        nonlocal_matrix: np.array,
-        is_symmetric: np.array,
-        channel_matrix: np.array,
-        args=(),
-    ):
-        assert interaction_matrix.shape == channel_matrix.shape
-        assert interaction_matrix.shape[0] == interaction_matrix[1]
-        assert interaction_matrix.shape[0] == self.nchannels
+    def single_channel_free_matrix(self, ch: ChannelData):
+        C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
+        for n in range(1, self.nbasis + 1):
+            for m in range(n, self.nbasis + 1):
+                C[n - 1, m - 1] = self.kinetic_bloch_matrix_element(n, m, ch)
 
-        sz = self.nbasis * self.nchannels
-        C = np.zeros((sz, sz), dtype=np.cdouble)
-        for i in range(self.nchannels):
-            for j in range(self.nchannels):
-                C[
-                    i * self.nbasis : i * self.nbasis + self.nbasis,
-                    j * self.nbasis : j * self.nbasis + self.nbasis,
-                ] = self.single_channel_bloch_se_matrix(
-                    i,
-                    j,
-                    local_matrix.matrix[i, j],
-                    nonlocal_matrix.matrix[i, j],
-                    is_symmetric[i, j],
-                    channel_matrix[i, j],
-                    is_local,
-                    is_symmetric,
-                    args,
-                )
+        C = C + np.tril(C, k=-1).T
+        C -= np.diag(np.ones(self.nbasis))
+
         return C
 
     def single_channel_bloch_se_matrix(
@@ -150,41 +141,28 @@ class LagrangeRMatrixKernel:
         ch: ChannelData,
         args=(),
     ):
-        C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
+        if i == j:
+            C = self.single_channel_free_matrix(ch)
+        else:
+            C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
         # Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr
         # diagonal submatrices in channel space
         # include full bloch-SE
 
-        if nonlocal_interaction is None:
-            potential = lambda n, m: self.local_potential(n, m, interaction, ch, args)
-        else:
-            potential = lambda n, m: (
-                self.nonlocal_potential(n, m, nonlocal_interaction, ch, args)
-                + self.local_potential(n, m, local_interaction, ch, args)
-            )
-
-        if i == j:
-            element = lambda n, m: (
-                self.kinetic_bloch(n, m, ch, args)
-                + potential(n, m)
-                - (1.0 if n == m else 0.0)
-            )
-        else:
-            # off-diagonal terms only include coupling potentials
-            element = lambda n, m: self.potential(n, m, interaction, ch)
-
         # build matrix for channel
-        if is_symmetric:
-            for n in range(1, self.nbasis + 1):
-                for m in range(n, self.nbasis + 1):
-                    C[n - 1, m - 1] = element(n, m)
-
-            C = C + (C - np.diag(C)).Ts
-
-        else:
-            for n in range(1, self.nbasis + 1):
-                for m in range(1, self.nbasis + 1):
-                    C[n - 1, m - 1] = element(n, m)
+        for n in range(1, self.nbasis + 1):
+            for m in range(n, self.nbasis + 1):
+                Vnm = self.interaction_matrix_element(
+                    n, m, local_interaction, nonlocal_interaction, ch, args
+                )
+                if is_symmetric:
+                    Vmn = Vnm
+                else:
+                    Vmn = self.interaction_matrix_element(
+                        m, n, local_interaction, nonlocal_interaction, ch, args
+                    )
+                C[n - 1, m - 1] += Vnm
+                C[m - 1, n - 1] += Vmn
 
         return C
 
@@ -200,11 +178,12 @@ def rmsolve_smatrix(
     nbasis: np.int32,
 ):
     """
-    Returns the R-Matrix, S-matrix wavefunction coefficients, all in Lagrange-Legendre coordinates,
-    and derivative of asymptotic channel Wavefunctions evaluated at the channel radius. all as block-
-    matrices and block vectors in channel space. Uses `numpy.linalg.solve`, which should be faster
-    than alternatives (e.g. scipy) for mid-size (n<100) Hermitian matrices. Note: speed will be
-    dependent on numpy backend for linear algebra.
+    Returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients, all in Lagrange-
+    Legendre coordinates, as well as the derivative of asymptotic channel Wavefunctions evaluated
+    at the channel radius. Everything returned as block-matrices and block vectors in channel space.
+    Uses `numpy.linalg.solve`, which should be faster than alternatives (e.g. scipy) for mid-size
+    (n<100) Hermitian matrices. Note: speed will be dependent on numpy backend for linear algebra (MKL
+    general solve for n<100 is typically faster than LAPACK hermitian solve).
 
     This follows:
     Descouvemont, P. (2016).
@@ -215,20 +194,17 @@ def rmsolve_smatrix(
 
     # Eqn 15 in Descouvemont, 2016
     x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T
+    R = x @ b.reshape(nchannels, nbasis).T / np.sqrt(np.outer(a,a))
 
     # Eqn 17 in Descouvemont, 2016
-    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]) / np.sqrt(
-        a[:, np.newaxis]
-    )
-    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]) / np.sqrt(
-        a[:, np.newaxis]
-    )
+    sqrta = np.sqrt(a[:, np.newaxis])
+    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]) / sqrta
+    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]) / sqrta
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
 
     # TODO should there be a factor of k/sqrt(v) here?
-    uext_prime_asym = Hmp * incoming_weights - S @ Hpp
+    uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
 
-    return R, S, x, uext_prime_asym
+    return R, S, x, uext_prime_boundary

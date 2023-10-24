@@ -22,7 +22,6 @@ class LagrangeRMatrixSolver:
         nbasis,
         nchannels,
         sys: ProjectileTargetSystem,
-        asym=CoulombAsymptotics,
         ecom=None,
     ):
         r"""
@@ -34,9 +33,11 @@ class LagrangeRMatrixSolver:
         abscissa = 0.5 * (x + 1)
         weights = 0.5 * w
         self.kernel = LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
-        self.asym = asym
+        if sys.Zproj * sys.Ztarget > 0:
+            self.asym = CoulombAsymptotics
+        else:
+            self.asym = FreeAsymptotics
         self.sys = sys
-        self.incoming_weights = sys.incoming_weights
         self.ecom = ecom
         if ecom is not None:
             self.b, self.asym = self.precompute_asymptotics(
@@ -47,9 +48,10 @@ class LagrangeRMatrixSolver:
         # precompute asymptotic values of Lagrange-Legendre for each channel
         b = np.hstack(
             [
-                [self.f(n, i, a[i]) / a[i] for n in range(1, self.kernel.nbasis + 1)]
+                [self.f(n, i, a[i]) for n in range(1, self.kernel.nbasis + 1)]
                 for i in range(self.kernel.nchannels)
-            ]
+            ],
+            dtype=np.complex128,
         )
 
         # precompute asymoptotic wavefunction and derivartive in each channel
@@ -71,13 +73,13 @@ class LagrangeRMatrixSolver:
                 for (ai, li, etai) in zip(a, l, eta)
             ]
         )
-        asymptotics = (Hp, Hm, Hpp.Hmp)
+        asymptotics = (Hp, Hm, Hpp, Hmp)
         return b, asymptotics
 
-    def set_energy(ecom: np.float64):
+    def set_energy(self, ecom: np.float64):
         r"""update precomputed values for new energy"""
         self.ecom = ecom
-        self.b, self.asym = self.precompute_asymptotics(
+        self.b, self.boundary_asymptotic_wf = self.precompute_asymptotics(
             self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
         )
 
@@ -101,30 +103,50 @@ class LagrangeRMatrixSolver:
             / (x - xn)
         )
 
-    def solve(
+    def bloch_se_matrix(
         self,
         interaction_matrix: InteractionMatrix,
         channel_matrix: np.array,
         args=(),
+    ):
+        r"""Constructs the Bloch-Schrodinger equation in the Lagrange-Legendre basis"""
+        nb = self.kernel.nbasis
+        sz = nb * self.kernel.nchannels
+        C = np.zeros((sz, sz), dtype=np.complex128)
+        for i in range(self.kernel.nchannels):
+            for j in range(self.kernel.nchannels):
+                C[
+                    i * nb : i * nb + nb,
+                    j * nb : j * nb + nb,
+                ] = self.kernel.single_channel_bloch_se_matrix(
+                    i,
+                    j,
+                    interaction_matrix.local_matrix[i, j],
+                    interaction_matrix.nonlocal_matrix[i, j],
+                    interaction_matrix.nonlocal_symmetric[i, j],
+                    channel_matrix[i],
+                    args,
+                )
+        return C
+
+    def solve(
+        self,
+        interaction_matrix: InteractionMatrix,
+        channel_matrix: np.array,
         ecom=None,
+        args=(),
     ):
         if ecom is not None:
             self.set_energy(ecom)
 
-        local_matrix = interaction_matrix.local_matrix
-        nonlocal_matrix = interaction_matrix.nonlocal_matrix
-        nonlocal_symmetric = interaction_matrix.nonlocal_symmetric
-
-        A = self.solve(
-            local_matrix, nonlocal_matrix, is_symmetric, channel_matrix, args
-        )
+        A = self.bloch_se_matrix(interaction_matrix, channel_matrix, args=args)
 
         return rmsolve_smatrix(
             A,
             self.b,
-            self.asymptotics,
-            self.incoming_weights,
-            self.sys.a,
+            self.boundary_asymptotic_wf,
+            self.sys.incoming_weights,
+            self.sys.channel_radii,
             self.kernel.nchannels,
             self.kernel.nbasis,
         )

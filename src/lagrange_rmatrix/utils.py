@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.misc import derivative
 
 alpha = 1.0 / 137.0359991  # dimensionless fine structure constant
-hbarc = 197.3  # MeV fm
+hbarc = 197.326  # hbar*c in [MeV femtometers]
 c = 2.99792458e23  # fm/s
 
 
@@ -57,9 +57,9 @@ def Gamow_factor(l, eta):
 def second_derivative_op(s, channel, interaction, args=()):
     r"""second derivative operator of reduced, scaled radial Schrodinger equation"""
     return (
-        eval_scaled_interaction(s, interaction, channel.E, channel.k, args)
-        + channel.l * (channel.l + 1) / s**2  # orbital angular momentum
-        - 1.0  # energy term
+        eval_scaled_interaction(s, interaction, channel, args)
+        + channel.l * (channel.l + 1) / s**2
+        - 1.0
     )
 
 
@@ -99,12 +99,14 @@ class FreeAsymptotics:
 
 
 class CoulombAsymptotics:
+    @staticmethod
     def F(s, l, eta):
         """
         Coulomb function of the first kind.
         """
         return np.complex128(coulombf(l, eta, s))
 
+    @staticmethod
     def G(s, l, eta):
         """
         Coulomb function of the second kind.
@@ -145,9 +147,9 @@ def smatrix(Rl, a, l, eta, asym=CoulombAsymptotics):
     Calculates channel S-Matrix from channel R-matrix (logarithmic
     derivative of channel wavefunction at channel radius)
     """
-    return (H_minus(a, l, eta, asym) - a * Rl * H_minus_prime(a, l, eta, asym)) / (
-        H_plus(a, l, eta, asym) - a * Rl * H_plus_prime(a, l, eta, asym)
-    )
+    return (
+        H_minus(a, l, eta, asym=asym) - a * Rl * H_minus_prime(a, l, eta, asym=asym)
+    ) / (H_plus(a, l, eta, asym=asym) - a * Rl * H_plus_prime(a, l, eta, asym=asym))
 
 
 @njit
@@ -165,13 +167,13 @@ def null(args):
 
 
 @njit
-def eval_scaled_interaction(s, interaction, energy, k, args):
-    return interaction(s / k, *args) / energy
+def eval_scaled_interaction(s, interaction, ch, args):
+    return interaction(s / ch.k, *args) / ch.E
 
 
 @njit
-def eval_scaled_nolocal_interaction(s, sp, interaction, energy, k, args):
-    return interaction(s / k, sp / k, *args) / energy
+def eval_scaled_nolocal_interaction(s, sp, interaction, ch, args):
+    return interaction(s / ch.k, sp / ch.k, *args) / ch.e
 
 
 @njit

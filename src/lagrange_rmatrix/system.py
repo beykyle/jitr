@@ -89,7 +89,7 @@ class ProjectileTargetSystem:
         r"""
         Wavenumber in each channel
         """
-        return np.sqrt(2 * (ecom - self.level_energies) / self.reduced_mass) / hbarc
+        return np.sqrt(2 * (ecom - self.level_energies) * self.reduced_mass) / hbarc
 
     def velocity(self, ecom):
         return np.sqrt(2 * hbarc * self.k(ecom) / self.reduced_mass) * c
