@@ -1,4 +1,4 @@
-# This workflow will publish releases to https://pypi.org/project/lagrange-rmatrix/
+# This workflow will publish releases to https://pypi.org/project/jitr
 
 name: PyPI publish
 
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/lagrange-rmatrix/    
+      url: https://pypi.org/project/jitr/    
     permissions:
       id-token: write  
     steps:
