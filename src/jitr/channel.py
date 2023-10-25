@@ -64,10 +64,10 @@ class Wavefunction:
     outgoing Coulomb scattering wavefunctions
     """
 
-    def __init__(self, lm, coeffs, S, se, is_entrance_channel=False):
+    def __init__(self, lm, coeffs, S, ch, is_entrance_channel=False):
         self.is_entrance_channel = is_entrance_channel
         self.lm = lm
-        self.se = se
+        self.ch = ch
         self.coeffs = coeffs
         self.S = S
 
@@ -78,12 +78,12 @@ class Wavefunction:
 
     def uext(self):
         out = lambda s: np.array(
-            self.S * H_plus(s, self.se.l, self.se.eta),
+            self.S * H_plus(s, self.ch.l, self.ch.eta),
             dtype=complex,
         )
         if self.is_entrance_channel:
             return lambda s: np.array(
-                H_minus(s, self.se.l, self.se.eta) + out(s),
+                H_minus(s, self.ch.l, self.ch.eta) + out(s),
                 dtype=complex,
             )
         else:
@@ -98,5 +98,5 @@ class Wavefunction:
     def u(self):
         uint = self.uint()
         uext = self.uext()
-        ch_radius = self.se.a
+        ch_radius = self.ch.a
         return lambda s: np.where(s < ch_radius, uint(s), uext(s))

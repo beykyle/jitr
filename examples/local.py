@@ -6,6 +6,7 @@ from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
     ChannelData,
+    Wavefunction,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
     coulomb_charged_sphere,
@@ -24,6 +25,9 @@ def interaction(r, *params):
 
 
 def channel_radius_dependence_test():
+    E = 14.1
+    nodes_within_radius = 5
+
     # Potential parameters
     V0 = 60  # real potential strength
     W0 = 20  # imag potential strength
@@ -36,7 +40,6 @@ def channel_radius_dependence_test():
 
     ints = InteractionMatrix(1)
     ints.set_local_interaction(woods_saxon_potential)
-    solver = LagrangeRMatrix(40, 1, sys, ecom=35)
 
     for i, a in enumerate(a_grid):
         sys = ProjectileTargetSystem(
@@ -44,7 +47,8 @@ def channel_radius_dependence_test():
             channel_radius=np.array([a]),
             l=np.array([0]),
         )
-        channels = sys.build_channels()
+        solver = LagrangeRMatrixSolver(40, 1, sys, ecom=E)
+        channels = sys.build_channels(E)
         R, S, _, _ = solver.solve(ints, channels)
         delta, atten = delta(S)
         delta_grid[i] = delta + 1.0j * atten
@@ -89,8 +93,8 @@ def local_interaction_example():
 
     # Runge-Kutta
     sol_rk = solve_ivp(
-        lambda s, y,: utils.schrodinger_eqn_ivp_order1(
-            s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
+        lambda s, y,: schrodinger_eqn_ivp_order1(
+            s, y, ch[0], ints.local_matrix[0, 0], params
         ),
         ch[0].domain,
         ch[0].initial_conditions(),
@@ -98,12 +102,14 @@ def local_interaction_example():
         atol=1.0e-12,
         rtol=1.0e-12,
     ).sol
+    a = ch[0].domain[1]
     u_rk = sol_rk(s_values)[0]
-    R_rk = sol_rk(se.a)[0] / (se.a * sol_rk(se.a)[1])
-    S_rk = smatrix(R_rk, se.a, se.l, se.eta)
+    R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
+    S_rk = smatrix(R_rk, a, ch[0].l, ch[0].eta)
 
-    R_lm, S_lm, u_lm = solver_lm.solve_wavefunction()
+    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve_wavefunction()
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
+    u_lm = Wavefunction(solver, x, S_lm, ch[0], is_entrance_channel=True)
     u_lm = u_lm(r_values)
 
     delta_lm, atten_lm = delta(S_lm)
@@ -159,8 +165,8 @@ def rmse_RK_LM():
     solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
 
     # use same interaction for all channels
-    interaction_matrix = InteractionMatrix(1)
-    interaction_matrix.set_local_interaction(interaction, 0, 0)
+    ints = InteractionMatrix(1)
+    ints.set_local_interaction(interaction, 0, 0)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -182,7 +188,7 @@ def rmse_RK_LM():
             # Runge-Kutta
             sol_rk = solve_ivp(
                 lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
+                    s, y, ch[0], ints.local_matrix[0, 0], params
                 ),
                 ch[0].domain,
                 ch[0].initial_conditions(),
@@ -196,7 +202,7 @@ def rmse_RK_LM():
 
             # Lagrange-Legendre R-Matrix
             R_lm, S_lm, x, uext_boundary = solver_lm.solve(
-                interaction_matrix, ch, args=params, ecom=e
+                ints, ch, args=params, ecom=e
             )
 
             # comparison between solvers
