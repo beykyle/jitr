@@ -58,7 +58,10 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
         Hm = np.array(
-            [H_minus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
+            [
+                H_minus(ai, li, etai, asym=self.asym)
+                for (ai, li, etai) in zip(a, l, eta)
+            ],
             dtype=np.complex128,
         )
         Hpp = np.array(

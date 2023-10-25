@@ -145,7 +145,7 @@ class LagrangeRMatrixKernel:
         ch: ChannelData,
         args=(),
     ):
-        r""" Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal submatrices
+        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal submatrices
         in channel space include full bloch-SE.
         """
         # get Free matrix
@@ -171,7 +171,7 @@ class LagrangeRMatrixKernel:
         else:
             # calculate lower tri matrix elements
             for n in range(1, self.nbasis + 1):
-                for m in range(n+1, self.nbasis + 1):
+                for m in range(n + 1, self.nbasis + 1):
                     Vmn = self.interaction_matrix_element(
                         m, n, local_interaction, nonlocal_interaction, ch, args
                     )
@@ -211,8 +211,8 @@ def rmsolve_smatrix(
     R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
 
     # Eqn 17 in Descouvemont, 2016
-    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis])
-    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis])
+    Zp = Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
+    Zm = Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
