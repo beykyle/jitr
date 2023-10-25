@@ -89,7 +89,7 @@ def local_interaction_example():
     ints.set_local_interaction(interaction)
 
     s_values = np.linspace(0.01, sys.channel_radius, 200)
-    r_values = s_values / channels[0].k
+    r_values = s_values / ch[0].k
 
     # Runge-Kutta
     sol_rk = solve_ivp(
