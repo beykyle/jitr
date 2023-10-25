@@ -78,12 +78,12 @@ class Wavefunction:
 
     def uext(self):
         out = lambda s: np.array(
-            self.S * VH_plus(s, self.se.l, self.se.eta),
+            self.S * H_plus(s, self.se.l, self.se.eta),
             dtype=complex,
         )
         if self.is_entrance_channel:
             return lambda s: np.array(
-                VH_minus(s, self.se.l, self.se.eta) + out(s),
+                H_minus(s, self.se.l, self.se.eta) + out(s),
                 dtype=complex,
             )
         else:
