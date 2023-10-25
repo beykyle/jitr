@@ -40,9 +40,7 @@ class LagrangeRMatrixSolver:
         self.sys = sys
         self.ecom = ecom
         if ecom is not None:
-            self.b, self.asym = self.precompute_asymptotics(
-                self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
-            )
+            self.set_energy(ecom)
 
     def precompute_asymptotics(self, a, l, eta):
         # precompute asymptotic values of Lagrange-Legendre for each channel
@@ -56,22 +54,26 @@ class LagrangeRMatrixSolver:
 
         # precompute asymoptotic wavefunction and derivartive in each channel
         Hp = np.array(
-            [H_plus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)]
+            [H_plus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
+            dtype=np.complex128,
         )
         Hm = np.array(
-            [H_minus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)]
+            [H_minus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
+            dtype=np.complex128,
         )
         Hpp = np.array(
             [
                 H_plus_prime(ai, li, etai, asym=self.asym)
                 for (ai, li, etai) in zip(a, l, eta)
-            ]
+            ],
+            dtype=np.complex128,
         )
         Hmp = np.array(
             [
                 H_minus_prime(ai, li, etai, asym=self.asym)
                 for (ai, li, etai) in zip(a, l, eta)
-            ]
+            ],
+            dtype=np.complex128,
         )
         asymptotics = (Hp, Hm, Hpp, Hmp)
         return b, asymptotics

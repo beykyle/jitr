@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.misc import derivative
 
 alpha = 1.0 / 137.0359991  # dimensionless fine structure constant
-hbarc = 197.326  # hbar*c in [MeV femtometers]
+hbarc = 197.3269804 # hbar*c in [MeV femtometers]
 c = 2.99792458e23  # fm/s
 
 
@@ -95,7 +95,7 @@ class FreeAsymptotics:
         """
         Bessel function of the second kind.
         """
-        return -s * sc.spherical_jn(l, s)
+        return -s * sc.spherical_yn(l, s)
 
 
 class CoulombAsymptotics:
@@ -172,7 +172,7 @@ def eval_scaled_interaction(s, interaction, ch, args):
 
 
 @njit
-def eval_scaled_nolocal_interaction(s, sp, interaction, ch, args):
+def eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args):
     return interaction(s / ch.k, sp / ch.k, *args) / ch.e
 
 

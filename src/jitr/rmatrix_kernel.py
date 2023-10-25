@@ -4,7 +4,7 @@ from numba import int32, float64, njit
 
 from .system import InteractionMatrix
 from .channel import ChannelData
-from .utils import eval_scaled_interaction, eval_scaled_nolocal_interaction, block
+from .utils import eval_scaled_interaction, eval_scaled_nonlocal_interaction, block
 
 
 spec = [
@@ -83,7 +83,7 @@ class LagrangeRMatrixKernel:
         s = xn * a
         sp = xm * a
 
-        utilde = eval_scaled_nolocal_interaction(s, sp, interaction, ch, args)
+        utilde = eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args)
 
         return utilde * np.sqrt(wm * wn) * a
 
@@ -121,15 +121,19 @@ class LagrangeRMatrixKernel:
             )
 
     def single_channel_free_matrix(self, ch: ChannelData):
-        C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
+        r"""
+        Returns the Free Bloch-Schroedinger equation in Lagrange-Legendre coordinates as
+        an upper-triangular matrix (the full matrix is symmetric).
+        """
+        F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
-                C[n - 1, m - 1] = self.kinetic_bloch_matrix_element(n, m, ch)
+                F[n - 1, m - 1] = self.kinetic_bloch_matrix_element(n, m, ch)
 
-        C = C + np.tril(C, k=-1).T
-        C -= np.diag(np.ones(self.nbasis))
+        F -= np.diag(np.ones(self.nbasis))
+        F = F + np.triu(F, k=1).T
 
-        return C
+        return F
 
     def single_channel_bloch_se_matrix(
         self,
@@ -141,30 +145,40 @@ class LagrangeRMatrixKernel:
         ch: ChannelData,
         args=(),
     ):
+        r""" Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal submatrices
+        in channel space include full bloch-SE.
+        """
+        # get Free matrix
         if i == j:
-            C = self.single_channel_free_matrix(ch)
+            F = self.single_channel_free_matrix(ch)
         else:
-            C = np.zeros((self.nbasis, self.nbasis), dtype=np.cdouble)
-        # Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr
-        # diagonal submatrices in channel space
-        # include full bloch-SE
+            F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
 
-        # build matrix for channel
+        # calculate interaction matrix
+        V = np.zeros_like(F, dtype=np.complex128)
+
+        # calculate each upper tri interaction matrix elem for channel
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
                 Vnm = self.interaction_matrix_element(
                     n, m, local_interaction, nonlocal_interaction, ch, args
                 )
-                if is_symmetric:
-                    Vmn = Vnm
-                else:
+                V[n - 1, m - 1] = Vnm
+
+        if is_symmetric:
+            # copy upper tri to lower
+            V = V + np.triu(V, k=1).T
+        else:
+            # calculate lower tri matrix elements
+            for n in range(1, self.nbasis + 1):
+                for m in range(n+1, self.nbasis + 1):
                     Vmn = self.interaction_matrix_element(
                         m, n, local_interaction, nonlocal_interaction, ch, args
                     )
-                C[n - 1, m - 1] += Vnm
-                C[m - 1, n - 1] += Vmn
+                    V[m - 1, n - 1] = Vmn
 
-        return C
+        # sum free and potential matrices
+        return V + F
 
 
 @njit
@@ -194,12 +208,11 @@ def rmsolve_smatrix(
 
     # Eqn 15 in Descouvemont, 2016
     x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T / np.sqrt(np.outer(a, a))
+    R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
 
     # Eqn 17 in Descouvemont, 2016
-    sqrta = np.sqrt(a[:, np.newaxis])
-    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]) / sqrta
-    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]) / sqrta
+    Zp = (Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis])
+    Zm = (Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis])
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
