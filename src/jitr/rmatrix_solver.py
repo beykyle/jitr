@@ -23,6 +23,7 @@ class LagrangeRMatrixSolver:
         nchannels,
         sys: ProjectileTargetSystem,
         ecom=None,
+        channel_matrix=None,
     ):
         r"""
         Parameters:
@@ -41,6 +42,10 @@ class LagrangeRMatrixSolver:
         self.ecom = ecom
         if ecom is not None:
             self.set_energy(ecom)
+
+        self.free_matrices = None
+        if channel_matrix is not None:
+            self.free_matrices = self.precompute_free_matrices(channel_matrix)
 
     def precompute_asymptotics(self, a, l, eta):
         # precompute asymptotic values of Lagrange-Legendre for each channel
@@ -81,6 +86,15 @@ class LagrangeRMatrixSolver:
         asymptotics = (Hp, Hm, Hpp, Hmp)
         return b, asymptotics
 
+    def precompute_free_matrices(self, channel_matrix: np.array):
+        nb = self.kernel.nbasis
+        sz = nb * self.kernel.nchannels
+        self.free_matrices = []
+        for i in range(self.kernel.nchannels):
+            self.free_matrices.append(
+                self.kernel.single_channel_free_matrices(channel_matrix[i])
+            )
+
     def set_energy(self, ecom: np.float64):
         r"""update precomputed values for new energy"""
         self.ecom = ecom
@@ -119,10 +133,10 @@ class LagrangeRMatrixSolver:
         sz = nb * self.kernel.nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(self.kernel.nchannels):
+            fi = None if self.free_matrices is None else self.free_matrices[i]
             for j in range(self.kernel.nchannels):
                 C[
-                    i * nb : i * nb + nb,
-                    j * nb : j * nb + nb,
+                    i * nb : i * nb + nb, j * nb : j * nb + nb
                 ] = self.kernel.single_channel_bloch_se_matrix(
                     i,
                     j,
@@ -130,6 +144,7 @@ class LagrangeRMatrixSolver:
                     interaction_matrix.nonlocal_matrix[i, j],
                     interaction_matrix.nonlocal_symmetric[i, j],
                     channel_matrix[i],
+                    fi,
                     args,
                 )
         return C

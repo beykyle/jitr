@@ -143,14 +143,19 @@ class LagrangeRMatrixKernel:
         nonlocal_interaction,
         is_symmetric,
         ch: ChannelData,
+        free_matrix: np.array = None,
         args=(),
     ):
-        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal submatrices
-        in channel space include full bloch-SE.
+        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal
+        submatrices in channel space include full bloch-SE.
         """
-        # get Free matrix
+        # Free matrix (Kinetic and Bloch terms) is only nonzero on channel diagonal
         if i == j:
-            F = self.single_channel_free_matrix(ch)
+            # if channel free matrix has been precomputed for us, use it; otherwise calculate
+            if free_matrix is not None:
+                F = free_matrix
+            else:
+                F = self.single_channel_free_matrix(ch)
         else:
             F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
 
