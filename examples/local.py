@@ -50,8 +50,8 @@ def channel_radius_dependence_test():
         solver = LagrangeRMatrixSolver(40, 1, sys, ecom=E)
         channels = sys.build_channels(E)
         R, S, _, _ = solver.solve(ints, channels)
-        delta, atten = delta(S)
-        delta_grid[i] = delta + 1.0j * atten
+        deltaa, attena = delta(S)
+        delta_grid[i] = deltaa + 1.0j * attena
 
     plt.plot(a_grid, np.real(delta_grid), label=r"$\mathfrak{Re}\,\delta_l$")
     plt.plot(a_grid, np.imag(delta_grid), label=r"$\mathfrak{Im}\,\delta_l$")
@@ -76,7 +76,7 @@ def local_interaction_example():
     ch = sys.build_channels(E)
 
     # Lagrange-Mesh
-    solver_lm = LagrangeRMatrix(40, 1, sys, ecom=E)
+    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=E)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -109,7 +109,7 @@ def local_interaction_example():
 
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve_wavefunction()
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
-    u_lm = Wavefunction(solver, x, S_lm, ch[0], is_entrance_channel=True)
+    u_lm = Wavefunction(solver_lm, x, S_lm, ch[0], is_entrance_channel=True)
     u_lm = u_lm(r_values)
 
     delta_lm, atten_lm = delta(S_lm)
@@ -118,7 +118,7 @@ def local_interaction_example():
     # normalization and phase matching
     u_rk = u_rk * np.max(np.real(u_lm)) / np.max(np.real(u_rk)) * (-1j)
 
-    print(f"k: {se.k}")
+    print(f"k: {ch[0].k}")
     print(f"R-Matrix RK: {R_rk:.3e}")
     print(f"R-Matrix LM: {R_lm:.3e}")
     # print(f"R-Matrix LMp: {R_lmp:.3e}")
@@ -137,7 +137,7 @@ def local_interaction_example():
 
     plt.legend()
     plt.xlabel(r"$r$ [fm]")
-    plt.ylabel(r"$u_{%d} (r) $ [a.u.]" % se.l)
+    plt.ylabel(r"$u_{%d} (r) $ [a.u.]" % ch[0].l)
     plt.tight_layout()
     plt.show()
 
@@ -145,7 +145,7 @@ def local_interaction_example():
 def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, nwaves - 1, 1)
+    lgrid = np.arange(0, 6 - 1, 1)
     egrid = np.linspace(0.01, 100, 10)
     nodes_within_radius = 5
 
