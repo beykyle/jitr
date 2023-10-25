@@ -2,15 +2,25 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 from numba import njit
-import jitr
+from jitr import (
+    ProjectileTargetSystem,
+    InteractionMatrix,
+    ChannelData,
+    LagrangeRMatrixSolver,
+    woods_saxon_potential,
+    coulomb_charged_sphere,
+    delta,
+    smatrix,
+    schrodinger_eqn_ivp_order1,
+)
 
 
 @njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
-    return jitr.woods_saxon_potential(
+    return woods_saxon_potential(
         r, (V0, W0, R0, a0)
-    ) + jitr.coulomb_charged_sphere(r, zz, RC)
+    ) + coulomb_charged_sphere(r, zz, RC)
 
 
 def channel_radius_dependence_test():
@@ -24,19 +34,19 @@ def channel_radius_dependence_test():
     a_grid = np.linspace(10, 30, 50)
     delta_grid = np.zeros_like(a_grid, dtype=complex)
 
-    ints = jitr.InteractionMatrix(1)
-    ints.set_local_interaction(jitr.woods_saxon_potential)
+    ints = InteractionMatrix(1)
+    ints.set_local_interaction(woods_saxon_potential)
     solver = LagrangeRMatrix(40, 1, sys, ecom=35)
 
     for i, a in enumerate(a_grid):
-        sys = jitr.ProjectileTargetSystem(
+        sys = ProjectileTargetSystem(
             reduced_mass=np.array([939]),
             channel_radius=np.array([a]),
             l=np.array([0]),
         )
         channels = sys.build_channels()
         R, S, _, _ = solver.solve(ints, channels)
-        delta, atten = jitr.delta(S)
+        delta, atten = delta(S)
         delta_grid[i] = delta + 1.0j * atten
 
     plt.plot(a_grid, np.real(delta_grid), label=r"$\mathfrak{Re}\,\delta_l$")
@@ -51,7 +61,7 @@ def local_interaction_example():
     E = 14.1
     nodes_within_radius = 5
 
-    sys = jitr.ProjectileTargetSystem(
+    sys = ProjectileTargetSystem(
         reduced_mass=np.array([939]),
         channel_radius=np.array([nodes_within_radius * (2 * np.pi)]),
         l=np.array([1]),
@@ -71,7 +81,7 @@ def local_interaction_example():
     a0 = 0.5  # Woods-Saxon potential diffuseness
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
 
-    ints = jitr.InteractionMatrix(1)
+    ints = InteractionMatrix(1)
     ints.set_local_interaction(interaction)
 
     s_values = np.linspace(0.01, sys.channel_radius, 200)
@@ -79,7 +89,7 @@ def local_interaction_example():
 
     # Runge-Kutta
     sol_rk = solve_ivp(
-        lambda s, y,: jitr.utils.schrodinger_eqn_ivp_order1(
+        lambda s, y,: utils.schrodinger_eqn_ivp_order1(
             s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
         ),
         ch[0].domain,
