@@ -1,17 +1,13 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
-from jitr import (
-    ProjectileTargetSystem,
-    RadialSEChannel,
-    LagrangeRMatrix,
-    woods_saxon_potential,
-    coulomb_potential,
-    delta,
-    smatrix,
-    schrodinger_eqn_ivp_order1,
-)
+from numba import njit
+import jitr
 
+@njit
+def interaction(r, *params):
+    (V0, W0, R0, a0, zz, RC) = params
+    return jitr.woods_saxon_potential(r, (V0, W0, R0, a0)) + jitr.coulomb_charged_sphere(r, zz, RC)
 
 def channel_radius_dependence_test():
     # Potential parameters
@@ -24,23 +20,20 @@ def channel_radius_dependence_test():
     a_grid = np.linspace(10, 30, 50)
     delta_grid = np.zeros_like(a_grid, dtype=complex)
 
+    ints = jitr.InteractionMatrix(1)
+    ints.set_local_interaction(jitr.woods_saxon_potential)
+    solver = LagrangeRMatrix(40, 1, sys, ecom=35)
+
     for i, a in enumerate(a_grid):
-        sys = ProjectileTargetSystem(
-            incident_energy=50, reduced_mass=939, channel_radius=a, Ztarget=60, Zproj=0
+        sys = jitr.ProjectileTargetSystem(
+            reduced_mass=np.array([939]),
+            channel_radius=np.array([a]),
+            l=np.array([0]),
         )
-
-        se = RadialSEChannel(
-            l=0,
-            system=sys,
-            interaction=lambda r: woods_saxon_potential(r, params),
-        )
-
-        solver_lm = LagrangeRMatrix(40, sys, se)
-
-        R_lm, S_lm, G = solver_lm.solve()
-        delta_lm, atten_lm = delta(S_lm)
-
-        delta_grid[i] = delta_lm + 1.0j * atten_lm
+        channels = sys.build_channels()
+        R, S, _, _ = solver.solve(ints, channels)
+        delta, atten = jitr.delta(S)
+        delta_grid[i] = delta + 1.0j * atten
 
     plt.plot(a_grid, np.real(delta_grid), label=r"$\mathfrak{Re}\,\delta_l$")
     plt.plot(a_grid, np.imag(delta_grid), label=r"$\mathfrak{Im}\,\delta_l$")
@@ -51,49 +44,50 @@ def channel_radius_dependence_test():
 
 
 def local_interaction_example():
+    E = 14.1
+    nodes_within_radius = 5
+
+    sys = jitr.ProjectileTargetSystem(
+        reduced_mass=np.array([939]),
+        channel_radius=np.array([nodes_within_radius * (2 * np.pi)]),
+        l=np.array([1]),
+        Ztarget=40,
+        Zproj=1,
+    )
+
+    ch = sys.build_channels(E)
+
+    # Lagrange-Mesh
+    solver_lm = LagrangeRMatrix(40, 1, sys, ecom=E)
+
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
     W0 = 20  # imag potential strength
     R0 = 4  # Woods-Saxon potential radius
     a0 = 0.5  # Woods-Saxon potential diffuseness
-    params = (V0, W0, R0, a0)
+    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
 
-    nodes_within_radius = 5
-
-    sys = ProjectileTargetSystem(
-        incident_energy=20,
-        reduced_mass=939,
-        channel_radius=nodes_within_radius * (2 * np.pi),
-        Ztarget=40,
-        Zproj=1,
-    )
-
-    se = RadialSEChannel(
-        l=1,
-        system=sys,
-        interaction=lambda r: woods_saxon_potential(r, params),
-        coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(zz, r, R0),
-    )
+    ints = jitr.InteractionMatrix(1)
+    ints.set_local_interaction(interaction)
 
     s_values = np.linspace(0.01, sys.channel_radius, 200)
-    r_values = s_values / se.k
+    r_values = s_values / channels[0].k
 
     # Runge-Kutta
     sol_rk = solve_ivp(
-        lambda s, y,: schrodinger_eqn_ivp_order1(s, y, se),
-        se.domain,
-        se.initial_conditions(),
+        lambda s, y,: jitr.utils.schrodinger_eqn_ivp_order1(
+            s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
+        ),
+        ch[0].domain,
+        ch[0].initial_conditions(),
         dense_output=True,
         atol=1.0e-12,
-        rtol=1.0e-9,
+        rtol=1.0e-12,
     ).sol
-
     u_rk = sol_rk(s_values)[0]
     R_rk = sol_rk(se.a)[0] / (se.a * sol_rk(se.a)[1])
     S_rk = smatrix(R_rk, se.a, se.l, se.eta)
 
-    # Lagrange-Mesh
-    solver_lm = LagrangeRMatrix(40, sys, se)
 
     R_lm, S_lm, u_lm = solver_lm.solve_wavefunction()
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
@@ -130,57 +124,69 @@ def local_interaction_example():
 
 
 def rmse_RK_LM():
+    r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
+
+    lgrid = np.arange(0, nwaves - 1, 1)
+    egrid = np.linspace(0.01, 100, 10)
+    nodes_within_radius = 5
+
+    # channels are the same except for l and uncoupled
+    # so just set up a single channel system. We will set
+    # incident energy and l later
+    sys = ProjectileTargetSystem(
+        np.array([939.0]),
+        np.array([nodes_within_radius * (2 * np.pi)]),
+        l=np.array([0]),
+        Ztarget=40,
+        Zproj=1,
+        nchannels=1,
+    )
+
+    # Lagrange-Mesh solver, don't set the energy
+    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
+
+    # use same interaction for all channels
+    interaction_matrix = InteractionMatrix(1)
+    interaction_matrix.set_local_interaction(interaction, 0, 0)
+
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
     W0 = 20  # imag potential strength
     R0 = 4  # Woods-Saxon potential radius
     a0 = 0.5  # Woods-Saxon potential diffuseness
-    params = (V0, W0, R0, a0)
+    RC = R0  # Coulomb cutoff
 
-    nodes_within_radius = 5
-
-    lgrid = np.arange(0, 10)
-    egrid = np.linspace(0.01, 100, 100)
+    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
-    for l in lgrid:
-        for i, e in enumerate(egrid):
-            sys = ProjectileTargetSystem(
-                incident_energy=e,
-                reduced_mass=939,
-                channel_radius=nodes_within_radius * (2 * np.pi),
-                Ztarget=40,
-                Zproj=1,
-            )
-
-            se = RadialSEChannel(
-                l=l,
-                system=sys,
-                interaction=lambda r: woods_saxon_potential(r, params),
-                coulomb_interaction=lambda zz, r: np.vectorize(coulomb_potential)(
-                    zz, r, R0
-                ),
-            )
+    for i, e in enumerate(egrid):
+        for l in lgrid:
+            sys.l = np.array([l])
+            ch = sys.build_channels(e)
+            a = ch[0].domain[1]
 
             # Runge-Kutta
             sol_rk = solve_ivp(
-                lambda s, y,: schrodinger_eqn_ivp_order1(s, y, se),
-                se.domain,
-                se.initial_conditions(),
+                lambda s, y,: schrodinger_eqn_ivp_order1(
+                    s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
+                ),
+                ch[0].domain,
+                ch[0].initial_conditions(),
                 dense_output=True,
                 atol=1.0e-12,
                 rtol=1.0e-9,
             ).sol
 
-            R_rk = sol_rk(se.a)[0] / (se.a * sol_rk(se.a)[1])
-            S_rk = smatrix(R_rk, se.a, se.l, se.eta)
+            R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
+            S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
-            # Lagrange-Mesh
-            solver_lm = LagrangeRMatrix(40, sys, se)
+            # Lagrange-Legendre R-Matrix
+            R_lm, S_lm, x, uext_boundary = solver_lm.solve(
+                interaction_matrix, ch, args=params, ecom=e
+            )
 
-            R_lm, S_lm, _ = solver_lm.solve()
-
+            # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
             delta_rk, atten_rk = delta(S_rk)
 
@@ -217,4 +223,4 @@ def rmse_RK_LM():
 if __name__ == "__main__":
     channel_radius_dependence_test()
     local_interaction_example()
-    # rmse_RK_LM()
+    rmse_RK_LM()
