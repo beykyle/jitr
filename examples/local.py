@@ -4,10 +4,14 @@ from scipy.integrate import solve_ivp
 from numba import njit
 import jitr
 
+
 @njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
-    return jitr.woods_saxon_potential(r, (V0, W0, R0, a0)) + jitr.coulomb_charged_sphere(r, zz, RC)
+    return jitr.woods_saxon_potential(
+        r, (V0, W0, R0, a0)
+    ) + jitr.coulomb_charged_sphere(r, zz, RC)
+
 
 def channel_radius_dependence_test():
     # Potential parameters
@@ -87,7 +91,6 @@ def local_interaction_example():
     u_rk = sol_rk(s_values)[0]
     R_rk = sol_rk(se.a)[0] / (se.a * sol_rk(se.a)[1])
     S_rk = smatrix(R_rk, se.a, se.l, se.eta)
-
 
     R_lm, S_lm, u_lm = solver_lm.solve_wavefunction()
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
