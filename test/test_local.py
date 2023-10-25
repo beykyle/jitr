@@ -81,7 +81,9 @@ def rmse_RK_LM(nwaves: int = 5):
             S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x, uext_boundary = solver_lm.solve(interaction_matrix, ch, args=params, ecom=e)
+            R_lm, S_lm, x, uext_boundary = solver_lm.solve(
+                interaction_matrix, ch, args=params, ecom=e
+            )
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
