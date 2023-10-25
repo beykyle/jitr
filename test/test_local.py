@@ -62,26 +62,26 @@ def rmse_RK_LM(nwaves: int = 5):
     for i, e in enumerate(egrid):
         for l in lgrid:
             sys.l = np.array([l])
-            ch = sys.build_channels(e)[0]
-            a = ch.domain[1]
+            ch = sys.build_channels(e)
+            a = ch[0].domain[1]
 
             # Runge-Kutta
             sol_rk = solve_ivp(
                 lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, ch, interaction_matrix.local_matrix[0, 0], params
+                    s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
                 ),
-                ch.domain,
-                ch.initial_conditions(),
+                ch[0].domain,
+                ch[0].initial_conditions(),
                 dense_output=True,
                 atol=1.0e-12,
                 rtol=1.0e-9,
             ).sol
 
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-            S_rk = smatrix(R_rk, a, l, ch.eta)
+            S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x = solver_lm.solve(interaction_matrix, ch, params, ecom=e)
+            R_lm, S_lm, x, uext_boundary = solver_lm.solve(interaction_matrix, ch, args=params, ecom=e)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
