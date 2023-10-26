@@ -57,7 +57,7 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-        # precompute asymoptotic wavefunction and derivartive in each channel
+        # precompute asymoptotic wavefunction and derivative in each channel
         Hp = np.array(
             [H_plus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
             dtype=np.complex128,
