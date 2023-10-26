@@ -13,7 +13,7 @@ from .utils import (
     H_minus_prime,
 )
 from .system import ProjectileTargetSystem, InteractionMatrix
-from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix
+from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix, rmsolve_wavefunction
 
 
 class LagrangeRMatrixSolver:
@@ -92,7 +92,7 @@ class LagrangeRMatrixSolver:
         self.free_matrices = []
         for i in range(self.kernel.nchannels):
             self.free_matrices.append(
-                self.kernel.single_channel_free_matrices(channel_matrix[i])
+                self.kernel.single_channel_free_matrix(channel_matrix[i])
             )
 
     def set_energy(self, ecom: np.float64):
@@ -126,7 +126,6 @@ class LagrangeRMatrixSolver:
         self,
         interaction_matrix: InteractionMatrix,
         channel_matrix: np.array,
-        args=(),
     ):
         r"""Constructs the Bloch-Schrodinger equation in the Lagrange-Legendre basis"""
         nb = self.kernel.nbasis
@@ -135,6 +134,8 @@ class LagrangeRMatrixSolver:
         for i in range(self.kernel.nchannels):
             fi = None if self.free_matrices is None else self.free_matrices[i]
             for j in range(self.kernel.nchannels):
+                args_local = interaction_matrix.local_args[i, j]
+                args_nonlocal = interaction_matrix.nonlocal_args[i, j]
                 C[
                     i * nb : i * nb + nb, j * nb : j * nb + nb
                 ] = self.kernel.single_channel_bloch_se_matrix(
@@ -145,7 +146,8 @@ class LagrangeRMatrixSolver:
                     interaction_matrix.nonlocal_symmetric[i, j],
                     channel_matrix[i],
                     fi,
-                    args,
+                    args_local,
+                    args_nonlocal,
                 )
         return C
 
@@ -154,19 +156,35 @@ class LagrangeRMatrixSolver:
         interaction_matrix: InteractionMatrix,
         channel_matrix: np.array,
         ecom=None,
-        args=(),
+        wavefunction=False,
     ):
         if ecom is not None:
+            self.ecom = ecom
             self.set_energy(ecom)
 
-        A = self.bloch_se_matrix(interaction_matrix, channel_matrix, args=args)
+        # either an ecom must be passed in, or the asymptotics must
+        # have been pre-computed at some point using set_energy
+        assert self.ecom is not None
 
-        return rmsolve_smatrix(
-            A,
-            self.b,
-            self.boundary_asymptotic_wf,
-            self.sys.incoming_weights,
-            self.sys.channel_radii,
-            self.kernel.nchannels,
-            self.kernel.nbasis,
-        )
+        A = self.bloch_se_matrix(interaction_matrix, channel_matrix)
+
+        if not wavefunction:
+            return rmsolve_smatrix(
+                A,
+                self.b,
+                self.boundary_asymptotic_wf,
+                self.sys.incoming_weights,
+                self.sys.channel_radii,
+                self.kernel.nchannels,
+                self.kernel.nbasis,
+            )
+        else:
+            return rmsolve_wavefunction(
+                A,
+                self.b,
+                self.boundary_asymptotic_wf,
+                self.sys.incoming_weights,
+                self.sys.channel_radii,
+                self.kernel.nchannels,
+                self.kernel.nbasis,
+            )

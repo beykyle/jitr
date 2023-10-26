@@ -162,7 +162,7 @@ def delta(Sl):
 
 
 @njit
-def null(args):
+def null(*args):
     return 0.0
 
 
@@ -173,7 +173,7 @@ def eval_scaled_interaction(s, interaction, ch, args):
 
 @njit
 def eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args):
-    return interaction(s / ch.k, sp / ch.k, *args) / ch.e
+    return interaction(s / ch.k, sp / ch.k, *args) / ch.E
 
 
 @njit

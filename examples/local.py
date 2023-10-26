@@ -6,7 +6,7 @@ from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
     ChannelData,
-    Wavefunction,
+    Wavefunctions,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
     coulomb_charged_sphere,
@@ -19,9 +19,7 @@ from jitr import (
 @njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
-    return woods_saxon_potential(r, (V0, W0, R0, a0)) + coulomb_charged_sphere(
-        r, zz, RC
-    )
+    return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
 
 
 def channel_radius_dependence_test():
@@ -39,17 +37,17 @@ def channel_radius_dependence_test():
     delta_grid = np.zeros_like(a_grid, dtype=complex)
 
     ints = InteractionMatrix(1)
-    ints.set_local_interaction(woods_saxon_potential)
+    ints.set_local_interaction(woods_saxon_potential, args=params)
 
     for i, a in enumerate(a_grid):
         sys = ProjectileTargetSystem(
-            reduced_mass=np.array([939]),
-            channel_radius=np.array([a]),
+            reduced_mass=np.array([939.0], dtype=np.float64),
+            channel_radii=np.array([a]),
             l=np.array([0]),
         )
-        solver = LagrangeRMatrixSolver(40, 1, sys, ecom=E)
         channels = sys.build_channels(E)
-        R, S, _, _ = solver.solve(ints, channels)
+        solver = LagrangeRMatrixSolver(40, 1, sys, E, channels)
+        R, S, _ = solver.solve(ints, channels)
         deltaa, attena = delta(S)
         delta_grid[i] = deltaa + 1.0j * attena
 
@@ -66,8 +64,8 @@ def local_interaction_example():
     nodes_within_radius = 5
 
     sys = ProjectileTargetSystem(
-        reduced_mass=np.array([939]),
-        channel_radius=np.array([nodes_within_radius * (2 * np.pi)]),
+        reduced_mass=np.array([939.0]),
+        channel_radii=np.array([nodes_within_radius * (2 * np.pi)]),
         l=np.array([1]),
         Ztarget=40,
         Zproj=1,
@@ -86,10 +84,9 @@ def local_interaction_example():
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
 
     ints = InteractionMatrix(1)
-    ints.set_local_interaction(interaction)
+    ints.set_local_interaction(interaction, args=params)
 
-    s_values = np.linspace(0.01, sys.channel_radius, 200)
-    r_values = s_values / ch[0].k
+    s_values = np.linspace(0.01, sys.channel_radii[0], 200)
 
     # Runge-Kutta
     sol_rk = solve_ivp(
@@ -107,16 +104,19 @@ def local_interaction_example():
     R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
     S_rk = smatrix(R_rk, a, ch[0].l, ch[0].eta)
 
-    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve_wavefunction()
+    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(ints, ch, wavefunction=True)
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
-    u_lm = Wavefunction(solver_lm, x, S_lm, ch[0], is_entrance_channel=True)
-    u_lm = u_lm(r_values)
+    u_lm = Wavefunctions(solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, ch).uint()[0]
+    u_lm = u_lm(s_values)
+
+    R_lm = R_lm[0, 0]
+    S_lm = S_lm[0, 0]
 
     delta_lm, atten_lm = delta(S_lm)
     delta_rk, atten_rk = delta(S_rk)
 
     # normalization and phase matching
-    u_rk = u_rk * np.max(np.real(u_lm)) / np.max(np.real(u_rk)) * (-1j)
+    u_rk = u_rk * np.max(np.real(u_lm)) / np.max(np.real(u_rk))
 
     print(f"k: {ch[0].k}")
     print(f"R-Matrix RK: {R_rk:.3e}")
@@ -129,11 +129,11 @@ def local_interaction_example():
     print(f"complex phase shift RK: {atten_rk:.3e} degrees")
     print(f"complex phase shift LM: {atten_lm:.3e} degrees")
 
-    plt.plot(r_values, np.real(u_rk), "k", label="Runge-Kutta")
-    plt.plot(r_values, np.imag(u_rk), ":k")
+    plt.plot(s_values, np.real(u_rk), "k", label="Runge-Kutta")
+    plt.plot(s_values, np.imag(u_rk), ":k")
 
-    plt.plot(r_values, np.real(u_lm), "r", label="Lagrange-Legendre")
-    plt.plot(r_values, np.imag(u_lm), ":r")
+    plt.plot(s_values, np.real(u_lm), "r", label="Lagrange-Legendre")
+    plt.plot(s_values, np.imag(u_lm), ":r")
 
     plt.legend()
     plt.xlabel(r"$r$ [fm]")
@@ -164,10 +164,6 @@ def rmse_RK_LM():
     # Lagrange-Mesh solver, don't set the energy
     solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
 
-    # use same interaction for all channels
-    ints = InteractionMatrix(1)
-    ints.set_local_interaction(interaction, 0, 0)
-
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
     W0 = 20  # imag potential strength
@@ -177,9 +173,15 @@ def rmse_RK_LM():
 
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 
+    # use same interaction for all channels
+    ints = InteractionMatrix(1)
+    ints.set_local_interaction(interaction, args=params)
+
+
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
     for i, e in enumerate(egrid):
+        solver_lm.set_energy(e)
         for l in lgrid:
             sys.l = np.array([l])
             ch = sys.build_channels(e)
@@ -194,15 +196,15 @@ def rmse_RK_LM():
                 ch[0].initial_conditions(),
                 dense_output=True,
                 atol=1.0e-12,
-                rtol=1.0e-9,
+                rtol=1.0e-12,
             ).sol
 
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x, uext_boundary = solver_lm.solve(
-                ints, ch, args=params, ecom=e
+            R_lm, S_lm, uext_boundary = solver_lm.solve(
+                ints, ch, ecom=e
             )
 
             # comparison between solvers
@@ -232,7 +234,6 @@ def rmse_RK_LM():
         lines[0], [r"$\mathfrak{Re}\, \Delta$", r"$\mathfrak{Im}\, \Delta$"], loc=0
     )
     plt.legend([l[0] for l in lines], [l[0].get_label() for l in lines], loc=1)
-    plt.ylim([0, 1])
     plt.yscale("log")
     plt.gca().add_artist(legend1)
     plt.tight_layout()

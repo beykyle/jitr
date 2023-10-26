@@ -38,12 +38,21 @@ class LagrangeRMatrixKernel:
         self.weights = weights
 
     def interaction_matrix_element(
-        self, n, m, local_interaction, nonlocal_interaction, ch: ChannelData, args=()
+        self,
+        n,
+        m,
+        ch: ChannelData,
+        local_interaction,
+        nonlocal_interaction=None,
+        args_local=(),
+        args_nonlocal=(),
     ):
-        Vnm = self.local_potential_matrix_element(n, m, local_interaction, ch, args)
+        Vnm = self.local_potential_matrix_element(
+            n, m, local_interaction, ch, args_local
+        )
         if nonlocal_interaction is not None:
             Vnm += self.nonlocal_potential_matrix_element(
-                n, m, nonlocal_interaction, ch, args
+                n, m, nonlocal_interaction, ch, args_nonlocal
             )
         return Vnm
 
@@ -144,17 +153,19 @@ class LagrangeRMatrixKernel:
         is_symmetric,
         ch: ChannelData,
         free_matrix: np.array = None,
-        args=(),
+        args_local=None,
+        args_nonlocal=None,
     ):
         r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal
         submatrices in channel space include full bloch-SE.
         """
-        # Free matrix (Kinetic and Bloch terms) is only nonzero on channel diagonal
+        # Free matrix (Kinetic and Bloch terms) only nonzero on channel diagonal
         if i == j:
-            # if channel free matrix has been precomputed for us, use it; otherwise calculate
+            # if channel free matrix has been precomputed for us, use it;
             if free_matrix is not None:
                 F = free_matrix
             else:
+                # otherwise calculate it
                 F = self.single_channel_free_matrix(ch)
         else:
             F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
@@ -166,7 +177,13 @@ class LagrangeRMatrixKernel:
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
                 Vnm = self.interaction_matrix_element(
-                    n, m, local_interaction, nonlocal_interaction, ch, args
+                    n,
+                    m,
+                    ch,
+                    local_interaction,
+                    nonlocal_interaction,
+                    args_local,
+                    args_nonlocal,
                 )
                 V[n - 1, m - 1] = Vnm
 
@@ -178,7 +195,13 @@ class LagrangeRMatrixKernel:
             for n in range(1, self.nbasis + 1):
                 for m in range(n + 1, self.nbasis + 1):
                     Vmn = self.interaction_matrix_element(
-                        m, n, local_interaction, nonlocal_interaction, ch, args
+                        m,
+                        n,
+                        ch,
+                        local_interaction,
+                        nonlocal_interaction,
+                        args_local,
+                        args_nonlocal,
                     )
                     V[m - 1, n - 1] = Vmn
 
@@ -224,5 +247,56 @@ def rmsolve_smatrix(
 
     # TODO should there be a factor of k/sqrt(v) here?
     uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
+
+    return R, S, uext_prime_boundary
+
+
+@njit
+def rmsolve_wavefunction(
+    A: np.array,
+    b: np.array,
+    asymptotics: tuple,
+    incoming_weights: np.array,
+    a: np.array,
+    nchannels: np.int32,
+    nbasis: np.int32,
+):
+    """
+    Returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients, all in Lagrange-
+    Legendre coordinates, as well as the derivative of asymptotic channel Wavefunctions evaluated
+    at the channel radius. Everything returned as block-matrices and block vectors in channel space.
+    Uses `numpy.linalg.solve`, which should be faster than alternatives (e.g. scipy) for mid-size
+    (n<100) Hermitian matrices. Note: speed will be dependent on numpy backend for linear algebra (MKL
+    general solve for n<100 is typically faster than LAPACK hermitian solve).
+
+    This follows:
+    Descouvemont, P. (2016).
+    An R-matrix package for coupled-channel problems in nuclear physics.
+    Computer physics communications, 200, 199-219.
+    and
+    P. Descouvemont and D. Baye 2010 Rep. Prog. Phys. 73 036301
+    """
+    (Hp, Hm, Hpp, Hmp) = asymptotics
+
+    # Eqn 15 in Descouvemont, 2016
+    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
+    R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
+    # TODO how to handle different reduced masses in each channel
+
+    # Eqn 17 in Descouvemont, 2016
+    Zp = Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
+    Zm = Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
+
+    # Eqn 16 in Descouvemont, 2016
+    S = np.linalg.solve(Zp, Zm)
+
+    uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
+
+    # TODO should we factorize A so we don't have to solve from scratch twice?
+    # Eqn 3.92 in Descouvemont & Baye, 2010
+    b = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
+        nchannels * nbasis
+    )
+    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
 
     return R, S, x, uext_prime_boundary

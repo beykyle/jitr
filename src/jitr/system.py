@@ -18,6 +18,8 @@ class InteractionMatrix:
             - nchannels (int) : the number of channels
         """
         self.nchannels = nchannels
+        self.local_args = np.empty((self.nchannels, self.nchannels), dtype=object)
+        self.nonlocal_args = np.empty((self.nchannels, self.nchannels), dtype=object)
         self.local_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
         self.nonlocal_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
         self.nonlocal_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
@@ -26,15 +28,25 @@ class InteractionMatrix:
         for i in range(self.nchannels):
             for j in range(self.nchannels):
                 self.local_matrix[i, j] = null
+                self.local_args[i,j] = tuple()
 
     def set_nonlocal_interaction(
-        self, interaction, i: np.int64 = 0, j: np.int64 = 0, is_symmetric=True
+        self,
+        interaction,
+        i: np.int64 = 0,
+        j: np.int64 = 0,
+        is_symmetric=True,
+        args=None,
     ):
         self.nonlocal_matrix[i, j] = interaction
-        self.nonlocal_matrix_symmetric[i, j] = is_symmetric
+        self.nonlocal_symmetric[i, j] = is_symmetric
+        self.nonlocal_args[i, j] = args
 
-    def set_local_interaction(self, interaction, i: np.int64 = 0, j: np.int64 = 0):
+    def set_local_interaction(
+        self, interaction, i: np.int64 = 0, j: np.int64 = 0, args=None
+    ):
         self.local_matrix[i, j] = interaction
+        self.local_args[i, j] = args
 
 
 system_spec = [
@@ -109,7 +121,7 @@ class ProjectileTargetSystem:
             channels.append(
                 ChannelData(
                     self.l[i],
-                    self.reduced_mass,
+                    self.reduced_mass[i],
                     self.channel_radii[i],
                     ecom - self.level_energies[i],
                     k[i],

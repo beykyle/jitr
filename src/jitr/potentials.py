@@ -4,13 +4,20 @@ from .utils import alpha, hbarc
 
 
 @njit
-def woods_saxon_potential(r, params):
+def woods_saxon_potential(r, *params):
     V, W, R, a = params
     return -(V + 1j * W) / (1 + np.exp((r - R) / a))
 
 
 @njit
-def surface_peaked_gaussian_potential(r, params):
+def woods_saxon_prime(r, *params):
+    """derivative of the Woods-Saxon potential w.r.t. $r$"""
+    V, W, R, a = params
+    return -1 * (V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
+
+
+@njit
+def surface_peaked_gaussian_potential(r, *params):
     V, W, R, a = params
     return -(V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
 
@@ -21,7 +28,7 @@ def coulomb_charged_sphere(r, zz, r_c):
 
 
 @njit
-def yamaguchi_potential(r, rp, params):
+def yamaguchi_potential(r, rp, *params):
     """
     non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
     """
@@ -40,7 +47,7 @@ def regular_inverse_r(r, r_c):
 
 
 @njit
-def yamaguchi_swave_delta(k, params):
+def yamaguchi_swave_delta(k, *params):
     """
     analytic k * cot(phase shift) for yamaguchi potential; Eq. 6.15 in [Baye, 2015]
     """
