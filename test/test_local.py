@@ -17,7 +17,7 @@ from jitr import (
 @njit
 def interaction(r, *args):
     (V0, W0, R0, a0, zz, r_c) = args
-    return woods_saxon_potential(r, (V0, W0, R0, a0)) + coulomb_charged_sphere(
+    return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(
         r, zz, r_c
     )
 
@@ -44,9 +44,6 @@ def rmse_RK_LM(nwaves: int = 5):
     # Lagrange-Mesh solver, don't set the energy
     solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
 
-    # use same interaction for all channels
-    interaction_matrix = InteractionMatrix(1)
-    interaction_matrix.set_local_interaction(interaction, 0, 0)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -56,6 +53,10 @@ def rmse_RK_LM(nwaves: int = 5):
     RC = R0  # Coulomb cutoff
 
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
+
+    # use same interaction for all channels
+    interaction_matrix = InteractionMatrix(1)
+    interaction_matrix.set_local_interaction(interaction, args=params)
 
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
@@ -81,9 +82,7 @@ def rmse_RK_LM(nwaves: int = 5):
             S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, x, uext_boundary = solver_lm.solve(
-                interaction_matrix, ch, args=params, ecom=e
-            )
+            R_lm, S_lm, uext_boundary = solver_lm.solve(interaction_matrix, ch, ecom=e)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
