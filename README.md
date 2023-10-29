@@ -5,6 +5,8 @@
  pip install jitr
 ```
 
+Package hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
+
 ## Description
 Solves the radial Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh, using just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). The theory generally follows:
 - Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219,
