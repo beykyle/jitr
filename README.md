@@ -21,13 +21,13 @@ Capable of:
 
 ```python
 import numpy as np
-import jitr 
+import jitr
 from numba import njit
 
 @njit
 def interaction(r, *args):
     (V0, W0, R0, a0, zz, r_c) = args
-    return jitr.woods_saxon_potential(r, (V0, W0, R0, a0)) + jitr.coulomb_charged_sphere(
+    return jitr.woods_saxon_potential(r, V0, W0, R0, a0) + jitr.coulomb_charged_sphere(
         r, zz, r_c
     )
 
@@ -64,15 +64,18 @@ params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 interaction_matrix.local_args[0,0] = params
 
 # run solver
-R, S, uext_boundary = solver.solve(
-    interaction_matrix, ch, energy_com, params, 
-)
+R, S, uext_boundary = solver.solve(interaction_matrix, ch, energy_com)
 
 # get phase shift in degrees
-delta, atten = delta(S[0,0])
-print(f"phase shift: {delta} + i {atten} [degrees]")
+delta, atten = jitr.delta(S[0,0])
+print(f"phase shift: {delta:1.3f} + i {atten:1.3f} [degrees]")
 ```
 
+This should print:
+
+```
+phase shift: -62.801 + i 90.910 [degrees]
+```
 
 ## Simple 2-body coupled-channel system
 Here we present the wavefunctions for a S-wave scattering on 3 coupled $0^+$ levels. For details, see [`examples/coupled`](https://github.com/beykyle/jitr/blob/main/examples/coupled.py).

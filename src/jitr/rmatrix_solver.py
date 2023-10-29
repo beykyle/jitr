@@ -156,7 +156,7 @@ class LagrangeRMatrixSolver:
         interaction_matrix: InteractionMatrix,
         channel_matrix: np.array,
         ecom=None,
-        wavefunction=False,
+        wavefunction=None,
     ):
         if ecom is not None:
             self.ecom = ecom
@@ -168,7 +168,7 @@ class LagrangeRMatrixSolver:
 
         A = self.bloch_se_matrix(interaction_matrix, channel_matrix)
 
-        if not wavefunction:
+        if wavefunction is None:
             return rmsolve_smatrix(
                 A,
                 self.b,
