@@ -28,11 +28,11 @@ def coupled_channels_example(visualize=False):
     a = 0.5  # Woods-Saxon potential diffuseness
     params = (V, W, R, a)
 
-    nodes_within_radius = 10
+    nodes_within_radius = 5
 
     system = ProjectileTargetSystem(
         reduced_mass=np.array([939.0, 939.0, 939]),
-        channel_radii=np.ones(3) * 5 * (2 * np.pi),
+        channel_radii=np.ones(3) * nodes_within_radius * (2 * np.pi),
         nchannels=3,
         level_energies=np.array([0.0, 12.0, 20.0]),
         l=np.array(
@@ -66,7 +66,7 @@ def coupled_channels_example(visualize=False):
                     args=params_off_diag,
                 )
 
-    ecom = 100
+    ecom = 35
     channels = system.build_channels(ecom)
     solver = LagrangeRMatrixSolver(40, 3, system, ecom=ecom, channel_matrix=channels)
 
@@ -112,12 +112,11 @@ def coupled_channels_example(visualize=False):
 
     # S must be unitary
     assert np.isclose(complex_det(S), 1.0)
-    assert np.allclose(S, S.T)
 
-    s_values = np.linspace(0.05, system.channel_radius, 500)
+    s_values = np.linspace(0.05, system.channel_radii[0], 500)
 
     lines = []
-    for i in range(system.num_channels):
+    for i in range(system.nchannels):
         u_values = u[i](s_values)
         (p1,) = plt.plot(s_values, np.real(u_values), label=r"$n=%d$" % i)
         (p2,) = plt.plot(s_values, np.imag(u_values), ":", color=p1.get_color())

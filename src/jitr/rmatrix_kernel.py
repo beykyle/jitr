@@ -239,13 +239,12 @@ def rmsolve_smatrix(
     R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
 
     # Eqn 17 in Descouvemont, 2016
-    Zp = Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
-    Zm = Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
+    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
+    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
 
-    # TODO should there be a factor of k/sqrt(v) here?
     uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
 
     return R, S, uext_prime_boundary
@@ -276,23 +275,11 @@ def rmsolve_wavefunction(
     and
     P. Descouvemont and D. Baye 2010 Rep. Prog. Phys. 73 036301
     """
-    (Hp, Hm, Hpp, Hmp) = asymptotics
-
-    # Eqn 15 in Descouvemont, 2016
-    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
-    # TODO how to handle different reduced masses in each channel
-
-    # Eqn 17 in Descouvemont, 2016
-    Zp = Hp * incoming_weights - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
-    Zm = Hm * incoming_weights - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
-
-    # Eqn 16 in Descouvemont, 2016
-    S = np.linalg.solve(Zp, Zm)
-
-    uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
-
     # TODO should we factorize A so we don't have to solve from scratch twice?
+    R, S, uext_prime_boundary = rmsolve_smatrix(
+        A, b, asymptotics, incoming_weights, a, nchannels, nbasis
+    )
+
     # Eqn 3.92 in Descouvemont & Baye, 2010
     b = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
         nchannels * nbasis
