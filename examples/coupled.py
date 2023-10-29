@@ -6,6 +6,7 @@ from jitr import (
     ChannelData,
     InteractionMatrix,
     LagrangeRMatrixSolver,
+    Wavefunctions,
     woods_saxon_potential,
     coulomb_charged_sphere,
     surface_peaked_gaussian_potential,
@@ -30,7 +31,7 @@ def coupled_channels_example(visualize=False):
     nodes_within_radius = 10
 
     system = ProjectileTargetSystem(
-        reduced_mass=np.array([939.0]),
+        reduced_mass=np.array([939.0, 939.0, 939]),
         channel_radii=np.ones(3) * 5 * (2 * np.pi),
         nchannels=3,
         level_energies=np.array([0.0, 12.0, 20.0]),
@@ -65,7 +66,7 @@ def coupled_channels_example(visualize=False):
                     args=params_off_diag,
                 )
 
-    ecom = 50
+    ecom = 100
     channels = system.build_channels(ecom)
     solver = LagrangeRMatrixSolver(40, 3, system, ecom=ecom, channel_matrix=channels)
 
@@ -117,7 +118,7 @@ def coupled_channels_example(visualize=False):
 
     lines = []
     for i in range(system.num_channels):
-        u_values = uint[i](s_values)
+        u_values = u[i](s_values)
         (p1,) = plt.plot(s_values, np.real(u_values), label=r"$n=%d$" % i)
         (p2,) = plt.plot(s_values, np.imag(u_values), ":", color=p1.get_color())
         lines.append([p1, p2])
@@ -135,4 +136,4 @@ def coupled_channels_example(visualize=False):
 
 
 if __name__ == "__main__":
-    coupled_channels_example(visualize=True)
+    coupled_channels_example(visualize=False)
