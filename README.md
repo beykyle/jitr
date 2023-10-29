@@ -72,3 +72,11 @@ R, S, uext_boundary = solver.solve(
 delta, atten = delta(S[0,0])
 print(f"phase shift: {delta} + i {atten} [degrees]")
 ```
+
+
+## Simple 2-body coupled-channel system
+Here we present the wavefunctions for a S-wave scattering on 3 coupled $0^+$ levels. For details, see [`examples/coupled`](https://github.com/beykyle/jitr/blob/main/examples/coupled.py).
+
+![](https://github.com/beykyle/jitr/blob/main/assets/cc.png)
+
+
