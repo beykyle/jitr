@@ -28,7 +28,7 @@ class InteractionMatrix:
         for i in range(self.nchannels):
             for j in range(self.nchannels):
                 self.local_matrix[i, j] = null
-                self.local_args[i,j] = tuple()
+                self.local_args[i, j] = tuple()
 
     def set_nonlocal_interaction(
         self,

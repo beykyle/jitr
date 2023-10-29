@@ -106,7 +106,9 @@ def local_interaction_example():
 
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(ints, ch, wavefunction=True)
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
-    u_lm = Wavefunctions(solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, ch).uint()[0]
+    u_lm = Wavefunctions(
+        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, ch
+    ).uint()[0]
     u_lm = u_lm(s_values)
 
     R_lm = R_lm[0, 0]
@@ -177,7 +179,6 @@ def rmse_RK_LM():
     ints = InteractionMatrix(1)
     ints.set_local_interaction(interaction, args=params)
 
-
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
     for i, e in enumerate(egrid):
@@ -203,9 +204,7 @@ def rmse_RK_LM():
             S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, uext_boundary = solver_lm.solve(
-                ints, ch, ecom=e
-            )
+            R_lm, S_lm, uext_boundary = solver_lm.solve(ints, ch, ecom=e)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
