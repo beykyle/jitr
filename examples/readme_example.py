@@ -2,6 +2,7 @@ import numpy as np
 import jitr
 from numba import njit
 
+
 @njit
 def interaction(r, *args):
     (V0, W0, R0, a0, zz, r_c) = args
@@ -9,7 +10,8 @@ def interaction(r, *args):
         r, zz, r_c
     )
 
-energy_com = 26 # MeV
+
+energy_com = 26  # MeV
 nodes_within_radius = 5
 
 # initialize system and description of the channel (elastic) under consideration
@@ -39,11 +41,11 @@ RC = R0  # Coulomb cutoff
 params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 
 # set params
-interaction_matrix.local_args[0,0] = params
+interaction_matrix.local_args[0, 0] = params
 
 # run solver
 R, S, uext_boundary = solver.solve(interaction_matrix, ch, energy_com)
 
 # get phase shift in degrees
-delta, atten = jitr.delta(S[0,0])
+delta, atten = jitr.delta(S[0, 0])
 print(f"phase shift: {delta:1.3f} + i {atten:1.3f} [degrees]")
