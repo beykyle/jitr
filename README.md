@@ -32,6 +32,7 @@ def interaction(r, *args):
     )
 
 energy_com = 26 # MeV
+nodes_within_radius = 5
 
 # initialize system and description of the channel (elastic) under consideration
 sys = jitr.ProjectileTargetSystem(
@@ -49,7 +50,7 @@ solver = jitr.LagrangeRMatrixSolver(40, 1, sys)
 
 # use same interaction for all channels
 interaction_matrix = jitr.InteractionMatrix(1)
-interaction_matrix.set_local_interaction(interaction, 0, 0)
+interaction_matrix.set_local_interaction(interaction)
 
 # Woods-Saxon and Coulomb potential parameters
 V0 = 60  # real potential strength
@@ -59,13 +60,15 @@ a0 = 0.5  # Woods-Saxon potential diffuseness
 RC = R0  # Coulomb cutoff
 params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
 
+# set params
+interaction_matrix.local_args[0,0] = params
+
 # run solver
-R, S, x, uext_boundary = solver.solve(
+R, S, uext_boundary = solver.solve(
     interaction_matrix, ch, energy_com, params, 
 )
 
 # get phase shift in degrees
 delta, atten = delta(S[0,0])
-
 print(f"phase shift: {delta} + i {atten} [degrees]")
 ```
