@@ -68,7 +68,7 @@ def coupled_channels_example(visualize=False):
 
     ecom = 35
     channels = system.build_channels(ecom)
-    solver = LagrangeRMatrixSolver(40, 3, system, ecom=ecom, channel_matrix=channels)
+    solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom, channel_matrix=channels)
 
     H = solver.bloch_se_matrix(interaction_matrix, channels)
 

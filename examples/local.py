@@ -46,7 +46,7 @@ def channel_radius_dependence_test():
             l=np.array([0]),
         )
         channels = sys.build_channels(E)
-        solver = LagrangeRMatrixSolver(40, 1, sys, E, channels)
+        solver = LagrangeRMatrixSolver(60, 1, sys, E, channels)
         R, S, _ = solver.solve(ints, channels)
         deltaa, attena = delta(S)
         delta_grid[i] = deltaa + 1.0j * attena
@@ -74,7 +74,7 @@ def local_interaction_example():
     ch = sys.build_channels(E)
 
     # Lagrange-Mesh
-    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=E)
+    solver_lm = LagrangeRMatrixSolver(100, 1, sys, ecom=E)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -164,7 +164,7 @@ def rmse_RK_LM():
     )
 
     # Lagrange-Mesh solver, don't set the energy
-    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
+    solver_lm = LagrangeRMatrixSolver(100, 1, sys, ecom=None)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
