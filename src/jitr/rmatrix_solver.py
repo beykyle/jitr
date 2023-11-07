@@ -24,6 +24,7 @@ class LagrangeRMatrixSolver:
         sys: ProjectileTargetSystem,
         ecom=None,
         channel_matrix=None,
+        asym=None,
     ):
         r"""
         Parameters:
@@ -34,10 +35,14 @@ class LagrangeRMatrixSolver:
         abscissa = 0.5 * (x + 1)
         weights = 0.5 * w
         self.kernel = LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
-        if sys.Zproj * sys.Ztarget > 0:
-            self.asym = CoulombAsymptotics
-        else:
-            self.asym = FreeAsymptotics
+
+        if asym is None:
+            if sys.Zproj * sys.Ztarget > 0:
+                asym = CoulombAsymptotics
+            else:
+                asym = FreeAsymptotics
+        self.asym = asym
+
         self.sys = sys
         self.ecom = ecom
         if ecom is not None:
@@ -45,7 +50,7 @@ class LagrangeRMatrixSolver:
 
         self.free_matrices = None
         if channel_matrix is not None:
-            self.free_matrices = self.precompute_free_matrices(channel_matrix)
+            self.precompute_free_matrices(channel_matrix)
 
     def precompute_asymptotics(self, a, l, eta):
         # precompute asymptotic values of Lagrange-Legendre for each channel
