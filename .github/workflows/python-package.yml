@@ -26,7 +26,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        token: ${{ secrets.PAT }}
         ref: ${{ github.head_ref }}
  
     - name: black
