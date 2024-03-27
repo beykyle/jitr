@@ -141,18 +141,18 @@ class LagrangeRMatrixSolver:
             for j in range(self.kernel.nchannels):
                 args_local = interaction_matrix.local_args[i, j]
                 args_nonlocal = interaction_matrix.nonlocal_args[i, j]
-                C[
-                    i * nb : i * nb + nb, j * nb : j * nb + nb
-                ] = self.kernel.single_channel_bloch_se_matrix(
-                    i,
-                    j,
-                    interaction_matrix.local_matrix[i, j],
-                    interaction_matrix.nonlocal_matrix[i, j],
-                    interaction_matrix.nonlocal_symmetric[i, j],
-                    channel_matrix[i],
-                    fi,
-                    args_local,
-                    args_nonlocal,
+                C[i * nb : i * nb + nb, j * nb : j * nb + nb] = (
+                    self.kernel.single_channel_bloch_se_matrix(
+                        i,
+                        j,
+                        interaction_matrix.local_matrix[i, j],
+                        interaction_matrix.nonlocal_matrix[i, j],
+                        interaction_matrix.nonlocal_symmetric[i, j],
+                        channel_matrix[i],
+                        fi,
+                        args_local,
+                        args_nonlocal,
+                    )
                 )
         return C
 
