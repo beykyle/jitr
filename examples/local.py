@@ -48,7 +48,7 @@ def channel_radius_dependence_test():
         channels = sys.build_channels(E)
         solver = LagrangeRMatrixSolver(60, 1, sys, E, channels)
         R, S, _ = solver.solve(ints, channels)
-        deltaa, attena = delta(S)
+        deltaa, attena = delta(S[0,0])
         delta_grid[i] = deltaa + 1.0j * attena
 
     plt.plot(a_grid, np.real(delta_grid), label=r"$\mathfrak{Re}\,\delta_l$")
@@ -207,7 +207,7 @@ def rmse_RK_LM():
             R_lm, S_lm, uext_boundary = solver_lm.solve(ints, ch, ecom=e)
 
             # comparison between solvers
-            delta_lm, atten_lm = delta(S_lm)
+            delta_lm, atten_lm = delta(S_lm[0,0])
             delta_rk, atten_rk = delta(S_rk)
 
             err = 0 + 0j
