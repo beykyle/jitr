@@ -85,3 +85,15 @@ Here we present the wavefunctions for a S-wave scattering on 3 coupled $0^+$ lev
 ![](https://github.com/beykyle/jitr/blob/main/assets/cc.png)
 
 
+## citation
+```latex
+@software{Beyer_JITR_2023,
+author = {Beyer, Kyle},
+license = {BSD-3-Clause},
+month = oct,
+title = {{JITR}},
+url = {https://github.com/beykyle/jitr},
+version = {1.0},
+year = {2023}
+}
+```
