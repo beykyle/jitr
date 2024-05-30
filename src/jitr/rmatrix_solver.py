@@ -17,13 +17,14 @@ from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix, rmsolve_wave
 
 
 class LagrangeRMatrixSolver:
+    r"""A solver valid for all energies"""
+
     def __init__(
         self,
-        nbasis,
-        nchannels,
+        nbasis : np.int32,
+        nchannels: np.int32,
         sys: ProjectileTargetSystem,
         ecom=None,
-        channel_matrix=None,
         asym=None,
     ):
         r"""
@@ -44,17 +45,18 @@ class LagrangeRMatrixSolver:
         self.asym = asym
 
         self.sys = sys
+        self.precompute_boundaries(self.sys.channel_radii)
+        self.precompute_free_matrix(self.sys.channel_radii, self.sys.l)
+
         self.ecom = ecom
         if ecom is not None:
-            self.set_energy(ecom)
+            self.precompute_asymptotics(
+                self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
+            )
 
-        self.free_matrices = None
-        if channel_matrix is not None:
-            self.precompute_free_matrices(channel_matrix)
-
-    def precompute_asymptotics(self, a, l, eta):
-        # precompute asymptotic values of Lagrange-Legendre for each channel
-        b = np.hstack(
+    def precompute_boundaries(self, a):
+        r"""precompute boundary values of Lagrange-Legendre for each channel"""
+        self.b = np.hstack(
             [
                 [self.f(n, i, a[i]) for n in range(1, self.kernel.nbasis + 1)]
                 for i in range(self.kernel.nchannels)
@@ -62,7 +64,8 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-        # precompute asymoptotic wavefunction and derivative in each channel
+    def precompute_asymptotics(self, a, l, eta):
+        r"""precompute asymoptotic wavefunction and derivative in each channel"""
         Hp = np.array(
             [H_plus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
             dtype=np.complex128,
@@ -88,26 +91,22 @@ class LagrangeRMatrixSolver:
             ],
             dtype=np.complex128,
         )
-        asymptotics = (Hp, Hm, Hpp, Hmp)
-        return b, asymptotics
+        self.asymptotics = (Hp, Hm, Hpp, Hmp)
 
-    def precompute_free_matrices(self, channel_matrix: np.array):
-        nb = self.kernel.nbasis
-        sz = nb * self.kernel.nchannels
-        self.free_matrices = []
-        for i in range(self.kernel.nchannels):
-            self.free_matrices.append(
-                self.kernel.single_channel_free_matrix(channel_matrix[i])
+    def precompute_free_matrix(self, a : np.array, l : np.array):
+        r"""free matrices only depend on orbital angular momentum l and dimensionless channel
+        radius a"""
+        self.free_matrix = self.kernel.free_matrix(channels)
+
+    def reset_energy(self, ecom: np.float64):
+        r"""update precomputed asymptotic values for new energy """
+        self.ecom = ecom
+        if self.sys.Zproj * self.sys.Ztarget > 0:
+            self.precompute_asymptotics(
+                self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
 
-    def set_energy(self, ecom: np.float64):
-        r"""update precomputed values for new energy"""
-        self.ecom = ecom
-        self.b, self.boundary_asymptotic_wf = self.precompute_asymptotics(
-            self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
-        )
-
-    def f(self, n, i, s):
+    def f(self, n : np.int32, i np.int32, s : np.float64):
         """
         nth basis function in channel i - Lagrange-Legendre polynomial of degree n shifted onto
         [0,a_i] and regularized by s/( a_i * xn)
@@ -127,69 +126,66 @@ class LagrangeRMatrixSolver:
             / (x - xn)
         )
 
-    def bloch_se_matrix(
+    def interaction_matrix(
         self,
         interaction_matrix: InteractionMatrix,
-        channel_matrix: np.array,
+        channels: list,
     ):
-        r"""Constructs the Bloch-Schrodinger equation in the Lagrange-Legendre basis"""
+        r"""
+        Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis,
+        where each channel is an nxn block (n being the basis size), and there are NxN such blocks
+        """
         nb = self.kernel.nbasis
         sz = nb * self.kernel.nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(self.kernel.nchannels):
-            fi = None if self.free_matrices is None else self.free_matrices[i]
+            ch = channels[i]
             for j in range(self.kernel.nchannels):
-                args_local = interaction_matrix.local_args[i, j]
-                args_nonlocal = interaction_matrix.nonlocal_args[i, j]
-                C[i * nb : i * nb + nb, j * nb : j * nb + nb] = (
-                    self.kernel.single_channel_bloch_se_matrix(
-                        i,
-                        j,
-                        interaction_matrix.local_matrix[i, j],
-                        interaction_matrix.nonlocal_matrix[i, j],
-                        interaction_matrix.nonlocal_symmetric[i, j],
-                        channel_matrix[i],
-                        fi,
-                        args_local,
-                        args_nonlocal,
+                Cij = C[i * nb : i * nb + nb, j * nb : j * nb + nb]
+                int_local = interaction_matrix.local_matrix[i, j]
+                int_nonlocal = interaction_matrix.nonlocal_matrix[i, j]
+                if int_local is not None:
+                    Cij += self.kernel.single_channel_local_interaction_matrix(
+                        int_local, ch, args=interaction_matrix.local_args[i, j]
                     )
-                )
+                if int_nonlocal is not None:
+                    Cij += self.kernel.single_channel_nonlocal_interaction_matrix(
+                        int_nonlocal,
+                        ch,
+                        is_symmetric=interaction_matrix.nonlocal_symmetric[i, j],
+                        args=interaction_matrix.nonlocal_args[i, j],
+                    )
         return C
+
+    def bloch_se_matrix(
+        self,
+        interaction_matrix: InteractionMatrix,
+        channels: list,
+    ):
+        return self.interaction_matrix(interaction_matrix, channels) + self.free_matrix
 
     def solve(
         self,
         interaction_matrix: InteractionMatrix,
-        channel_matrix: np.array,
-        ecom=None,
+        channels: np.array,
+        ecom,
         wavefunction=None,
     ):
-        if ecom is not None:
-            self.ecom = ecom
-            self.set_energy(ecom)
+        # assure precomputed values are consistent with provided channel
+        assert(ecom = self.ecom)
 
-        # either an ecom must be passed in, or the asymptotics must
-        # have been pre-computed at some point using set_energy
-        assert self.ecom is not None
+        A = self.bloch_se_matrix(interaction_matrix, channels)
 
-        A = self.bloch_se_matrix(interaction_matrix, channel_matrix)
+        args = (A,
+                self.b,
+                self.boundary_asymptotic_wf,
+                self.sys.incoming_weights,
+                self.sys.channel_radii,
+                self.kernel.nchannels,
+                self.kernel.nbasis,
+            )
 
         if wavefunction is None:
-            return rmsolve_smatrix(
-                A,
-                self.b,
-                self.boundary_asymptotic_wf,
-                self.sys.incoming_weights,
-                self.sys.channel_radii,
-                self.kernel.nchannels,
-                self.kernel.nbasis,
-            )
+            return rmsolve_smatrix(*args)
         else:
-            return rmsolve_wavefunction(
-                A,
-                self.b,
-                self.boundary_asymptotic_wf,
-                self.sys.incoming_weights,
-                self.sys.channel_radii,
-                self.kernel.nchannels,
-                self.kernel.nbasis,
-            )
+            return rmsolve_wavefunction(*args)
