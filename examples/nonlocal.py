@@ -35,8 +35,8 @@ def nonlocal_interaction_example():
     interaction_matrix = InteractionMatrix(1)
     interaction_matrix.set_nonlocal_interaction(yamaguchi_potential, args=params)
 
-    solver = LagrangeRMatrixSolver(100, 1, sys, ecom=ecom, channel_matrix=channels)
-    _, S, _ = solver.solve(interaction_matrix, channels)
+    solver = LagrangeRMatrixSolver(100, 1, sys, ecom=ecom)
+    _, S, _ = solver.solve(interaction_matrix, channels, ecom)
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))
 

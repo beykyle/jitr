@@ -38,17 +38,12 @@ class LagrangeRMatrixKernel:
         self.weights = weights
 
     def local_interaction_matrix_element(
-        self, n: np.int32, m: np.int32, interaction, ch: ChannelData, args=()
+        self, n: np.int32, interaction, ch: ChannelData, args=()
     ):
         """
-        evaluates the (n,m)th matrix element for the given local interaction
+        evaluates the (n,n)th matrix element for the given local interaction
         """
         assert n <= self.nbasis and n >= 1
-        assert m <= self.nbasis and m >= 1
-
-        if n != m:
-            return 0  # local interactions are diagonal
-
         xn = self.abscissa[n - 1]
 
         a = ch.domain[1]
@@ -84,7 +79,7 @@ class LagrangeRMatrixKernel:
         interaction,
         ch: ChannelData,
         is_symmetric: bool = True,
-        args=None,
+        args=(),
     ):
         r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr, for
         just the interaction provided
@@ -95,7 +90,7 @@ class LagrangeRMatrixKernel:
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
                 V[n - 1, m - 1] = self.nonlocal_interaction_matrix_element(
-                    n, m, interaction
+                    n, m, interaction, ch, args
                 )
 
         if is_symmetric:
@@ -106,7 +101,7 @@ class LagrangeRMatrixKernel:
             for n in range(1, self.nbasis + 1):
                 for m in range(n + 1, self.nbasis + 1):
                     V[m - 1, n - 1] = self.nonlocal_interaction_matrix_element(
-                        m, n, interaction
+                        m, n, interaction, ch, args
                     )
 
         return V
@@ -115,7 +110,7 @@ class LagrangeRMatrixKernel:
         self,
         interaction,
         ch: ChannelData,
-        args=None,
+        args=(),
     ):
         r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr, for
         just the interaction provided
@@ -125,7 +120,7 @@ class LagrangeRMatrixKernel:
         # just diagonal
         for n in range(1, self.nbasis + 1):
             V[n - 1, n - 1] = self.local_interaction_matrix_element(
-                n, m, interaction, ch, args
+                n, interaction, ch, args
             )
 
         return V
@@ -167,7 +162,7 @@ class LagrangeRMatrixKernel:
         r"""
         Returns the free Bloch-Schrödinger equation in a single channel in Lagrange-Legendre coordinates
         """
-        F = np.empty((self.nbasis, self.nbasis), dtype=np.complex128)
+        F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
                 F[n - 1, m - 1] = self.free_matrix_element(n, m, a, l)
@@ -189,8 +184,8 @@ class LagrangeRMatrixKernel:
         nb = self.nbasis
         sz = nb * self.nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(self.kernel.nchannels):
-            Fij = self.kernel.single_channel_free_matrix(a[i], l[i])
+        for i in range(self.nchannels):
+            Fij = self.single_channel_free_matrix(a[i], l[i])
             C[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
 
         return C

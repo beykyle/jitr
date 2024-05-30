@@ -96,7 +96,7 @@ class LagrangeRMatrixSolver:
     def precompute_free_matrix(self, a : np.array, l : np.array):
         r"""free matrices only depend on orbital angular momentum l and dimensionless channel
         radius a"""
-        self.free_matrix = self.kernel.free_matrix(channels)
+        self.free_matrix = self.kernel.free_matrix(a,l)
 
     def reset_energy(self, ecom: np.float64):
         r"""update precomputed asymptotic values for new energy """
@@ -106,7 +106,7 @@ class LagrangeRMatrixSolver:
                 self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
 
-    def f(self, n : np.int32, i np.int32, s : np.float64):
+    def f(self, n : np.int32, i : np.int32, s : np.float64):
         """
         nth basis function in channel i - Lagrange-Legendre polynomial of degree n shifted onto
         [0,a_i] and regularized by s/( a_i * xn)
@@ -145,15 +145,18 @@ class LagrangeRMatrixSolver:
                 int_local = interaction_matrix.local_matrix[i, j]
                 int_nonlocal = interaction_matrix.nonlocal_matrix[i, j]
                 if int_local is not None:
+                    loc_args = interaction_matrix.local_args[i, j]
                     Cij += self.kernel.single_channel_local_interaction_matrix(
-                        int_local, ch, args=interaction_matrix.local_args[i, j]
+                        int_local, ch, loc_args,
                     )
                 if int_nonlocal is not None:
+                    nloc_args = interaction_matrix.nonlocal_args[i, j]
+                    is_symmetric = interaction_matrix.nonlocal_symmetric[i, j]
                     Cij += self.kernel.single_channel_nonlocal_interaction_matrix(
                         int_nonlocal,
                         ch,
-                        is_symmetric=interaction_matrix.nonlocal_symmetric[i, j],
-                        args=interaction_matrix.nonlocal_args[i, j],
+                        is_symmetric,
+                        nloc_args,
                     )
         return C
 
@@ -172,13 +175,13 @@ class LagrangeRMatrixSolver:
         wavefunction=None,
     ):
         # assure precomputed values are consistent with provided channel
-        assert(ecom = self.ecom)
+        assert(ecom == self.ecom)
 
         A = self.bloch_se_matrix(interaction_matrix, channels)
 
         args = (A,
                 self.b,
-                self.boundary_asymptotic_wf,
+                self.asymptotics,
                 self.sys.incoming_weights,
                 self.sys.channel_radii,
                 self.kernel.nchannels,
