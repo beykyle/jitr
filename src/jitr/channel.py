@@ -51,13 +51,13 @@ class ChannelData:
         # use asymptotic behavior of F to avoid floating point
         # stability issue in RK solver
         C_l = Gamow_factor(self.l, self.eta)
-        min_rho_0 = (np.finfo(np.float64).eps*10 / C_l) ** (1 / (self.l + 1))
+        min_rho_0 = (np.finfo(np.float64).eps * 10 / C_l) ** (1 / (self.l + 1))
         s_0 = max(self.domain[0], min_rho_0)
         u0 = C_l * s_0 ** (self.l + 1)
         uprime0 = C_l * (self.l + 1) * s_0**self.l
         domain = np.array([s_0, self.domain[1]], dtype=np.float64)
         init_con = np.array([u0, uprime0], dtype=np.complex128)
-        assert(domain[1] > domain[0])
+        assert domain[1] > domain[0]
         return domain, init_con
 
     def s_grid(self, size=200):

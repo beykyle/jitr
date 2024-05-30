@@ -125,9 +125,7 @@ class LagrangeRMatrixKernel:
 
         return V
 
-    def free_matrix_element(
-        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
-    ):
+    def free_matrix_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
         """
         evaluates the (n,m)th matrix element for the kinetic energy + Bloch operator
         at channel radius a = k*r with orbital angular momentum l
