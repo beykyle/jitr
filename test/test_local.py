@@ -26,21 +26,25 @@ def rmse_RK_LM(nwaves: int = 5):
     lgrid = np.arange(0, nwaves - 1, 1)
     egrid = np.linspace(0.01, 100, 10)
     nodes_within_radius = 5
+    Ztarget = 40
+    Zproj = 1
 
     # channels are the same except for l and uncoupled
     # so just set up a single channel system. We will set
     # incident energy and l later
-    sys = ProjectileTargetSystem(
-        np.array([939.0]),
-        np.array([nodes_within_radius * (2 * np.pi)]),
-        l=np.array([0]),
-        Ztarget=40,
-        Zproj=1,
-        nchannels=1,
-    )
+    systems = [
+        ProjectileTargetSystem(
+            np.array([939.0]),
+            np.array([nodes_within_radius * (2 * np.pi)]),
+            l=np.array([l]),
+            Ztarget=Ztarget,
+            Zproj=Zproj,
+            nchannels=1,
+        )
+        for l in lgrid ]
 
-    # Lagrange-Mesh solver, don't set the energy
-    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
+    # Lagrange-Mesh solvers, don't set the energy
+    solvers = [LagrangeRMatrixSolver(40, 1, sys, ecom=None) for sys in systems]
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -49,7 +53,7 @@ def rmse_RK_LM(nwaves: int = 5):
     a0 = 0.5  # Woods-Saxon potential diffuseness
     RC = R0  # Coulomb cutoff
 
-    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
+    params = (V0, W0, R0, a0, Zproj * Ztarget, RC)
 
     # use same interaction for all channels
     interaction_matrix = InteractionMatrix(1)
@@ -59,8 +63,7 @@ def rmse_RK_LM(nwaves: int = 5):
 
     for i, e in enumerate(egrid):
         for l in lgrid:
-            sys.l = np.array([l])
-            ch = sys.build_channels(e)
+            ch = systems[l].build_channels(e)
             a = ch[0].domain[1]
 
             # Runge-Kutta
@@ -79,7 +82,7 @@ def rmse_RK_LM(nwaves: int = 5):
             S_rk = smatrix(R_rk, a, l, ch[0].eta)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, uext_boundary = solver_lm.solve(interaction_matrix, ch, ecom=e)
+            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, ch, e)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
