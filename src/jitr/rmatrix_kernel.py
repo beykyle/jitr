@@ -217,7 +217,7 @@ class LagrangeRMatrixKernel:
         ch: ChannelData,
         interaction,
         args,
-        is_symmetric : bool = True,
+        is_symmetric: bool = True,
     ):
         r"""
         Calculates the DWBA matrix element for the nonlocal operator `interaction`, between
@@ -226,9 +226,12 @@ class LagrangeRMatrixKernel:
         (or 2.85 in Baye, 2015).
         """
         # get operator in Lagrange coords as (nbasis x nbasis) matrix
-        O = self.single_channel_nonlocal_interaction_matrix(interaction, ch, is_symmetric, args)
+        O = self.single_channel_nonlocal_interaction_matrix(
+            interaction, ch, is_symmetric, args
+        )
         # reduce
         return bra.conj().T @ O @ ket
+
 
 @njit
 def rmsolve_smatrix(
