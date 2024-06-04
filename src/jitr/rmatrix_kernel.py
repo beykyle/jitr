@@ -177,7 +177,7 @@ class LagrangeRMatrixKernel:
     ):
         r"""
         Returns the full (Nxn)x(Nxn) free Bloch-Schrödinger equation in the Lagrange basis,
-        where each channel is annxn block (n being the basis size), and there are NxN such blocks
+        where each channel is an nxn block (n being the basis size), and there are NxN such blocks
         """
         nb = self.nbasis
         sz = nb * self.nchannels
@@ -188,6 +188,47 @@ class LagrangeRMatrixKernel:
 
         return C
 
+    def dwba_local(
+        self,
+        bra: np.array,
+        ket: np.array,
+        ch: ChannelData,
+        interaction,
+        args,
+    ):
+        r"""
+        Calculates the DWBA matrix element for the local operator `interaction`, between distorted wave
+        `bra` and `ket`, which are represented as a set of `self.nbasis` complex coefficients for the
+        Lagrange functions, following Eq. 29 in Descouvemont, 2016 (or 2.85 in Baye, 2015).
+        """
+        dwba = 0
+        for n in range(0, self.nbasis):
+            dwba += (
+                bra[n].conj()
+                * self.local_interaction_matrix_element(n + 1, interaction, ch, args)
+                * ket[n]
+            )
+        return dwba
+
+    def dwba_nonlocal(
+        self,
+        bra: np.array,
+        ket: np.array,
+        ch: ChannelData,
+        interaction,
+        args,
+        is_symmetric : bool = True,
+    ):
+        r"""
+        Calculates the DWBA matrix element for the nonlocal operator `interaction`, between
+        distorted wave `bra` and `ket`, which are represented as a set of `self.nbasis` complex
+        coefficients for the Lagrange functions, generalizing Eq. 29 in Descouvemont, 2016
+        (or 2.85 in Baye, 2015).
+        """
+        # get operator in Lagrange coords as (nbasis x nbasis) matrix
+        O = self.single_channel_nonlocal_interaction_matrix(interaction, ch, is_symmetric, args)
+        # reduce
+        return bra.conj().T @ O @ ket
 
 @njit
 def rmsolve_smatrix(
