@@ -48,7 +48,7 @@ def channel_radius_dependence_test():
         )
         channels = sys.build_channels(E)
         solver = LagrangeRMatrixSolver(60, 1, sys, ecom=E)
-        R, S, _ = solver.solve(ints, channels, E)
+        R, S, _ = solver.solve(ints, channels)
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
 
@@ -108,7 +108,7 @@ def local_interaction_example():
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        ints, channels, E, wavefunction=True
+        ints, channels, wavefunction=True
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = Wavefunctions(
@@ -136,11 +136,11 @@ def local_interaction_example():
     print(f"complex phase shift RK: {atten_rk:.3e} degrees")
     print(f"complex phase shift LM: {atten_lm:.3e} degrees")
 
-    plt.plot(s_values, np.real(u_rk), "k", alpha=0.5, label="Runge-Kutta")
+    plt.plot(s_values, np.real(u_rk), "b", alpha=0.5, label="Runge-Kutta")
     plt.plot(
         s_values,
         np.imag(u_rk),
-        ":k",
+        ":b",
         alpha=0.5,
     )
 
@@ -227,7 +227,7 @@ def rmse_RK_LM():
 
             # Lagrange-Legendre R-Matrix
             R_lm, S_lm, uext_boundary = solvers[l].solve(
-                interaction_matrix, channels, e
+                interaction_matrix, channels
             )
 
             # comparison between solvers
@@ -266,4 +266,4 @@ def rmse_RK_LM():
 if __name__ == "__main__":
     channel_radius_dependence_test()
     local_interaction_example()
-    rmse_RK_LM()
+    #rmse_RK_LM()
