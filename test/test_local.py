@@ -88,7 +88,7 @@ def rmse_RK_LM():
 
             # Lagrange-Legendre R-Matrix
             R_lm, S_lm, uext_boundary = solvers[l].solve(
-                interaction_matrix, channels
+                interaction_matrix, channels, e
             )
 
             # comparison between solvers

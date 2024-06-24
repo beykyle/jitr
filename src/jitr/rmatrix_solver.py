@@ -173,8 +173,11 @@ class LagrangeRMatrixSolver:
         self,
         interaction_matrix: InteractionMatrix,
         channels: np.array,
+        ecom,
         wavefunction=None,
     ):
+        # assure precomputed values are consistent with provided channel
+        assert ecom == self.ecom
 
         A = self.bloch_se_matrix(interaction_matrix, channels)
 
