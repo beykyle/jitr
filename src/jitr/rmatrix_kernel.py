@@ -18,7 +18,7 @@ spec = [
 @jitclass(spec)
 class LagrangeRMatrixKernel:
     r"""
-    Lagrange-Legendre mesh for the Bloch-Schroedinger equation following:
+    Lagrange-Legendre mesh for the Bloch-Schrödinger equation following:
     Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
     with the only difference being the domain is scaled in each channel; e.g.
     r -> s_i = r * k_i, and each channel's equation is then divided by it's
@@ -27,7 +27,7 @@ class LagrangeRMatrixKernel:
 
     def __init__(self, nbasis, nchannels, abscissa, weights):
         """
-        Constructs the Bloch-Schroedinger equation in a basis of nbasis
+        Constructs the Bloch-Schrödinger equation in a basis of nbasis
         Lagrange-Legendre functions shifted and scaled onto [0,k*a] and regulated by 1/k*r,
         and solved by direct matrix inversion.
 
@@ -37,37 +37,13 @@ class LagrangeRMatrixKernel:
         self.abscissa = abscissa
         self.weights = weights
 
-    def interaction_matrix_element(
-        self,
-        n,
-        m,
-        ch: ChannelData,
-        local_interaction,
-        nonlocal_interaction=None,
-        args_local=(),
-        args_nonlocal=(),
-    ):
-        Vnm = self.local_potential_matrix_element(
-            n, m, local_interaction, ch, args_local
-        )
-        if nonlocal_interaction is not None:
-            Vnm += self.nonlocal_potential_matrix_element(
-                n, m, nonlocal_interaction, ch, args_nonlocal
-            )
-        return Vnm
-
-    def local_potential_matrix_element(
-        self, n, m, interaction, ch: ChannelData, args=()
+    def local_interaction_matrix_element(
+        self, n: np.int32, interaction, ch: ChannelData, args=()
     ):
         """
-        evaluates the (n,m)th matrix element for the given local interaction
+        evaluates the (n,n)th matrix element for the given local interaction
         """
         assert n <= self.nbasis and n >= 1
-        assert m <= self.nbasis and m >= 1
-
-        if n != m:
-            return 0  # local potentials are diagonal
-
         xn = self.abscissa[n - 1]
 
         a = ch.domain[1]
@@ -75,7 +51,9 @@ class LagrangeRMatrixKernel:
 
         return eval_scaled_interaction(s, interaction, ch, args)
 
-    def nonlocal_potential_matrix_element(self, n, m, interaction, ch, args=()):
+    def nonlocal_interaction_matrix_element(
+        self, n: np.int32, m: np.int32, interaction, ch: ChannelData, args=()
+    ):
         """
         evaluates the (n,m)th matrix element for the given non-local interaction
         """
@@ -96,18 +74,67 @@ class LagrangeRMatrixKernel:
 
         return utilde * np.sqrt(wm * wn) * a
 
-    def kinetic_bloch_matrix_element(self, n, m, ch):
+    def single_channel_nonlocal_interaction_matrix(
+        self,
+        interaction,
+        ch: ChannelData,
+        is_symmetric: bool = True,
+        args=(),
+    ):
+        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr, for
+        just the interaction provided
+        """
+        V = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
+
+        # diagonal and upper triangle
+        for n in range(1, self.nbasis + 1):
+            for m in range(n, self.nbasis + 1):
+                V[n - 1, m - 1] = self.nonlocal_interaction_matrix_element(
+                    n, m, interaction, ch, args
+                )
+
+        if is_symmetric:
+            # transpose upper tri to lower
+            V = V + np.triu(V, k=1).T
+        else:
+            # calculate lower triangle
+            for n in range(1, self.nbasis + 1):
+                for m in range(n + 1, self.nbasis + 1):
+                    V[m - 1, n - 1] = self.nonlocal_interaction_matrix_element(
+                        m, n, interaction, ch, args
+                    )
+
+        return V
+
+    def single_channel_local_interaction_matrix(
+        self,
+        interaction,
+        ch: ChannelData,
+        args=(),
+    ):
+        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr, for
+        just the interaction provided
+        """
+        V = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
+
+        # just diagonal
+        for n in range(1, self.nbasis + 1):
+            V[n - 1, n - 1] = self.local_interaction_matrix_element(
+                n, interaction, ch, args
+            )
+
+        return V
+
+    def free_matrix_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
         """
         evaluates the (n,m)th matrix element for the kinetic energy + Bloch operator
+        at channel radius a = k*r with orbital angular momentum l
         """
         assert n <= self.nbasis and n >= 1
         assert m <= self.nbasis and m >= 1
 
         xn, xm = self.abscissa[n - 1], self.abscissa[m - 1]
         N = self.nbasis
-
-        a = ch.domain[1]
-        l = ch.l
 
         if n == m:
             centrifugal = l * (l + 1) / (a * xn) ** 2
@@ -129,84 +156,81 @@ class LagrangeRMatrixKernel:
                 / a**2
             )
 
-    def single_channel_free_matrix(self, ch: ChannelData):
+    def single_channel_free_matrix(self, a: np.float64, l: np.int32):
         r"""
-        Returns the Free Bloch-Schroedinger equation in Lagrange-Legendre coordinates as
-        an upper-triangular matrix (the full matrix is symmetric).
+        Returns the free Bloch-Schrödinger equation in a single channel in Lagrange-Legendre coordinates
         """
         F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
             for m in range(n, self.nbasis + 1):
-                F[n - 1, m - 1] = self.kinetic_bloch_matrix_element(n, m, ch)
+                F[n - 1, m - 1] = self.free_matrix_element(n, m, a, l)
 
         F -= np.diag(np.ones(self.nbasis))
         F = F + np.triu(F, k=1).T
 
         return F
 
-    def single_channel_bloch_se_matrix(
+    def free_matrix(
         self,
-        i,
-        j,
-        local_interaction,
-        nonlocal_interaction,
-        is_symmetric,
-        ch: ChannelData,
-        free_matrix: np.array = None,
-        args_local=None,
-        args_nonlocal=None,
+        a: np.array,
+        l: np.array,
     ):
-        r"""Implements Eq. 6.10 in [Baye, 2015], scaled by 1/E and with r->s=kr. The diagonal
-        submatrices in channel space include full bloch-SE.
+        r"""
+        Returns the full (Nxn)x(Nxn) free Bloch-Schrödinger equation in the Lagrange basis,
+        where each channel is an nxn block (n being the basis size), and there are NxN such blocks
         """
-        # Free matrix (Kinetic and Bloch terms) only nonzero on channel diagonal
-        if i == j:
-            # if channel free matrix has been precomputed for us, use it;
-            if free_matrix is not None:
-                F = free_matrix
-            else:
-                # otherwise calculate it
-                F = self.single_channel_free_matrix(ch)
-        else:
-            F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
+        nb = self.nbasis
+        sz = nb * self.nchannels
+        C = np.zeros((sz, sz), dtype=np.complex128)
+        for i in range(self.nchannels):
+            Fij = self.single_channel_free_matrix(a[i], l[i])
+            C[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
 
-        # calculate interaction matrix
-        V = np.zeros_like(F, dtype=np.complex128)
+        return C
 
-        # calculate each upper tri interaction matrix elem for channel
-        for n in range(1, self.nbasis + 1):
-            for m in range(n, self.nbasis + 1):
-                Vnm = self.interaction_matrix_element(
-                    n,
-                    m,
-                    ch,
-                    local_interaction,
-                    nonlocal_interaction,
-                    args_local,
-                    args_nonlocal,
-                )
-                V[n - 1, m - 1] = Vnm
+    def dwba_local(
+        self,
+        bra: np.array,
+        ket: np.array,
+        ch: ChannelData,
+        interaction,
+        args,
+    ):
+        r"""
+        Calculates the DWBA matrix element for the local operator `interaction`, between distorted wave
+        `bra` and `ket`, which are represented as a set of `self.nbasis` complex coefficients for the
+        Lagrange functions, following Eq. 29 in Descouvemont, 2016 (or 2.85 in Baye, 2015).
+        """
+        dwba = 0
+        for n in range(0, self.nbasis):
+            dwba += (
+                bra[n].conj()
+                * self.local_interaction_matrix_element(n + 1, interaction, ch, args)
+                * ket[n]
+            )
+        return dwba
 
-        if is_symmetric:
-            # copy upper tri to lower
-            V = V + np.triu(V, k=1).T
-        else:
-            # calculate lower tri matrix elements
-            for n in range(1, self.nbasis + 1):
-                for m in range(n + 1, self.nbasis + 1):
-                    Vmn = self.interaction_matrix_element(
-                        m,
-                        n,
-                        ch,
-                        local_interaction,
-                        nonlocal_interaction,
-                        args_local,
-                        args_nonlocal,
-                    )
-                    V[m - 1, n - 1] = Vmn
-
-        # sum free and potential matrices
-        return V + F
+    def dwba_nonlocal(
+        self,
+        bra: np.array,
+        ket: np.array,
+        ch: ChannelData,
+        interaction,
+        args,
+        is_symmetric: bool = True,
+    ):
+        r"""
+        Calculates the DWBA matrix element for the nonlocal operator `interaction`, between
+        distorted wave `bra` and `ket`, which are represented as a set of `self.nbasis` complex
+        coefficients for the Lagrange functions, generalizing Eq. 29 in Descouvemont, 2016
+        (or 2.85 in Baye, 2015).
+        """
+        # get operator in Lagrange coords as (nbasis x nbasis) matrix
+        O = self.single_channel_nonlocal_interaction_matrix(
+            interaction, ch, is_symmetric, args
+        )
+        # reduce
+        return bra.conj().T @ O @ ket
 
 
 @njit
@@ -223,9 +247,6 @@ def rmsolve_smatrix(
     Returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients, all in Lagrange-
     Legendre coordinates, as well as the derivative of asymptotic channel Wavefunctions evaluated
     at the channel radius. Everything returned as block-matrices and block vectors in channel space.
-    Uses `numpy.linalg.solve`, which should be faster than alternatives (e.g. scipy) for mid-size
-    (n<100) Hermitian matrices. Note: speed will be dependent on numpy backend for linear algebra (MKL
-    general solve for n<100 is typically faster than LAPACK hermitian solve).
 
     This follows:
     Descouvemont, P. (2016).
@@ -264,9 +285,6 @@ def rmsolve_wavefunction(
     Returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients, all in Lagrange-
     Legendre coordinates, as well as the derivative of asymptotic channel Wavefunctions evaluated
     at the channel radius. Everything returned as block-matrices and block vectors in channel space.
-    Uses `numpy.linalg.solve`, which should be faster than alternatives (e.g. scipy) for mid-size
-    (n<100) Hermitian matrices. Note: speed will be dependent on numpy backend for linear algebra (MKL
-    general solve for n<100 is typically faster than LAPACK hermitian solve).
 
     This follows:
     Descouvemont, P. (2016).
@@ -275,15 +293,15 @@ def rmsolve_wavefunction(
     and
     P. Descouvemont and D. Baye 2010 Rep. Prog. Phys. 73 036301
     """
-    # TODO should we factorize A so we don't have to solve from scratch twice?
+    # should we factorize A so we don't have to solve twice?
     R, S, uext_prime_boundary = rmsolve_smatrix(
         A, b, asymptotics, incoming_weights, a, nchannels, nbasis
     )
 
     # Eqn 3.92 in Descouvemont & Baye, 2010
-    b = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
+    b2 = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
         nchannels * nbasis
     )
-    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
+    x = np.linalg.solve(A, b2).reshape(nchannels, nbasis)
 
     return R, S, x, uext_prime_boundary

@@ -68,37 +68,13 @@ def coupled_channels_example(visualize=False):
 
     ecom = 35
     channels = system.build_channels(ecom)
-    solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom, channel_matrix=channels)
+    solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom)
 
     H = solver.bloch_se_matrix(interaction_matrix, channels)
 
-    if visualize:
-        for i in range(3):
-            for j in range(3):
-                plt.imshow(
-                    np.real(
-                        solver.kernel.single_channel_bloch_se_matrix(
-                            i,
-                            j,
-                            interaction_matrix.local_matrix[i, j],
-                            None,
-                            True,
-                            channels[i],
-                            None,
-                            interaction_matrix.local_args[i, j],
-                            None,
-                        )
-                    )
-                )
-                plt.xlabel("n")
-                plt.ylabel("m")
-                plt.colorbar()
-                plt.title(f"({i}, {j})")
-                plt.show()
-
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(
-        interaction_matrix, channels, wavefunction=True
+        interaction_matrix, channels, ecom, wavefunction=True
     )
     u = Wavefunctions(
         solver,

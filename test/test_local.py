@@ -20,27 +20,32 @@ def interaction(r, *args):
     return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, r_c)
 
 
-def rmse_RK_LM(nwaves: int = 5):
+def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, nwaves - 1, 1)
-    egrid = np.linspace(0.01, 100, 10)
+    lgrid = np.arange(0, 10, 1)
+    egrid = np.linspace(0.5, 100, 100)
     nodes_within_radius = 5
+    Ztarget = 40
+    Zproj = 1
 
     # channels are the same except for l and uncoupled
     # so just set up a single channel system. We will set
     # incident energy and l later
-    sys = ProjectileTargetSystem(
-        np.array([939.0]),
-        np.array([nodes_within_radius * (2 * np.pi)]),
-        l=np.array([0]),
-        Ztarget=40,
-        Zproj=1,
-        nchannels=1,
-    )
+    systems = [
+        ProjectileTargetSystem(
+            np.array([939.0]),
+            np.array([nodes_within_radius * (2 * np.pi)]),
+            l=np.array([l]),
+            Ztarget=Ztarget,
+            Zproj=Zproj,
+            nchannels=1,
+        )
+        for l in lgrid
+    ]
 
-    # Lagrange-Mesh solver, don't set the energy
-    solver_lm = LagrangeRMatrixSolver(40, 1, sys, ecom=None)
+    # Lagrange-Mesh solvers, don't set the energy
+    solvers = [LagrangeRMatrixSolver(40, 1, sys, ecom=None) for sys in systems]
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -49,7 +54,7 @@ def rmse_RK_LM(nwaves: int = 5):
     a0 = 0.5  # Woods-Saxon potential diffuseness
     RC = R0  # Coulomb cutoff
 
-    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, RC)
+    params = (V0, W0, R0, a0, Zproj * Ztarget, RC)
 
     # use same interaction for all channels
     interaction_matrix = InteractionMatrix(1)
@@ -59,27 +64,32 @@ def rmse_RK_LM(nwaves: int = 5):
 
     for i, e in enumerate(egrid):
         for l in lgrid:
-            sys.l = np.array([l])
-            ch = sys.build_channels(e)
-            a = ch[0].domain[1]
+            channels = systems[l].build_channels(e)
+            ch = channels[0]
+
+            domain, init_con = ch.initial_conditions()
 
             # Runge-Kutta
             sol_rk = solve_ivp(
                 lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, ch[0], interaction_matrix.local_matrix[0, 0], params
+                    s, y, ch, interaction_matrix.local_matrix[0, 0], params
                 ),
-                ch[0].domain,
-                ch[0].initial_conditions(),
+                domain,
+                init_con,
                 dense_output=True,
                 atol=1.0e-12,
                 rtol=1.0e-9,
             ).sol
 
+            a = domain[1]
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-            S_rk = smatrix(R_rk, a, l, ch[0].eta)
+            S_rk = smatrix(R_rk, a, l, ch.eta)
+            solvers[l].reset_energy(e)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, uext_boundary = solver_lm.solve(interaction_matrix, ch, ecom=e)
+            R_lm, S_lm, uext_boundary = solvers[l].solve(
+                interaction_matrix, channels, e
+            )
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
