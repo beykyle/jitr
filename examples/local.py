@@ -226,9 +226,7 @@ def rmse_RK_LM():
             solvers[l].reset_energy(e)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, uext_boundary = solvers[l].solve(
-                interaction_matrix, channels
-            )
+            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, channels)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
@@ -266,4 +264,4 @@ def rmse_RK_LM():
 if __name__ == "__main__":
     channel_radius_dependence_test()
     local_interaction_example()
-    #rmse_RK_LM()
+    rmse_RK_LM()
