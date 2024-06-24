@@ -176,9 +176,6 @@ class LagrangeRMatrixSolver:
         ecom,
         wavefunction=None,
     ):
-        # assure precomputed values are consistent with provided channel
-        assert ecom == self.ecom
-
         A = self.bloch_se_matrix(interaction_matrix, channels)
 
         args = (
