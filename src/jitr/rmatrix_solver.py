@@ -173,7 +173,6 @@ class LagrangeRMatrixSolver:
         self,
         interaction_matrix: InteractionMatrix,
         channels: np.array,
-        ecom,
         wavefunction=None,
     ):
         A = self.bloch_se_matrix(interaction_matrix, channels)
