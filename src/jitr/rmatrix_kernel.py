@@ -197,9 +197,9 @@ class LagrangeRMatrixKernel:
         args,
     ):
         r"""
-        Calculates the DWBA matrix element for the local operator `interaction`, between distorted wave
-        `bra` and `ket`, which are represented as a set of `self.nbasis` complex coefficients for the
-        Lagrange functions, following Eq. 29 in Descouvemont, 2016 (or 2.85 in Baye, 2015).
+        Calculates the DWBA matrix element for the local operator `interaction`, between distorted
+        wave `bra` and `ket`, which are represented as a set of `self.nbasis` complex coefficients
+        for the Lagrange functions, following Eq. 29 in Descouvemont, 2016 (or 2.85 in Baye, 2015).
         """
         dwba = 0
         for n in range(0, self.nbasis):
@@ -226,11 +226,11 @@ class LagrangeRMatrixKernel:
         (or 2.85 in Baye, 2015).
         """
         # get operator in Lagrange coords as (nbasis x nbasis) matrix
-        O = self.single_channel_nonlocal_interaction_matrix(
+        Vnm = self.single_channel_nonlocal_interaction_matrix(
             interaction, ch, is_symmetric, args
         )
         # reduce
-        return bra.conj().T @ O @ ket
+        return bra.conj().T @ Vnm @ ket
 
 
 @njit
