@@ -37,34 +37,6 @@ class LagrangeRMatrixKernel:
         self.abscissa = abscissa
         self.weights = weights
 
-    def integrate_local(self, f, a, args=()):
-        """
-        integrates local operator of form f(x,*args)dx from [0,a] in Gauss quadrature
-        """
-        return np.sum(f(self.abscissa * a, *args) * self.weights) * a
-
-    def double_integrate_nonlocal(self, f, a, is_symmetric=True, args=()):
-        """
-        double integrates nonlocal operator of form f(x,x',*args)dxdx' from [0,a] x [0,a]
-        in Gauss quadrature
-        """
-        w = self.weights
-        x = self.abscissa
-        d = 0
-
-        if is_symmetric:
-            for n in range(0, self.nbasis):
-                d += f(x[n] * a, x[n] * a) * w[n]
-                for m in range(n + 1, self.nbasis):
-                    # account for both above and below diagonal
-                    d += 2 * f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
-        else:
-            for n in range(0, self.nbasis):
-                for m in range(0, self.nbasis):
-                    d += f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
-
-        return d * a
-
     def local_interaction_matrix_element(
         self, n: np.int32, interaction, ch: ChannelData, args=()
     ):

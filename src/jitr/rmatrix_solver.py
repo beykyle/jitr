@@ -41,6 +41,10 @@ class LagrangeRMatrixSolver:
         """
         self.kernel = build_kernel(nbasis)
 
+        # precomputed matrices of weights and abscissa for vectorized operations
+        self.weight_matrix = np.sqrt(np.outer(self.kernel.weights, self.kernel.weights))
+        self.Xi, self.Xj = np.meshgrid(self.kernel.abscissa, self.kernel.abscissa)
+
         if asym is None:
             if sys.Zproj * sys.Ztarget > 0:
                 asym = CoulombAsymptotics
@@ -57,6 +61,51 @@ class LagrangeRMatrixSolver:
             self.precompute_asymptotics(
                 self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
+
+    def integrate_local(self, f, a, args=()):
+        """
+        integrates local operator of form f(x,*args)dx from [0,a] in Gauss quadrature
+        """
+        return np.sum(f(self.kernel.abscissa * a, *args) * self.kernel.weights) * a
+
+    def double_integrate_nonlocal(self, f, a, is_symmetric=True, args=()):
+        """
+        double integrates nonlocal operator of form f(x,x',*args)dxdx' from [0,a] x [0,a]
+        in Gauss quadrature
+        """
+        w = self.kernel.weights
+        x = self.kernel.abscissa
+        d = 0
+
+        # TODO vectorize
+        if is_symmetric:
+            for n in range(0, self.nbasis):
+                d += f(x[n] * a, x[n] * a) * w[n]
+                for m in range(n + 1, self.nbasis):
+                    # account for both above and below diagonal
+                    d += 2 * f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
+        else:
+            for n in range(0, self.nbasis):
+                for m in range(0, self.nbasis):
+                    d += f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
+
+        return d * a
+
+    def matrix_local(self, f, args=()):
+        r"""get diagonal elements of matrix for arbitrary local vectorized operator f(x)"""
+        return self.kernel.weights * f(self.kernel.abscissa, *args)
+
+    def matrix_nonlocal(self, f, is_symmetric=True, args=()):
+        r"""get matrix for arbitrary vectorized operator f(x,xp)"""
+        if is_symmetric:
+            n = self.kernel.nbasis
+            umask = self.triu_indices(n)
+            M = np.zeros(n, n)
+            M[mask] *= self.weight_matrix[mask] * f(self.Xi[mask], self.Xj[mask])
+            M += np.triu(M, k=1).T
+            return M
+        else:
+            return self.weight_matrix * f(self.Xi, self.Xj, *args)
 
     def precompute_boundaries(self, a):
         r"""precompute boundary values of Lagrange-Legendre for each channel"""
