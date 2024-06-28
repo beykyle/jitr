@@ -16,6 +16,13 @@ from .system import ProjectileTargetSystem, InteractionMatrix
 from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix, rmsolve_wavefunction
 
 
+def build_kernel(nbasis: int, nchannels: int = 1):
+    x, w = np.polynomial.legendre.leggauss(nbasis)
+    abscissa = 0.5 * (x + 1)
+    weights = 0.5 * w
+    return LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
+
+
 class LagrangeRMatrixSolver:
     r"""A solver valid for all energies"""
 
@@ -32,10 +39,7 @@ class LagrangeRMatrixSolver:
             a : channel radii
 
         """
-        x, w = np.polynomial.legendre.leggauss(nbasis)
-        abscissa = 0.5 * (x + 1)
-        weights = 0.5 * w
-        self.kernel = LagrangeRMatrixKernel(nbasis, nchannels, abscissa, weights)
+        self.kernel = build_kernel(nbasis)
 
         if asym is None:
             if sys.Zproj * sys.Ztarget > 0:
@@ -174,8 +178,13 @@ class LagrangeRMatrixSolver:
         interaction_matrix: InteractionMatrix,
         channels: np.array,
         wavefunction=None,
+        added_operator=None,
     ):
         A = self.bloch_se_matrix(interaction_matrix, channels)
+
+        # allow user to add arbitrary operator
+        if added_operator is not None:
+            A += added_operator
 
         args = (
             A,

@@ -37,6 +37,34 @@ class LagrangeRMatrixKernel:
         self.abscissa = abscissa
         self.weights = weights
 
+    def integrate_local(self, f, a, args=()):
+        """
+        integrates local operator of form f(x,*args)dx from [0,a] in Gauss quadrature
+        """
+        return np.sum(f(self.abscissa * a, *args) * self.weights) * a
+
+    def double_integrate_nonlocal(self, f, a, is_symmetric=True, args=()):
+        """
+        double integrates nonlocal operator of form f(x,x',*args)dxdx' from [0,a] x [0,a]
+        in Gauss quadrature
+        """
+        w = self.weights
+        x = self.abscissa
+        d = 0
+
+        if is_symmetric:
+            for n in range(0, self.nbasis):
+                d += f(x[n] * a, x[n] * a) * w[n]
+                for m in range(n + 1, self.nbasis):
+                    # account for both above and below diagonal
+                    d += 2 * f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
+        else:
+            for n in range(0, self.nbasis):
+                for m in range(0, self.nbasis):
+                    d += f(x[n] * a, x[m] * a) * np.sqrt(w[n] * w[m])
+
+        return d * a
+
     def local_interaction_matrix_element(
         self, n: np.int32, interaction, ch: ChannelData, args=()
     ):
@@ -72,7 +100,7 @@ class LagrangeRMatrixKernel:
 
         utilde = eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args)
 
-        return utilde * np.sqrt(wm * wn) * a
+        return utilde * np.sqrt(wm * wn) * a / ch.k
 
     def single_channel_nonlocal_interaction_matrix(
         self,
@@ -137,11 +165,14 @@ class LagrangeRMatrixKernel:
         N = self.nbasis
 
         if n == m:
-            centrifugal = l * (l + 1) / (a * xn) ** 2
             # Eq. 3.128 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            return ((4 * N**2 + 4 * N + 3) * xn * (1 - xn) - 6 * xn + 1) / (
-                3 * xn**2 * (1 - xn) ** 2
-            ) / a**2 + centrifugal
+            centrifugal = l * (l + 1) / (a * xn) ** 2
+            radial = (
+                ((4 * N**2 + 4 * N + 3) * xn * (1 - xn) - 6 * xn + 1)
+                / (3 * xn**2 * (1 - xn) ** 2)
+                / a**2
+            )
+            return radial + centrifugal
         else:
             # Eq. 3.129 in [Baye, 2015], scaled by 1/E and with r->s=kr
             return (
