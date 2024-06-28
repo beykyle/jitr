@@ -73,7 +73,7 @@ def yamaguchi_swave_delta(k, *params):
     """
     analytic k * cot(phase shift) for yamaguchi potential; Eq. 6.15 in [Baye, 2015]
     """
-    _, a, b = params
+    _, b, a = params
     d = 2 * (a + b) ** 2
 
     kcotdelta = (
