@@ -5,22 +5,25 @@ from .utils import alpha, hbarc
 
 
 def perey_buck(r, rp, local_potential, *params):
-    """  Eq. A.1 in Perey  & Buck, 1962. The full non-local kernel """
-    return perey_buck_diagonal(r, rp, local_potential, params) * perey_buck_nonlocal(r, rp, params)
+    """Eq. A.1 in Perey  & Buck, 1962. The full non-local kernel"""
+    return perey_buck_diagonal(r, rp, local_potential, params) * perey_buck_nonlocal(
+        r, rp, params
+    )
 
 
 @njit
 def perey_buck_diagonal(r, rp, local_potential, *params):
-    """ Evaluate U in Eq. A.1 in Perey  & Buck, 1962. The local part of the non-local kernel """
-    return local_potential( 0.5 * (r + rp) , params)
+    """Evaluate U in Eq. A.1 in Perey  & Buck, 1962. The local part of the non-local kernel"""
+    return local_potential(0.5 * (r + rp), params)
 
 
 def perey_buck_nonlocal(r, rp, *params):
-    """ Eq. A.2 in Perey  & Buck, 1962. Just the non-local factor H(r,rp). """
+    """Eq. A.2 in Perey  & Buck, 1962. Just the non-local factor H(r,rp)."""
     beta, l = params
-    z = 2 * np.pi * r * rp / beta **2
-    Kl = 2 * 1j**l * z * sc.spherical_jn(l, - 1j * z)
-    return np.exp( - (r**2 + rp**2)/beta**2 ) * Kl / (beta * np.sqrt(np.pi))
+    z = 2 * np.pi * r * rp / beta**2
+    Kl = 2 * 1j**l * z * sc.spherical_jn(l, -1j * z)
+    return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
+
 
 @njit
 def woods_saxon_potential(r, *params):
