@@ -304,7 +304,7 @@ class LagrangeRMatrixSolver:
                             is_symmetric,
                             nloc_args,
                         )
-                        / ch.E
+                        / ch.E / ch.k # extra factor of 1/k because dr = 1/k ds
                     )
         return C
 
