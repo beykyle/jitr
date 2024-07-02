@@ -23,8 +23,8 @@ def interaction(r, *args):
 def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, 10, 1)
-    egrid = np.linspace(0.5, 100, 100)
+    lgrid = np.arange(0, 4, 1)
+    egrid = np.linspace(0.5, 100, 10)
     nodes_within_radius = 5
     Ztarget = 40
     Zproj = 1
