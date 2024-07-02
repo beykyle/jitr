@@ -70,7 +70,7 @@ def coupled_channels_example(visualize=False):
     channels = system.build_channels(ecom)
     solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom)
 
-    H = solver.bloch_se_matrix(interaction_matrix, channels)
+    H = solver.interaction_matrix(interaction_matrix, channels)
 
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(

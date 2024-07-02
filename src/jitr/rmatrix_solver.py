@@ -43,7 +43,7 @@ class LagrangeRMatrixSolver:
             asym : Implementation of asymptotic free wavefunctions
         """
         self.sys = sys
-        self.kernel = build_kernel(nbasis)
+        self.kernel = build_kernel(nbasis, nchannels)
 
         # precompute matrices of weights and abscissa for vectorized operations
         self.weight_matrix = np.sqrt(np.outer(self.kernel.weights, self.kernel.weights))
