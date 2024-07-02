@@ -112,7 +112,7 @@ def local_interaction_example():
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = Wavefunctions(
-        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, ch
+        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, channels
     ).uint()[0]
     u_lm = u_lm(s_values)
 
