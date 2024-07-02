@@ -46,10 +46,10 @@ class LagrangeRMatrixSolver:
         self.kernel = build_kernel(nbasis, nchannels)
 
         # precompute matrices of weights and abscissa for vectorized operations
-        self.weight_matrix = np.sqrt(np.outer(self.kernel.weights, self.kernel.weights))
+        self.weight_matrix = np.outer(self.kernel.weights, self.kernel.weights)
         self.Xn, self.Xm = np.meshgrid(self.kernel.abscissa, self.kernel.abscissa)
         self.upper_mask = np.triu_indices(nbasis)
-        self.lower_mask = np.tril_indices(nbasis, k=1)
+        self.lower_mask = np.tril_indices(nbasis, k=-1)
 
         # precompute asymptotic values
         if asym is None:
@@ -84,23 +84,21 @@ class LagrangeRMatrixSolver:
         double integrates nonlocal operator of form f(x,x',*args)dxdx' from [0,a] x [0,a]
         in Gauss quadrature
         """
-        w = self.kernel.weights
-        x = self.kernel.abscissa
-        d = 0
-
         if is_symmetric:
             off_diag = np.sum(
-                self.weight_matrix[lower_mask]
-                * f(self.Xn[lower_mask] * a, self.Xm[lower_mask] * a, *args)
+                self.weight_matrix[self.lower_mask]
+                * f(self.Xn[self.lower_mask] * a, self.Xm[self.lower_mask] * a, *args)
             )
             diag = np.sum(
-                np.diag(weight_matrix)
-                * f(self.kernel.abscissa * a, self.kernel.abscissa * a)
+                self.kernel.weights**2
+                * f(self.kernel.abscissa * a, self.kernel.abscissa * a, *args)
             )
 
-            return a * (2 * off_diag + diag)
+            return a**2 * (2 * off_diag + diag)
         else:
-            return a * np.sum(self.weight_matrix * f(self.Xn * a, self.Xm * a, *args))
+            return a**2 * np.sum(
+                self.weight_matrix * f(self.Xn * a, self.Xm * a, *args)
+            )
 
     def fourier_bessel_transform(
         self, l: np.int32, f, k: np.float64, a: np.float64, *args
@@ -186,12 +184,12 @@ class LagrangeRMatrixSolver:
             xn = self.Xn[self.upper_mask] * a
             xm = self.Xm[self.upper_mask] * a
             M[self.upper_mask] = (
-                self.weight_matrix[self.upper_mask] * f(xn, xm, *args) * a
+                np.sqrt(self.weight_matrix[self.upper_mask]) * f(xn, xm, *args) * a
             )
             M += np.triu(M, k=1).T
             return M
         else:
-            return self.weight_matrix * f(self.Xn * a, self.Xm * a, *args) * a
+            return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
 
     def precompute_boundaries(self, a):
         r"""precompute boundary values of Lagrange-Legendre for each channel"""
