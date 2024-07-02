@@ -184,8 +184,8 @@ class LagrangeRMatrixKernel:
         sz = nb * self.nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(self.nchannels):
-            fij = self.single_channel_free_matrix(a[i], l[i])
-            C[i * nb : i * nb + nb, i * nb : i * nb + nb] += fij
+            Fij = self.single_channel_free_matrix(a[i], l[i])
+            C[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
 
         return C
 

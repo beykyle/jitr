@@ -176,7 +176,7 @@ class LagrangeRMatrixSolver:
 
     def matrix_local(self, f, a, args=()):
         r"""get diagonal elements of matrix for arbitrary local vectorized operator f(x)"""
-        return self.kernel.weights * f(self.kernel.abscissa * a, *args)
+        return f(self.kernel.abscissa * a, *args)
 
     def matrix_nonlocal(self, f, a, is_symmetric=True, args=()):
         r"""get matrix for arbitrary vectorized operator f(x,xp)"""
@@ -197,7 +197,7 @@ class LagrangeRMatrixSolver:
         r"""precompute boundary values of Lagrange-Legendre for each channel"""
         self.b = np.hstack(
             [
-                [self.f(n, i, a[i]) for n in range(1, self.kernel.nbasis + 1)]
+                [self.f(n, a[i], a[i]) for n in range(1, self.kernel.nbasis + 1)]
                 for i in range(self.kernel.nchannels)
             ],
             dtype=np.complex128,
@@ -245,7 +245,7 @@ class LagrangeRMatrixSolver:
                 self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
 
-    def f(self, n: np.int32, i: np.int32, s: np.float64):
+    def f(self, n: np.int32, a: np.float32, s: np.float64):
         """
         nth basis function in channel i - Lagrange-Legendre polynomial of degree n shifted onto
         [0,a_i] and regularized by s/( a_i * xn)
@@ -253,7 +253,7 @@ class LagrangeRMatrixSolver:
         """
         assert n <= self.kernel.nbasis and n >= 1
 
-        x = s / self.sys.channel_radii[i]
+        x = s / a
         xn = self.kernel.abscissa[n - 1]
 
         # Eqn 3.122 in [Baye, 2015], with s = kr
@@ -287,10 +287,12 @@ class LagrangeRMatrixSolver:
                 if int_local is not None:
                     loc_args = interaction_matrix.local_args[i, j]
                     Cij += (
-                        self.matrix_local(
-                            int_local,
-                            ch.domain[1] / ch.k,
-                            loc_args,
+                        np.diag(
+                            self.matrix_local(
+                                int_local,
+                                ch.domain[1] / ch.k,
+                                loc_args,
+                            )
                         )
                         / ch.E
                     )
