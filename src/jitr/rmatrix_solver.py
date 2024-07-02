@@ -269,8 +269,8 @@ class LagrangeRMatrixSolver:
         channels: list,
     ):
         r"""
-        Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis,
-        where each channel is an nxn block (n being the basis size), and there are NxN such blocks.
+        Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis, where each channel is an
+        nxn block (n being the basis size), and there are NxN such blocks, for N channels.
         Uses the dimensionless version with s=kr and divided by E.
         """
         nb = self.kernel.nbasis
