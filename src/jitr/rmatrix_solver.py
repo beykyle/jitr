@@ -289,7 +289,7 @@ class LagrangeRMatrixSolver:
                     Cij += (
                         self.matrix_local(
                             int_local,
-                            ch.domain[a] / ch.k,
+                            ch.domain[1] / ch.k,
                             loc_args,
                         )
                         / ch.E
@@ -300,7 +300,7 @@ class LagrangeRMatrixSolver:
                     Cij += (
                         self.matrix_nonlocal(
                             int_nonlocal,
-                            a / ch.k,
+                            ch.domain[1] / ch.k,
                             is_symmetric,
                             nloc_args,
                         )
