@@ -62,6 +62,44 @@ class LagrangeRMatrixSolver:
                 self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
 
+    def fourier_bessel_transform(self, l, f, k, a, *args):
+        """
+        performs a Fourier-Bessel transform of order l from r->k coordinates with r on [0,a]
+        """
+        r = self.kernel.abscissa * a
+        kr = np.outer(k,r)
+        return np.sum(
+            sc.spherical_jn(l, kr)  * r**2 * f(r, *args) * self.kernel.weights,
+            axis=1
+        )
+
+    def double_fourier_bessel_transform(self, l, f, k, a, *args):
+        """
+        performs a double Fourier-Bessel transform of f(r,r') of order l, going from f(r,r')->F(k,k')
+        coordinates with r/r' on [0,a]
+        """
+        N = self.kernel.nbasis
+        r = self.kernel.abscissa * a
+        jkr = sc.spherical_j(l, np.outer(k,r))
+        F_kkp = np.zeros((N,N), dtype=np.complex128)
+        F_rkp = np.zeros((N,N), dtype=np.complex128)
+
+        # integrate over rp at each r
+        for i in range(N):
+            F_rkp[i,:] = np.sum(
+                jkr  * r**2 * f(r[i], r, *args) * self.kernel.weights,
+                axis=1
+            )
+
+        # integrate over r at each kp
+        for i in range(N):
+            F_kkp[:,i] = np.sum(
+                jkr  * r**2 * F_rkp[:,i] * self.kernel.weights,
+                axis=1
+            )
+
+        return F_kkp * 2/np.pi
+
     def integrate_local(self, f, a, args=()):
         """
         integrates local operator of form f(x,*args)dx from [0,a] in Gauss quadrature
@@ -91,21 +129,21 @@ class LagrangeRMatrixSolver:
 
         return d * a
 
-    def matrix_local(self, f, args=()):
+    def matrix_local(self, f, a, args=()):
         r"""get diagonal elements of matrix for arbitrary local vectorized operator f(x)"""
-        return self.kernel.weights * f(self.kernel.abscissa, *args)
+        return self.kernel.weights * f(self.kernel.abscissa * a, *args)
 
-    def matrix_nonlocal(self, f, is_symmetric=True, args=()):
+    def matrix_nonlocal(self, f, a, is_symmetric=True, args=()):
         r"""get matrix for arbitrary vectorized operator f(x,xp)"""
         if is_symmetric:
             n = self.kernel.nbasis
-            umask = self.triu_indices(n)
+            mask = self.triu_indices(n)
             M = np.zeros(n, n)
-            M[mask] *= self.weight_matrix[mask] * f(self.Xi[mask], self.Xj[mask])
+            M[mask] = self.weight_matrix[mask] * f(self.Xi[mask] * a, self.Xj[mask] * a, *args)
             M += np.triu(M, k=1).T
             return M
         else:
-            return self.weight_matrix * f(self.Xi, self.Xj, *args)
+            return self.weight_matrix * f(self.Xi * a, self.Xj * a, *args)
 
     def precompute_boundaries(self, a):
         r"""precompute boundary values of Lagrange-Legendre for each channel"""
