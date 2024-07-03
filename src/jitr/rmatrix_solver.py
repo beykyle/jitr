@@ -46,7 +46,7 @@ class LagrangeRMatrixSolver:
             sys (ProjectileTargetSystem) : information about scattering system
             ecom (float) : center of mass frame scattering energy
             asym : Implementation of asymptotic free wavefunctions
-            basis (str): what basis to use (see Ch. 3 of Baye, 2015)
+            basis (str): what basis/mesh to use (see Ch. 3 of Baye, 2015)
         """
         self.sys = sys
         self.overlap = np.diag(np.ones(nbasis))
@@ -54,9 +54,11 @@ class LagrangeRMatrixSolver:
             x, w = legendre_quadrature(nbasis)
             self.kernel = LagrangeLegendreRMatrixKernel(nbasis, nchannels, x, w)
             self.f = self.legendre
+            self.f_series = self.legendre_series
         elif basis == "Laguerre":
             x, w = laguerre_quadrature(nbasis)
             self.f = self.laguerre
+            self.f_series = self.laguerre_series
             self.kernel = LagrangeLaguerreRMatrixKernel(nbasis, nchannels, x, w)
         else:
             raise NotImplementedError(
@@ -282,10 +284,63 @@ class LagrangeRMatrixSolver:
                 self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
             )
 
+    def legendre_series(self, coeffs: np.array, a: np.float64, s: np.array):
+        r"""
+        Vectorized evaluation of linear combination of Legendre basis functions.
+        See Eq. 3.122 in Baye, 2015.
+
+        @returns: linear combination of Lagrange Legendre functions evaluated at
+            (2 s / a - 1)
+
+        @params:
+            coeffs (1darray) : coefficients of the Lagrange Legendre functions,
+            starting from the 1st (not the 0th!)
+            a (float) : scaling factor
+            s (1darray): grid of points to evaluate on
+
+        """
+        x = s / a
+        xn = self.kernel.abscissa
+
+        return (
+            (-1.0) ** (self.kernel.nbasis - n)
+            * np.sqrt((1 - xn) / xn)
+            * np.polynomial.legendre.legval(c, 2.0 * x - 1.0)
+            * x
+            / (x - xn)
+        )
+
+    def laguerre_series(self, coeffs: np.array, a: np.float64, s: np.array):
+        r"""
+        vectorized evaluation of linear combination of Laguerre basis functions.
+        See Eq. 3.70 in Baye, 2015 (with alpha = 0).
+
+        @returns: linear combination of Lagrange Laguerre functions evaluated at
+            s / a
+
+        @params:
+            coeffs (1darray) : coefficients of the linear combination
+            starting from the 1st (not the 0th!)
+            a (float) : scaling factor
+            s (1darray): grid of points to evaluate on
+
+        """
+        x = s / a
+        xn = self.kernel.abscissa
+        return (
+            (-1) ** n
+            / np.sqrt(xn)
+            * np.polynomial.laguerre.lagval(x, np.hstack((0, c)))
+            / (x - xn)
+            * x
+            * np.exp(-x / 2)
+        )
+
     def laguerre(self, n: np.int32, a: np.float64, s: np.float64):
         r"""
-        nth basis function in channel i - Lagrange-Laguerre polynomial of degree
-        n scaled by a and regularized s. Eq. 3.70 in Baye, 2015 with alpha = 0.
+        nth Lagrange-Laguerre function, scaled by a and regularized s. Eq. 3.70
+        in Baye, 2015 with alpha = 0.
+
         Note: n is indexed from 1 (constant function is not part of basis)
         """
         assert n <= self.kernel.nbasis and n >= 1
@@ -304,8 +359,9 @@ class LagrangeRMatrixSolver:
 
     def legendre(self, n: np.int32, a: np.float64, s: np.float64):
         r"""
-        nth basis function in channel i - Lagrange-Legendre polynomial of degree
-        n shifted onto [0,a_i] and regularized by s. Eq. 3.122 in Baye, 2015
+        nth Lagrange-Legendre polynomial shifted onto [0,a_i] and regularized by
+        s.  Eq. 3.122 in Baye, 2015
+
         Note: n is indexed from 1 (constant function is not part of basis)
         """
         assert n <= self.kernel.nbasis and n >= 1
