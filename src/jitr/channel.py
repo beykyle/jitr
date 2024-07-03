@@ -96,7 +96,6 @@ class Wavefunctions:
         """
 
         def uext_channel(i):
-            # TODO optimize this
             l = self.channels[i].l
             eta = self.channels[i].eta
             asym_func_in = lambda s: (
