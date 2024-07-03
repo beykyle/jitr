@@ -16,7 +16,10 @@ from .system import ProjectileTargetSystem, InteractionMatrix
 from .rmatrix_kernel import LagrangeRMatrixKernel, rmsolve_smatrix, rmsolve_wavefunction
 
 
-def build_kernel(nbasis: int, nchannels: int = 1):
+def build_legendre_kernel(nbasis: int, nchannels: int = 1):
+    r"""
+    Build kernel using Lagrange-Legendre basis. See Ch. 3.4 of Baye, 2015
+    """
     x, w = np.polynomial.legendre.leggauss(nbasis)
     abscissa = 0.5 * (x + 1)
     weights = 0.5 * w
@@ -33,6 +36,7 @@ class LagrangeRMatrixSolver:
         sys: ProjectileTargetSystem,
         ecom=None,
         asym=None,
+        basis = "Legendre".
     ):
         r"""
         Parameters:
@@ -41,9 +45,13 @@ class LagrangeRMatrixSolver:
             sys (ProjectileTargetSystem) : information about scattering system in question
             ecom (float) : center of mass frame scattering energy
             asym : Implementation of asymptotic free wavefunctions
+            basis (str): what basis to use (see Ch. 3 of Baye, 2015 for some options)
         """
         self.sys = sys
-        self.kernel = build_kernel(nbasis, nchannels)
+        if basis == "Legendre":
+            self.kernel = build_legendre_kernel(nbasis, nchannels)
+        else:
+            raise NotImplementedError("Currently only Lagrange Legendre meshes are supported")
 
         # precompute matrices of weights and abscissa for vectorized operations
         self.weight_matrix = np.outer(self.kernel.weights, self.kernel.weights)
