@@ -54,11 +54,9 @@ class LagrangeRMatrixSolver:
             x, w = legendre_quadrature(nbasis)
             self.kernel = LagrangeLegendreRMatrixKernel(nbasis, nchannels, x, w)
             self.f = self.legendre
-            self.f_series = self.legendre_series
         elif basis == "Laguerre":
             x, w = laguerre_quadrature(nbasis)
             self.f = self.laguerre
-            self.f_series = self.laguerre_series
             self.kernel = LagrangeLaguerreRMatrixKernel(nbasis, nchannels, x, w)
         else:
             raise NotImplementedError(
