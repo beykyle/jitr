@@ -17,10 +17,12 @@ from jitr import (
     woods_saxon_potential,
 )
 
+
 @njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
     return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
+
 
 def test_wavefunction():
     E = 14.1
@@ -55,7 +57,9 @@ def test_wavefunction():
 
     # Runge-Kutta
     sol_rk = solve_ivp(
-        lambda s, y,: schrodinger_eqn_ivp_order1(s, y, ch, ints.local_matrix[0, 0], params),
+        lambda s, y,: schrodinger_eqn_ivp_order1(
+            s, y, ch, ints.local_matrix[0, 0], params
+        ),
         domain,
         init_con,
         dense_output=True,
@@ -67,7 +71,9 @@ def test_wavefunction():
     R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
-    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(ints, channels, wavefunction=True)
+    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
+        ints, channels, wavefunction=True
+    )
     u_lm = Wavefunctions(
         solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, channels
     ).uint()[0]
@@ -80,4 +86,6 @@ def test_wavefunction():
     magnitude = np.absolute(ratio)
     phase = np.angle(ratio) * 180 / np.pi
     u_rk *= ratio
-    np.testing.assert_allclose(np.absolute(u_rk - u_lm) / (np.absolute(u_rk)), 0, atol=1e-3)
+    np.testing.assert_allclose(
+        np.absolute(u_rk - u_lm) / (np.absolute(u_rk)), 0, atol=1e-3
+    )
