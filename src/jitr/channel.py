@@ -96,9 +96,7 @@ class Wavefunctions:
             eta = self.channels[i].eta
 
             def asym_func_in(s):
-                return (
-                    self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
-                )
+                return self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
 
             def asym_func_out(s):
                 return np.sum(

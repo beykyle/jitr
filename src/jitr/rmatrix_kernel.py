@@ -2,6 +2,7 @@ import numpy as np
 from numba.experimental import jitclass
 from numba import int32, float64, njit
 
+
 def laguerre_quadrature(nbasis: int):
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Laguerre
@@ -64,9 +65,7 @@ class LagrangeLaguerreRMatrixKernel:
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(
-        self, n: int32, m: int32, a: float64, l: int32
-    ):
+    def kinetic_operator_element(self, n: int32, m: int32, a: float64, l: int32):
         """
         @returns the (n,m)th matrix element for the kinetic energy operator at
         channel radius a = k*r with orbital angular momentum l
@@ -153,9 +152,7 @@ class LagrangeLegendreRMatrixKernel:
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(
-        self, n: int32, m: int32, a: float64, l: int32
-    ):
+    def kinetic_operator_element(self, n: int32, m: int32, a: float64, l: int32):
         """
         @returns the (n,m)th matrix element for the kinetic energy + Bloch
         operator at channel radius a = k*r with orbital angular momentum l

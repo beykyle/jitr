@@ -2,13 +2,9 @@ import numpy as np
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    ChannelData,
-    Wavefunctions,
     LagrangeRMatrixSolver,
     yamaguchi_potential,
     yamaguchi_swave_delta,
-    delta,
-    smatrix,
     hbarc,
 )
 
