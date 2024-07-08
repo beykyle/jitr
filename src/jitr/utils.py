@@ -1,9 +1,7 @@
 import numpy as np
 from numba import njit
-from numba.experimental import jitclass
 from mpmath import coulombf, coulombg
 import scipy.special as sc
-from scipy.interpolate import interp1d
 from scipy.misc import derivative
 
 alpha = 1.0 / 137.0359991  # dimensionless fine structure constant

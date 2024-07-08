@@ -6,10 +6,6 @@ from .utils import (
     Gamow_factor,
     H_plus,
     H_minus,
-    alpha,
-    hbarc,
-    eval_scaled_interaction,
-    null,
     CoulombAsymptotics,
 )
 
@@ -98,18 +94,23 @@ class Wavefunctions:
         def uext_channel(i):
             l = self.channels[i].l
             eta = self.channels[i].eta
-            asym_func_in = lambda s: (
-                self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
-            )
-            asym_func_out = lambda s: np.sum(
-                [
-                    self.incoming_weights[j]
-                    * self.S[i, j]
-                    * H_plus(s, l, eta, asym=self.asym)
-                    for j in self.solver.kernel.nchannels
-                ],
-                axis=0,
-            )
+
+            def asym_func_in(s):
+                return (
+                    self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
+                )
+
+            def asym_func_out(s):
+                return np.sum(
+                    [
+                        self.incoming_weights[j]
+                        * self.S[i, j]
+                        * H_plus(s, l, eta, asym=self.asym)
+                        for j in self.solver.kernel.nchannels
+                    ],
+                    axis=0,
+                )
+
             return lambda s: asym_func_in(s) + asym_func_out(s)
 
         uext = []

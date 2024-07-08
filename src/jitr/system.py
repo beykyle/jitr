@@ -2,7 +2,7 @@ from numba.experimental import jitclass
 from numba import float64, int64
 import numpy as np
 
-from .utils import hbarc, c, alpha, null
+from .utils import hbarc, c, alpha
 from .channel import ChannelData
 
 

@@ -4,7 +4,6 @@ from numba import njit
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    ChannelData,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
     coulomb_charged_sphere,

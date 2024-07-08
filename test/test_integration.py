@@ -71,7 +71,6 @@ def test_nonlocal_integration():
     full = solver.weight_matrix * Vnl_sym(
         solver.Xn * 2 * np.pi, solver.Xm * 2 * np.pi, 1 / 16, 2
     )
-    full_sum = np.sum(full) * 4 * np.pi**2
     np.testing.assert_allclose(
         np.diag(solver.weight_matrix) - solver.kernel.weights**2, 0, atol=1e-7
     )

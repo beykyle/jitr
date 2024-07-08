@@ -1,11 +1,8 @@
 import numpy as np
 import scipy.special as sc
-import scipy.linalg as la
 
 from .system import ProjectileTargetSystem, InteractionMatrix
 from .utils import (
-    hbarc,
-    c,
     CoulombAsymptotics,
     FreeAsymptotics,
     H_plus,
@@ -174,7 +171,7 @@ class LagrangeRMatrixSolver:
         Note: integral is performed in s space, with ds = k dr. To get value of
         integral over r space, result should be scaled by 1/k
         """
-        return np.sum(bra.conj() * self.matrix_local(interaction, a, args) * ket)
+        return np.sum(bra.conj() * self.matrix_local(f, a, args) * ket)
 
     def dwba_nonlocal(
         self,

@@ -2,11 +2,6 @@ import numpy as np
 from numba.experimental import jitclass
 from numba import int32, float64, njit
 
-from .system import InteractionMatrix
-from .channel import ChannelData
-from .utils import eval_scaled_interaction, eval_scaled_nonlocal_interaction, block
-
-
 def laguerre_quadrature(nbasis: int):
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Laguerre
@@ -47,8 +42,8 @@ class LagrangeLaguerreRMatrixKernel:
 
     def __init__(
         self,
-        nbasis: np.int32,
-        nchannels: np.int32,
+        nbasis: int32,
+        nchannels: int32,
         abscissa: np.array,
         weights: np.array,
         overlap: np.array = None,
@@ -70,7 +65,7 @@ class LagrangeLaguerreRMatrixKernel:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
+        self, n: int32, m: int32, a: float64, l: int32
     ):
         """
         @returns the (n,m)th matrix element for the kinetic energy operator at
@@ -96,7 +91,7 @@ class LagrangeLaguerreRMatrixKernel:
                 xn - xm
             ) ** 2 / a**2 - correction
 
-    def kinetic_matrix(self, a: np.float64, l: np.int32):
+    def kinetic_matrix(self, a: float64, l: int32):
         r"""
         @returns the kinetic operator matrix in the Lagrange Laguerre basis
         """
@@ -138,8 +133,8 @@ class LagrangeLegendreRMatrixKernel:
 
     def __init__(
         self,
-        nbasis: np.int32,
-        nchannels: np.int32,
+        nbasis: int32,
+        nchannels: int32,
         abscissa: np.array,
         weights: np.array,
         overlap: np.array = None,
@@ -159,7 +154,7 @@ class LagrangeLegendreRMatrixKernel:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
+        self, n: int32, m: int32, a: float64, l: int32
     ):
         """
         @returns the (n,m)th matrix element for the kinetic energy + Bloch
@@ -194,7 +189,7 @@ class LagrangeLegendreRMatrixKernel:
                 / a**2
             )
 
-    def kinetic_matrix(self, a: np.float64, l: np.int32):
+    def kinetic_matrix(self, a: float64, l: int32):
         r"""
         @returns the kinetic operator matrix in the Lagrange Lagrange basis
         """
@@ -231,8 +226,8 @@ def rmsolve_smatrix(
     asymptotics: tuple,
     incoming_weights: np.array,
     a: np.array,
-    nchannels: np.int32,
-    nbasis: np.int32,
+    nchannels: int32,
+    nbasis: int32,
 ):
     r"""
     @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
@@ -269,8 +264,8 @@ def rmsolve_wavefunction(
     asymptotics: tuple,
     incoming_weights: np.array,
     a: np.array,
-    nchannels: np.int32,
-    nbasis: np.int32,
+    nchannels: int32,
+    nbasis: int32,
 ):
     r"""
     @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,

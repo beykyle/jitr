@@ -1,6 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
-
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,

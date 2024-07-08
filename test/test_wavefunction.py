@@ -1,17 +1,13 @@
 import numpy as np
-from matplotlib import pyplot as plt
 from numba import njit
 from scipy.integrate import solve_ivp
 
 from jitr import (
-    ChannelData,
-    Gamow_factor,
     InteractionMatrix,
     LagrangeRMatrixSolver,
     ProjectileTargetSystem,
     Wavefunctions,
     coulomb_charged_sphere,
-    delta,
     schrodinger_eqn_ivp_order1,
     smatrix,
     woods_saxon_potential,
@@ -83,8 +79,6 @@ def test_wavefunction():
     np.testing.assert_almost_equal(S_rk, S_lm[0, 0], decimal=5)
 
     ratio = u_lm[40] / u_rk[40]
-    magnitude = np.absolute(ratio)
-    phase = np.angle(ratio) * 180 / np.pi
     u_rk *= ratio
     np.testing.assert_allclose(
         np.absolute(u_rk - u_lm) / (np.absolute(u_rk)), 0, atol=1e-3

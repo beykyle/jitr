@@ -5,7 +5,6 @@ from numba import njit
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    ChannelData,
     Wavefunctions,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
@@ -13,7 +12,6 @@ from jitr import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
-    Gamow_factor,
 )
 
 
@@ -25,7 +23,6 @@ def interaction(r, *params):
 
 def channel_radius_dependence_test():
     E = 14.1
-    nodes_within_radius = 5
 
     # Potential parameters
     V0 = 60  # real potential strength
