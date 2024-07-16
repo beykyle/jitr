@@ -3,12 +3,10 @@ from matplotlib import pyplot as plt
 
 from jitr import (
     ProjectileTargetSystem,
-    ChannelData,
     InteractionMatrix,
     LagrangeRMatrixSolver,
     Wavefunctions,
     woods_saxon_potential,
-    coulomb_charged_sphere,
     surface_peaked_gaussian_potential,
     complex_det,
     FreeAsymptotics,
@@ -69,8 +67,6 @@ def coupled_channels_example(visualize=False):
     ecom = 35
     channels = system.build_channels(ecom)
     solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom)
-
-    H = solver.bloch_se_matrix(interaction_matrix, channels)
 
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(

@@ -1,6 +1,28 @@
 import numpy as np
 from numba import njit
+from scipy import special as sc
 from .utils import alpha, hbarc
+
+
+def perey_buck(r, rp, local_potential, *params):
+    """Eq. A.1 in Perey  & Buck, 1962. The full non-local kernel"""
+    return perey_buck_diagonal(r, rp, local_potential, params) * perey_buck_nonlocal(
+        r, rp, params
+    )
+
+
+@njit
+def perey_buck_diagonal(r, rp, local_potential, *params):
+    """Evaluate U in Eq. A.1 in Perey  & Buck, 1962. The local part of the non-local kernel"""
+    return local_potential(0.5 * (r + rp), params)
+
+
+def perey_buck_nonlocal(r, rp, *params):
+    """Eq. A.2 in Perey  & Buck, 1962. Just the non-local factor H(r,rp)."""
+    beta, l = params
+    z = 2 * np.pi * r * rp / beta**2
+    Kl = 2 * 1j**l * z * sc.spherical_jn(l, -1j * z)
+    return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
 
 
 @njit
@@ -43,7 +65,7 @@ def regular_inverse_r(r, r_c):
     else:
         ii = np.where(r <= r_c)[0]
         jj = np.where(r > r_c)[0]
-        return np.hstack([1 / (2 * r_c) * (3 - (r[ii] / r_c) ** 2), 1 / r[jj]])
+        return np.hstack((1 / (2 * r_c) * (3 - (r[ii] / r_c) ** 2), 1 / r[jj]))
 
 
 @njit
@@ -51,7 +73,7 @@ def yamaguchi_swave_delta(k, *params):
     """
     analytic k * cot(phase shift) for yamaguchi potential; Eq. 6.15 in [Baye, 2015]
     """
-    _, a, b = params
+    _, b, a = params
     d = 2 * (a + b) ** 2
 
     kcotdelta = (

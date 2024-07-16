@@ -1,16 +1,10 @@
 import numpy as np
-from matplotlib import pyplot as plt
-
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    ChannelData,
-    Wavefunctions,
     LagrangeRMatrixSolver,
     yamaguchi_potential,
     yamaguchi_swave_delta,
-    delta,
-    smatrix,
     hbarc,
 )
 
@@ -35,7 +29,7 @@ def nonlocal_interaction_example():
     interaction_matrix = InteractionMatrix(1)
     interaction_matrix.set_nonlocal_interaction(yamaguchi_potential, args=params)
 
-    solver = LagrangeRMatrixSolver(100, 1, sys, ecom=ecom)
+    solver = LagrangeRMatrixSolver(20, 1, sys, ecom=ecom)
     _, S, _ = solver.solve(interaction_matrix, channels)
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))

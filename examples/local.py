@@ -5,7 +5,6 @@ from numba import njit
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    ChannelData,
     Wavefunctions,
     LagrangeRMatrixSolver,
     woods_saxon_potential,
@@ -13,7 +12,6 @@ from jitr import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
-    Gamow_factor,
 )
 
 
@@ -25,7 +23,6 @@ def interaction(r, *params):
 
 def channel_radius_dependence_test():
     E = 14.1
-    nodes_within_radius = 5
 
     # Potential parameters
     V0 = 60  # real potential strength
@@ -48,7 +45,7 @@ def channel_radius_dependence_test():
         )
         channels = sys.build_channels(E)
         solver = LagrangeRMatrixSolver(60, 1, sys, ecom=E)
-        R, S, _ = solver.solve(ints, channels, E)
+        R, S, _ = solver.solve(ints, channels)
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
 
@@ -108,11 +105,11 @@ def local_interaction_example():
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        ints, channels, E, wavefunction=True
+        ints, channels, wavefunction=True
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = Wavefunctions(
-        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, ch
+        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, channels
     ).uint()[0]
     u_lm = u_lm(s_values)
 
