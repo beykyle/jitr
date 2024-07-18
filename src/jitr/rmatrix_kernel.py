@@ -82,7 +82,9 @@ class LagrangeLaguerreRMatrixKernel:
         if n == m:
             # Eq. 3.75 in [Baye, 2015], scaled by 1/E and with r->s=kr
             centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
+            radial = (
+                -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
+            )
             return radial - correction + centrifugal
         else:
             # Eq. 3.76 in [Baye, 2015], scaled by 1/E and with r->s=kr
@@ -255,35 +257,28 @@ def rmsolve_smatrix(
 
 
 @njit
-def rmsolve_wavefunction(
+def solution_coeffs(
     A: np.array,
     b: np.array,
-    asymptotics: tuple,
-    incoming_weights: np.array,
-    a: np.array,
+    S: np.array,
+    uext_prime_boundary: np.array,
     nchannels: int32,
     nbasis: int32,
 ):
     r"""
-    @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
-    all in Lagrange- Legendre coordinates, as well as the derivative of
-    asymptotic channel Wavefunctions evaluated at the channel radius. Everything
-    returned as block-matrices and block vectors in channel space.
+    @returns the multichannel wavefunction coefficients, in Lagrange- Legendre
+    coordinates.
 
     This follows: Descouvemont, P. (2016).  An R-matrix package for
     coupled-channel problems in nuclear physics.  Computer physics
     communications, 200, 199-219.  and P. Descouvemont and D. Baye 2010 Rep.
     Prog. Phys. 73 036301
     """
-    # should we factorize A so we don't have to solve twice?
-    R, S, uext_prime_boundary = rmsolve_smatrix(
-        A, b, asymptotics, incoming_weights, a, nchannels, nbasis
-    )
 
     # Eqn 3.92 in Descouvemont & Baye, 2010
-    b2 = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
-        nchannels * nbasis
-    )
+    b2 = (
+        b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]
+    ).reshape(nchannels * nbasis)
     x = np.linalg.solve(A, b2).reshape(nchannels, nbasis)
 
-    return R, S, x, uext_prime_boundary
+    return x

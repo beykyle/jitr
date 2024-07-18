@@ -16,7 +16,7 @@ from .rmatrix_kernel import (
     laguerre_quadrature,
     legendre_quadrature,
     rmsolve_smatrix,
-    rmsolve_wavefunction,
+    solution_coeffs,
 )
 
 
@@ -150,7 +150,9 @@ class LagrangeRMatrixSolver:
 
         # integrate over r at each kp
         for i in range(N):
-            F_kkp[:, i] = np.sum(jkr * r**2 * F_rkp[:, i] * self.kernel.weights, axis=1)
+            F_kkp[:, i] = np.sum(
+                jkr * r**2 * F_rkp[:, i] * self.kernel.weights, axis=1
+            )
 
         return F_kkp * 2 / np.pi
 
@@ -375,7 +377,7 @@ class LagrangeRMatrixSolver:
     ):
         A = self.free_matrix + self.interaction_matrix(interaction_matrix, channels)
 
-        args = (
+        R, S, uext_prime_boundary = rmsolve_smatrix(
             A,
             self.b,
             self.asymptotics,
@@ -384,8 +386,15 @@ class LagrangeRMatrixSolver:
             self.kernel.nchannels,
             self.kernel.nbasis,
         )
-
         if wavefunction is None:
-            return rmsolve_smatrix(*args)
+            return R, S, uext_prime_boundary
         else:
-            return rmsolve_wavefunction(*args)
+            x = solution_coeffs(
+                A,
+                self.b,
+                S,
+                uext_prime_boundary,
+                self.kernel.nchannels,
+                self.kernel.nbasis,
+            )
+            return R, S, x, uext_prime_boundary

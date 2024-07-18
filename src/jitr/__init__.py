@@ -9,6 +9,6 @@ from .rmatrix_kernel import (
     laguerre_quadrature,
     legendre_quadrature,
     rmsolve_smatrix,
-    rmsolve_wavefunction,
+    solution_coeffs,
 )
 from .__version__ import __version__
