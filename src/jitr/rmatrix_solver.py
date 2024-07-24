@@ -1,18 +1,10 @@
 import numpy as np
 import scipy.special as sc
 
-from .system import ProjectileTargetSystem, InteractionMatrix
-from .utils import (
-    CoulombAsymptotics,
-    FreeAsymptotics,
-    H_plus,
-    H_minus,
-    H_plus_prime,
-    H_minus_prime,
-)
+from .system import InteractionMatrix
 from .rmatrix_kernel import (
-    LagrangeLaguerreRMatrixKernel,
-    LagrangeLegendreRMatrixKernel,
+    LagrangeLaguerreKernel,
+    LagrangeLegendreKernel,
     laguerre_quadrature,
     legendre_quadrature,
     rmsolve_smatrix,
@@ -29,9 +21,7 @@ class LagrangeRMatrixSolver:
         self,
         nbasis: np.int32,
         nchannels: np.int32,
-        sys: ProjectileTargetSystem,
-        ecom=None,
-        asym=None,
+        channel_radii: np.array,
         basis="Legendre",
         **args,
     ):
@@ -40,21 +30,19 @@ class LagrangeRMatrixSolver:
             nbasis (int) : size of basis; e.g. number of quadrature points for
             integration
             nchannels (int) : number of channels in full system
-            sys (ProjectileTargetSystem) : information about scattering system
             ecom (float) : center of mass frame scattering energy
-            asym : Implementation of asymptotic free wavefunctions
             basis (str): what basis/mesh to use (see Ch. 3 of Baye, 2015)
         """
-        self.sys = sys
+        self.channel_radii = channel_radii
         self.overlap = np.diag(np.ones(nbasis))
         if basis == "Legendre":
             x, w = legendre_quadrature(nbasis)
-            self.kernel = LagrangeLegendreRMatrixKernel(nbasis, nchannels, x, w)
+            self.kernel = LagrangeLegendreKernel(nbasis, nchannels, x, w)
             self.f = self.legendre
         elif basis == "Laguerre":
             x, w = laguerre_quadrature(nbasis)
             self.f = self.laguerre
-            self.kernel = LagrangeLaguerreRMatrixKernel(nbasis, nchannels, x, w)
+            self.kernel = LagrangeLaguerreKernel(nbasis, nchannels, x, w)
         else:
             raise NotImplementedError(
                 "Currently only Legendre and Laguerre meshes are supported"
@@ -66,20 +54,8 @@ class LagrangeRMatrixSolver:
         self.upper_mask = np.triu_indices(nbasis)
         self.lower_mask = np.tril_indices(nbasis, k=-1)
 
-        # method of computing asymptotic values
-        if asym is None:
-            if sys.Zproj * sys.Ztarget > 0:
-                asym = CoulombAsymptotics
-            else:
-                asym = FreeAsymptotics
-
-        self.asym = asym
-
         # precompute basis functions at boundary
-        self.precompute_boundaries(self.sys.channel_radii)
-
-        # precompute free matrix
-        self.precompute_free_matrix(self.sys.channel_radii, self.sys.l)
+        self.precompute_boundaries(self.channel_radii)
 
     def integrate_local(self, f, a: np.float64, args=()):
         """
@@ -228,12 +204,12 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-    def precompute_free_matrix(self, a: np.array, l: np.array):
+    def free_matrix(self, l: np.array):
         r"""
         precompute free matrices, which only depend on orbital angular momentum
         l and dimensionless channel radius a
         """
-        self.free_matrix = self.kernel.free_matrix(a, l)
+        return self.kernel.free_matrix(self.channel_radii, l)
 
     def laguerre(self, n: np.int32, a: np.float64, s: np.float64):
         r"""
@@ -279,7 +255,7 @@ class LagrangeRMatrixSolver:
     def interaction_matrix(
         self,
         interaction_matrix: InteractionMatrix,
-        channels: list,
+        channels: np.array,
     ):
         r"""
         Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis, where
@@ -291,7 +267,8 @@ class LagrangeRMatrixSolver:
         sz = nb * self.kernel.nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(self.kernel.nchannels):
-            ch = channels[i]
+            channel_radius_r = channels["a"][i] / channels["k"][i]
+            E = channels["E"][i]
             for j in range(self.kernel.nchannels):
                 Cij = C[i * nb : i * nb + nb, j * nb : j * nb + nb]
                 int_local = interaction_matrix.local_matrix[i, j]
@@ -302,11 +279,11 @@ class LagrangeRMatrixSolver:
                         np.diag(
                             self.matrix_local(
                                 int_local,
-                                ch.domain[1] / ch.k,
+                                channel_radius_r,
                                 loc_args,
                             )
                         )
-                        / ch.E
+                        / E
                     )
                 if int_nonlocal is not None:
                     nloc_args = interaction_matrix.nonlocal_args[i, j]
@@ -314,12 +291,12 @@ class LagrangeRMatrixSolver:
                     Cij += (
                         self.matrix_nonlocal(
                             int_nonlocal,
-                            ch.domain[1] / ch.k,
+                            channel_radius_r,
                             is_symmetric,
                             nloc_args,
                         )
-                        / ch.E
-                        / ch.k  # extra factor of 1/k because dr = 1/k ds
+                        / channels["k"][i]  # extra factor of 1/k because dr = 1/k ds
+                        / E
                     )
         return C
 
@@ -327,16 +304,22 @@ class LagrangeRMatrixSolver:
         self,
         interaction_matrix: InteractionMatrix,
         channels: np.array,
-        asymptotics,
+        free_matrix=None,
         wavefunction=None,
     ):
-        A = self.free_matrix + self.interaction_matrix(interaction_matrix, channels)
+        if free_matrix is None:
+            free_matrix = self.free_matrix(channels["l"])
+
+        A = free_matrix + self.interaction_matrix(interaction_matrix, channels)
         R, S, uext_prime_boundary = rmsolve_smatrix(
             A,
             self.b,
-            asymptotics,
-            self.sys.incoming_weights,
-            self.sys.channel_radii,
+            channels["Hp"],
+            channels["Hm"],
+            channels["Hpp"],
+            channels["Hmp"],
+            channels["weights"],
+            self.channel_radii,
             self.kernel.nchannels,
             self.kernel.nbasis,
         )

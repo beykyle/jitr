@@ -32,7 +32,7 @@ kernel_static_typing = [
 
 
 @jitclass(kernel_static_typing)
-class LagrangeLaguerreRMatrixKernel:
+class LagrangeLaguerreKernel:
     r"""
     Lagrange Laguerre mesh for the Schrödinger equation following ch. 3.3 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -121,7 +121,7 @@ class LagrangeLaguerreRMatrixKernel:
 
 
 @jitclass(kernel_static_typing)
-class LagrangeLegendreRMatrixKernel:
+class LagrangeLegendreKernel:
     r"""
     Lagrange Legendre mesh for the Schrödinger equation following ch. 3.4 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -188,7 +188,7 @@ class LagrangeLegendreRMatrixKernel:
 
     def kinetic_matrix(self, a: float64, l: int32):
         r"""
-        @returns the kinetic operator matrix in the Lagrange Lagrange basis
+        @returns the kinetic operator matrix in the Lagrange Legendre basis
         """
         F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
@@ -220,7 +220,10 @@ class LagrangeLegendreRMatrixKernel:
 def rmsolve_smatrix(
     A: np.array,
     b: np.array,
-    asymptotics: tuple,
+    Hp: np.array,
+    Hm: np.array,
+    Hpp: np.array,
+    Hmp: np.array,
     incoming_weights: np.array,
     a: np.array,
     nchannels: int32,
@@ -228,7 +231,7 @@ def rmsolve_smatrix(
 ):
     r"""
     @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
-    all in Lagrange- Legendre coordinates, as well as the derivative of
+    all in Lagrange-Legendre coordinates, as well as the derivative of
     asymptotic channel Wavefunctions evaluated at the channel radius. Everything
     returned as block-matrices and block vectors in channel space.
 
@@ -236,7 +239,6 @@ def rmsolve_smatrix(
     coupled-channel problems in nuclear physics.  Computer physics
     communications, 200, 199-219.
     """
-    (Hp, Hm, Hpp, Hmp) = asymptotics
 
     # Eqn 15 in Descouvemont, 2016
     x = np.linalg.solve(A, b).reshape(nchannels, nbasis)

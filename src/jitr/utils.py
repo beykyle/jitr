@@ -10,6 +10,23 @@ c = 2.99792458e23  # fm/s
 
 
 @njit
+def classical_kinematics(mass_target, mass_projectile, E_lab, Q, Zz):
+    mu = mass_target * mass_projectile / (mass_target + mass_projectile)
+    E_com = mass_target / (mass_target + mass_projectile) * E_lab
+    k = np.sqrt(2 * (E_com + Q) * mu) / hbarc
+    eta = (alpha * Zz) * mu / (hbarc * k)
+    return mu, E_com, k, eta
+
+
+def classical_kinematics_com(mass_target, mass_projectile, E_com, Q, Zz):
+    mu = mass_target * mass_projectile / (mass_target + mass_projectile)
+    E_lab = (mass_target + mass_projectile) / mass_target * E_com
+    k = np.sqrt(2 * (E_com + Q) * mu) / hbarc
+    eta = (alpha * Zz) * mu / (hbarc * k)
+    return mu, E_lab, k, eta
+
+
+@njit
 def complex_det(matrix: np.array):
     d = np.linalg.det(matrix @ np.conj(matrix).T)
     return np.sqrt(d)
@@ -138,29 +155,6 @@ def H_minus_prime(s, l, eta, dx=1e-6, asym=CoulombAsymptotics):
     Derivative of the Hankel function (second kind) with respect to s.
     """
     return derivative(lambda z: H_minus(z, l, eta, asym), s, dx=dx)
-
-
-def compute_asymptotics(channels, asym=CoulombAsymptotics):
-    r"""
-    precompute asymoptotic wavefunction and derivative in each channel
-    """
-    Hp = np.array(
-        [H_plus(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
-        dtype=np.complex128,
-    )
-    Hm = np.array(
-        [H_minus(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
-        dtype=np.complex128,
-    )
-    Hpp = np.array(
-        [H_plus_prime(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
-        dtype=np.complex128,
-    )
-    Hmp = np.array(
-        [H_minus_prime(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
-        dtype=np.complex128,
-    )
-    return (Hp, Hm, Hpp, Hmp)
 
 
 def smatrix(Rl, a, l, eta, asym=CoulombAsymptotics):

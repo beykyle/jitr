@@ -4,8 +4,8 @@ from .system import ProjectileTargetSystem, InteractionMatrix
 from .channel import ChannelData, Wavefunctions
 from .rmatrix_solver import LagrangeRMatrixSolver
 from .rmatrix_kernel import (
-    LagrangeLaguerreRMatrixKernel,
-    LagrangeLegendreRMatrixKernel,
+    LagrangeLaguerreKernel,
+    LagrangeLegendreKernel,
     laguerre_quadrature,
     legendre_quadrature,
     rmsolve_smatrix,
