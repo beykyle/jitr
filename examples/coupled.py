@@ -10,6 +10,7 @@ from jitr import (
     surface_peaked_gaussian_potential,
     complex_det,
     FreeAsymptotics,
+    compute_asymptotics,
 )
 
 
