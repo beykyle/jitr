@@ -4,13 +4,12 @@ import numpy as np
 
 E = 32
 sys = jitr.ProjectileTargetSystem(
-    reduced_mass=np.array([939.0]),
     channel_radii=np.array([np.pi]),
-    l=np.array([0]),
+    l=np.array([0], dtype=np.int32),
 )
-ch = sys.build_channels(E)
-a = ch[0].domain[1]
-solver = jitr.LagrangeRMatrixSolver(30, 1, sys, ecom=E)
+ch = sys.build_channels_cm_frame(48, 1, E)
+solver = jitr.LagrangeRMatrixSolver(30, 1, sys.channel_radii, ecom=E)
+a = sys.channel_radii[0]
 
 
 @njit

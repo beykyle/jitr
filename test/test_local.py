@@ -23,7 +23,8 @@ def interaction(r, *args):
 def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    lgrid = np.arange(0, 4, 1)
+    n_partial_waves = 10
+    lgrid = np.arange(0, n_partial_waves)
     egrid = np.linspace(0.5, 100, 10)
     nodes_within_radius = 5
     Ztarget = 40
@@ -32,20 +33,16 @@ def rmse_RK_LM():
     # channels are the same except for l and uncoupled
     # so just set up a single channel system. We will set
     # incident energy and l later
-    systems = [
-        ProjectileTargetSystem(
-            np.array([939.0]),
-            np.array([nodes_within_radius * (2 * np.pi)]),
-            l=np.array([l]),
-            Ztarget=Ztarget,
-            Zproj=Zproj,
-            nchannels=1,
-        )
-        for l in lgrid
-    ]
+    sys = ProjectileTargetSystem(
+        939.0 * np.ones(n_partial_waves),
+        2 * np.pi * nodes_within_radius * np.ones(n_partial_waves),
+        Ztarget=Ztarget,
+        Zproj=Zproj,
+        nchannels=n_partial_waves,
+    )
 
     # Lagrange-Mesh solvers, don't set the energy
-    solvers = [LagrangeRMatrixSolver(40, 1, sys, ecom=None) for sys in systems]
+    solver = LagrangeRMatrixSolver(40, 1, sys.channel_radii)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -63,9 +60,9 @@ def rmse_RK_LM():
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
     for i, e in enumerate(egrid):
+        channels = system.build_channels(e, lgrid)
         for l in lgrid:
-            channels = systems[l].build_channels(e)
-            ch = channels[0]
+            ch = channels[l]
 
             domain, init_con = ch.initial_conditions()
 
