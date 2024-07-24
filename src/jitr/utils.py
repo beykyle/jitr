@@ -140,6 +140,28 @@ def H_minus_prime(s, l, eta, dx=1e-6, asym=CoulombAsymptotics):
     return derivative(lambda z: H_minus(z, l, eta, asym), s, dx=dx)
 
 
+def compute_asymptotics(channels, asym=CoulombAsymptotics):
+    r"""
+    precompute asymoptotic wavefunction and derivative in each channel
+    """
+    Hp = np.array(
+        [H_plus(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
+        dtype=np.complex128,
+    )
+    Hm = np.array(
+        [H_minus(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
+        dtype=np.complex128,
+    )
+    Hpp = np.array(
+        [H_plus_prime(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
+        dtype=np.complex128,
+    )
+    Hmp = np.array(
+        [H_minus_prime(ch.domain[1], ch.l, ch.eta, asym=asym) for ch in channels],
+        dtype=np.complex128,
+    )
+    return (Hp, Hm, Hpp, Hmp)
+
 def smatrix(Rl, a, l, eta, asym=CoulombAsymptotics):
     """
     Calculates channel S-Matrix from channel R-matrix (logarithmic

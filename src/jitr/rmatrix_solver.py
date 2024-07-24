@@ -66,7 +66,7 @@ class LagrangeRMatrixSolver:
         self.upper_mask = np.triu_indices(nbasis)
         self.lower_mask = np.tril_indices(nbasis, k=-1)
 
-        # precompute asymptotic values
+        # method of computing asymptotic values
         if asym is None:
             if sys.Zproj * sys.Ztarget > 0:
                 asym = CoulombAsymptotics
@@ -74,11 +74,6 @@ class LagrangeRMatrixSolver:
                 asym = FreeAsymptotics
 
         self.asym = asym
-        self.ecom = ecom
-        if ecom is not None:
-            self.precompute_asymptotics(
-                self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
-            )
 
         # precompute basis functions at boundary
         self.precompute_boundaries(self.sys.channel_radii)
@@ -235,51 +230,12 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-    def precompute_asymptotics(self, a, l, eta):
-        r"""
-        precompute asymoptotic wavefunction and derivative in each channel
-        """
-        Hp = np.array(
-            [H_plus(ai, li, etai, asym=self.asym) for (ai, li, etai) in zip(a, l, eta)],
-            dtype=np.complex128,
-        )
-        Hm = np.array(
-            [
-                H_minus(ai, li, etai, asym=self.asym)
-                for (ai, li, etai) in zip(a, l, eta)
-            ],
-            dtype=np.complex128,
-        )
-        Hpp = np.array(
-            [
-                H_plus_prime(ai, li, etai, asym=self.asym)
-                for (ai, li, etai) in zip(a, l, eta)
-            ],
-            dtype=np.complex128,
-        )
-        Hmp = np.array(
-            [
-                H_minus_prime(ai, li, etai, asym=self.asym)
-                for (ai, li, etai) in zip(a, l, eta)
-            ],
-            dtype=np.complex128,
-        )
-        self.asymptotics = (Hp, Hm, Hpp, Hmp)
-
     def precompute_free_matrix(self, a: np.array, l: np.array):
         r"""
         precompute free matrices, which only depend on orbital angular momentum
         l and dimensionless channel radius a
         """
         self.free_matrix = self.kernel.free_matrix(a, l)
-
-    def reset_energy(self, ecom: np.float64):
-        r"""update precomputed asymptotic values for new energy"""
-        self.ecom = ecom
-        if self.sys.Zproj * self.sys.Ztarget > 0:
-            self.precompute_asymptotics(
-                self.sys.channel_radii, self.sys.l, self.sys.eta(ecom)
-            )
 
     def laguerre(self, n: np.int32, a: np.float64, s: np.float64):
         r"""
@@ -373,14 +329,14 @@ class LagrangeRMatrixSolver:
         self,
         interaction_matrix: InteractionMatrix,
         channels: np.array,
+        asymptotics,
         wavefunction=None,
     ):
         A = self.free_matrix + self.interaction_matrix(interaction_matrix, channels)
-
         R, S, uext_prime_boundary = rmsolve_smatrix(
             A,
             self.b,
-            self.asymptotics,
+            asymptotics,
             self.sys.incoming_weights,
             self.sys.channel_radii,
             self.kernel.nchannels,

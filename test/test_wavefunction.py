@@ -11,6 +11,7 @@ from jitr import (
     schrodinger_eqn_ivp_order1,
     smatrix,
     woods_saxon_potential,
+    compute_asymptotics
 )
 
 
@@ -67,8 +68,9 @@ def test_wavefunction():
     R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
+    asymptotics = compute_asymptotics(channels)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        ints, channels, wavefunction=True
+        ints, channels, asymptotics, wavefunction=True
     )
     u_lm = Wavefunctions(
         solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, channels
