@@ -12,6 +12,7 @@ from jitr import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
+    compute_asymptotics,
 )
 
 
@@ -45,7 +46,8 @@ def channel_radius_dependence_test():
         )
         channels = sys.build_channels(E)
         solver = LagrangeRMatrixSolver(60, 1, sys, ecom=E)
-        R, S, _ = solver.solve(ints, channels)
+        asym = compute_asymptotics(channels)
+        R, S, _ = solver.solve(ints, channels, asym)
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
 
@@ -104,8 +106,9 @@ def local_interaction_example():
     R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
+    asym = compute_asymptotics(channels)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        ints, channels, wavefunction=True
+        ints, channels, asym, wavefunction=True
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = Wavefunctions(
@@ -220,10 +223,10 @@ def rmse_RK_LM():
             a = domain[1]
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, ch.eta)
-            solvers[l].reset_energy(e)
 
             # Lagrange-Legendre R-Matrix
-            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, channels)
+            asym = compute_asymptotics(channels)
+            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, channels, asym)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)
@@ -237,7 +240,7 @@ def rmse_RK_LM():
             if np.fabs(atten_rk) > 1e-12:
                 err += 1j * np.fabs(atten_lm - atten_rk)
 
-            error_matrix[l, i] = err
+            error_matrix[l, i] += err
 
     lines = []
     for l in lgrid:

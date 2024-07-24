@@ -6,6 +6,7 @@ from jitr import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
     hbarc,
+    compute_asymptotics
 )
 
 
@@ -30,7 +31,8 @@ def nonlocal_interaction_example():
     interaction_matrix.set_nonlocal_interaction(yamaguchi_potential, args=params)
 
     solver = LagrangeRMatrixSolver(20, 1, sys, ecom=ecom)
-    _, S, _ = solver.solve(interaction_matrix, channels)
+    asym = compute_asymptotics(channels)
+    _, S, _ = solver.solve(interaction_matrix, channels, asym)
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))
 

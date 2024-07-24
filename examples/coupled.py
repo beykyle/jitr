@@ -66,11 +66,12 @@ def coupled_channels_example(visualize=False):
 
     ecom = 35
     channels = system.build_channels(ecom)
+    asym = compute_asymptotics(channels)
     solver = LagrangeRMatrixSolver(200, 3, system, ecom=ecom)
 
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(
-        interaction_matrix, channels, wavefunction=True
+        interaction_matrix, channels, asym, wavefunction=True
     )
     u = Wavefunctions(
         solver,
