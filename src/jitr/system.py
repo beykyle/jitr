@@ -11,7 +11,7 @@ from .utils import (
     H_plus_prime,
     H_minus_prime,
     classical_kinematics,
-    classical_kinematics_com
+    classical_kinematics_com,
 )
 from .channel import ChannelData
 
