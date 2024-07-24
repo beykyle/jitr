@@ -226,7 +226,9 @@ def rmse_RK_LM():
 
             # Lagrange-Legendre R-Matrix
             asym = compute_asymptotics(channels)
-            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, channels, asym)
+            R_lm, S_lm, uext_boundary = solvers[l].solve(
+                interaction_matrix, channels, asym
+            )
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)

@@ -82,9 +82,7 @@ class LagrangeLaguerreRMatrixKernel:
         if n == m:
             # Eq. 3.75 in [Baye, 2015], scaled by 1/E and with r->s=kr
             centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = (
-                -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
-            )
+            radial = -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
             return radial - correction + centrifugal
         else:
             # Eq. 3.76 in [Baye, 2015], scaled by 1/E and with r->s=kr
@@ -276,9 +274,9 @@ def solution_coeffs(
     """
 
     # Eqn 3.92 in Descouvemont & Baye, 2010
-    b2 = (
-        b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]
-    ).reshape(nchannels * nbasis)
+    b2 = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
+        nchannels * nbasis
+    )
     x = np.linalg.solve(A, b2).reshape(nchannels, nbasis)
 
     return x

@@ -6,7 +6,7 @@ from jitr import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
     hbarc,
-    compute_asymptotics
+    compute_asymptotics,
 )
 
 

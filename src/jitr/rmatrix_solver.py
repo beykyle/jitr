@@ -145,9 +145,7 @@ class LagrangeRMatrixSolver:
 
         # integrate over r at each kp
         for i in range(N):
-            F_kkp[:, i] = np.sum(
-                jkr * r**2 * F_rkp[:, i] * self.kernel.weights, axis=1
-            )
+            F_kkp[:, i] = np.sum(jkr * r**2 * F_rkp[:, i] * self.kernel.weights, axis=1)
 
         return F_kkp * 2 / np.pi
 

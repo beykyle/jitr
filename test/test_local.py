@@ -10,7 +10,7 @@ from jitr import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
-    compute_asymptotics
+    compute_asymptotics,
 )
 
 
@@ -87,7 +87,9 @@ def rmse_RK_LM():
 
             # Lagrange-Legendre R-Matrix
             asymptotics = compute_asymptotics(channels)
-            R_lm, S_lm, uext_boundary = solvers[l].solve(interaction_matrix, channels, asymptotics)
+            R_lm, S_lm, uext_boundary = solvers[l].solve(
+                interaction_matrix, channels, asymptotics
+            )
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)

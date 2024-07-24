@@ -162,6 +162,7 @@ def compute_asymptotics(channels, asym=CoulombAsymptotics):
     )
     return (Hp, Hm, Hpp, Hmp)
 
+
 def smatrix(Rl, a, l, eta, asym=CoulombAsymptotics):
     """
     Calculates channel S-Matrix from channel R-matrix (logarithmic

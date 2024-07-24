@@ -11,7 +11,7 @@ from jitr import (
     schrodinger_eqn_ivp_order1,
     smatrix,
     woods_saxon_potential,
-    compute_asymptotics
+    compute_asymptotics,
 )
 
 
