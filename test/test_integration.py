@@ -2,14 +2,9 @@ import jitr
 from numba import njit
 import numpy as np
 
-E = 32
-sys = jitr.ProjectileTargetSystem(
-    channel_radii=np.array([np.pi]),
-    l=np.array([0], dtype=np.int32),
-)
-ch = sys.build_channels_cm_frame(48, 1, E)
-solver = jitr.LagrangeRMatrixSolver(30, 1, sys.channel_radii, ecom=E)
-a = sys.channel_radii[0]
+channel_radii = np.array([np.pi])
+solver = jitr.LagrangeRMatrixSolver(30, 1, channel_radii)
+a = channel_radii[0]
 
 
 @njit
