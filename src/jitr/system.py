@@ -2,34 +2,29 @@ from numba.experimental import jitclass
 from numba import float64, int32
 import numpy as np
 
+from .channel import ChannelData
 from .utils import (
-    hbarc,
-    c,
-    alpha,
+    classical_kinematics,
     H_plus,
     H_minus,
     H_plus_prime,
     H_minus_prime,
-    classical_kinematics,
-    classical_kinematics_com
 )
-from .channel import ChannelData
 
-channel_dtype = (
-    [
-        ("weight", np.float64),
-        ("l", np.int32),
-        ("mu", np.float64),
-        ("a", np.float64),
-        ("E", np.float64),
-        ("k", np.float64),
-        ("eta", np.float64),
-        ("Hp", np.float64),
-        ("Hm", np.float64),
-        ("Hpp", np.float64),
-        ("Hmp", np.float64),
-    ],
-)
+
+channel_dtype = [
+    ("weight", np.float64),
+    ("l", np.int32),
+    ("mu", np.float64),
+    ("a", np.float64),
+    ("E", np.float64),
+    ("k", np.float64),
+    ("eta", np.float64),
+    ("Hp", np.complex128),
+    ("Hm", np.complex128),
+    ("Hpp", np.complex128),
+    ("Hmp", np.complex128),
+]
 
 
 class InteractionMatrix:
@@ -82,42 +77,48 @@ class ProjectileTargetSystem:
 
     def __init__(
         self,
-        channel_radii: np.array,
-        l: np.array,
-        Ztarget: np.float64 = 0,
-        Zproj: np.float64 = 0,
-        nchannels: np.int32 = 1,
-        level_energies: np.array = None,
-        incoming_weights: np.array = None,
+        channel_radii: float64[:],
+        l: int32[:],
+        mass_target: float64,
+        mass_projectile: float64,
+        Ztarget: float64 = 0,
+        Zproj: float64 = 0,
+        nchannels: int32 = 1,
+        level_energies: float64[:] = None,
+        incoming_weights: float64[:] = None,
     ):
         self.channel_radii = channel_radii
+        if level_energies is None:
+            level_energies = np.zeros(nchannels)
+
+        if incoming_weights is None:
+            incoming_weights = np.zeros(nchannels)
+            incoming_weights[0] = 1
+
+        self.level_energies = level_energies
+        self.incoming_weights = incoming_weights
         self.l = l
+
+        self.mass_target = mass_target
+        self.mass_projectile = mass_projectile
         self.Ztarget = Ztarget
         self.Zproj = Zproj
         self.nchannels = nchannels
 
-        if level_energies is None:
-            level_energies = np.zeros(self.nchannels)
-
-        self.level_energies = level_energies
-
-        if incoming_weights is None:
-            incoming_weights = np.zeros(self.nchannels)
-            incoming_weights[0] = 1
-
-        self.incoming_weights = incoming_weights
-
+        assert l.shape == (nchannels,)
         assert channel_radii.shape == (nchannels,)
         assert level_energies.shape == (nchannels,)
         assert incoming_weights.shape == (nchannels,)
 
-    def build_channels_cm_frame(
-        self, mass_target, mass_projectile, E_com, kinematics=classical_kinematics_com
-    ):
+    def build_channels_kinematics(self, E_lab):
         Q = -self.level_energies
-        mu, _, k, eta = kinematics(
-            mass_target, mass_projectile, E_com, Q, self.Zproj * self.Ztarget
+        Zz = self.Zproj * self.Ztarget
+        mu, E_com, k, eta = classical_kinematics(
+            self.mass_target, self.mass_projectile, E_lab, Q, Zz
         )
+        return self.build_channels(E_com, mu, k, eta)
+
+    def build_channels(self, E_com, mu, k, eta):
         channels = np.zeros(
             self.nchannels,
             dtype=channel_dtype,
@@ -142,45 +143,15 @@ class ProjectileTargetSystem:
             dtype=np.complex128,
         )
         channels["Hmp"] = np.array(
-            [H_plus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
+            [H_minus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
             dtype=np.complex128,
         )
 
         return channels
 
-    def build_channels_lab_frame(
-        self, mass_target, mass_projectile, E_lab, kinematics=classical_kinematics
-    ):
-        Q = -self.level_energies
-        mu, E_com, k, eta = kinematics(
-            mass_target, mass_projectile, E_lab, Q, self.Zproj * self.Ztarget
-        )
-        channels = np.zeros(
-            self.nchannels,
-            dtype=channel_dtype,
-        )
-        channels["weight"] = self.incoming_weights
-        channels["l"] = self.l
-        channels["a"] = self.channel_radii
-        channels["E"] = E_com
-        channels["mu"] = mu
-        channels["k"] = k
-        channels["eta"] = eta
-        channels["Hp"] = np.array(
-            [H_plus(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hm"] = np.array(
-            [H_minus(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hpp"] = np.array(
-            [H_plus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hmp"] = np.array(
-            [H_plus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
 
-        return channels
+def make_channel_data(channels: np.array):
+    return [
+        ChannelData(*channels[["l", "mu", "a", "E", "k", "eta"]][i])
+        for i in range(channels.shape[0])
+    ]

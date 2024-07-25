@@ -18,14 +18,6 @@ def classical_kinematics(mass_target, mass_projectile, E_lab, Q, Zz):
     return mu, E_com, k, eta
 
 
-def classical_kinematics_com(mass_target, mass_projectile, E_com, Q, Zz):
-    mu = mass_target * mass_projectile / (mass_target + mass_projectile)
-    E_lab = (mass_target + mass_projectile) / mass_target * E_com
-    k = np.sqrt(2 * (E_com + Q) * mu) / hbarc
-    eta = (alpha * Zz) * mu / (hbarc * k)
-    return mu, E_lab, k, eta
-
-
 @njit
 def complex_det(matrix: np.array):
     d = np.linalg.det(matrix @ np.conj(matrix).T)

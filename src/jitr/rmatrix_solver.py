@@ -1,14 +1,17 @@
 import numpy as np
 import scipy.special as sc
 
+from .utils import block
 from .system import InteractionMatrix
 from .rmatrix_kernel import (
     LagrangeLaguerreKernel,
     LagrangeLegendreKernel,
     laguerre_quadrature,
     legendre_quadrature,
-    rmsolve_smatrix,
     solution_coeffs,
+    solution_coeffs_with_inverse,
+    solve_smatrix_with_inverse,
+    solve_smatrix_without_inverse,
 )
 
 
@@ -34,6 +37,7 @@ class LagrangeRMatrixSolver:
             basis (str): what basis/mesh to use (see Ch. 3 of Baye, 2015)
         """
         self.channel_radii = channel_radii
+        assert self.channel_radii.shape == (nchannels,)
         self.overlap = np.diag(np.ones(nbasis))
         if basis == "Legendre":
             x, w = legendre_quadrature(nbasis)
@@ -56,6 +60,12 @@ class LagrangeRMatrixSolver:
 
         # precompute basis functions at boundary
         self.precompute_boundaries(self.channel_radii)
+
+    def get_channel_block(self, matrix: np.array, i: np.int32, j: np.int32 = None):
+        N = self.kernel.nbasis
+        if j is None:
+            j = i
+        return block(matrix, (i, j), (N, N))
 
     def integrate_local(self, f, a: np.float64, args=()):
         """
@@ -204,12 +214,26 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-    def free_matrix(self, l: np.array):
+    def free_matrix(self, l: np.array,full_matrix=True):
         r"""
         precompute free matrices, which only depend on orbital angular momentum
         l and dimensionless channel radius a
+        Parameters:
+            l: orbital angular momentum quantum number for each channel
+            full_matrix: whether to return the full matrix or just the block
+            diagonal elements (elements off of the channel diagonal are all 0
+            for the free matrix). If False, returns a list of Nch (Nb,Nb) matrices,
+            where Nch is the number of channels and Nb is the number of basis elements
         """
-        return self.kernel.free_matrix(self.channel_radii, l)
+        assert(l.shape == (self.kernel.nchannels,))
+        free_matrix = self.kernel.free_matrix(self.channel_radii, l)
+        if full_matrix:
+            return free_matrix
+        else:
+            return [
+                self.get_channel_block(free_matrix, i)
+                for i in range(self.kernel.nchannels)
+            ]
 
     def laguerre(self, n: np.int32, a: np.float64, s: np.float64):
         r"""
@@ -311,14 +335,14 @@ class LagrangeRMatrixSolver:
             free_matrix = self.free_matrix(channels["l"])
 
         A = free_matrix + self.interaction_matrix(interaction_matrix, channels)
-        R, S, uext_prime_boundary = rmsolve_smatrix(
+        R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
             A,
             self.b,
             channels["Hp"],
             channels["Hm"],
             channels["Hpp"],
             channels["Hmp"],
-            channels["weights"],
+            channels["weight"],
             self.channel_radii,
             self.kernel.nchannels,
             self.kernel.nbasis,
@@ -326,8 +350,8 @@ class LagrangeRMatrixSolver:
         if wavefunction is None:
             return R, S, uext_prime_boundary
         else:
-            x = solution_coeffs(
-                A,
+            x = solution_coeffs_with_inverse(
+                Ainv,
                 self.b,
                 S,
                 uext_prime_boundary,
