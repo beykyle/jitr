@@ -332,7 +332,6 @@ def solution_coeffs_with_inverse(
     return (Ainv @ b2).reshape(nchannels, nbasis)
 
 
-
 @njit
 def solution_coeffs(
     A: np.array,

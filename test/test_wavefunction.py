@@ -66,7 +66,6 @@ def test_wavefunction():
     ).uint()[0]
     u_lm = u_lm(s_values)
 
-
     # Runge-Kutta
     ch = channel_data[0]
     domain, init_con = ch.initial_conditions()

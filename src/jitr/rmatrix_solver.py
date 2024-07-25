@@ -214,7 +214,7 @@ class LagrangeRMatrixSolver:
             dtype=np.complex128,
         )
 
-    def free_matrix(self, l: np.array,full_matrix=True):
+    def free_matrix(self, l: np.array, full_matrix=True):
         r"""
         precompute free matrices, which only depend on orbital angular momentum
         l and dimensionless channel radius a
@@ -225,7 +225,7 @@ class LagrangeRMatrixSolver:
             for the free matrix). If False, returns a list of Nch (Nb,Nb) matrices,
             where Nch is the number of channels and Nb is the number of basis elements
         """
-        assert(l.shape == (self.kernel.nchannels,))
+        assert l.shape == (self.kernel.nchannels,)
         free_matrix = self.kernel.free_matrix(self.channel_radii, l)
         if full_matrix:
             return free_matrix

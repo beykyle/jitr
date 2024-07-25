@@ -51,7 +51,7 @@ def rmse_RK_LM():
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel
-    free_matrices = [solver.free_matrix( np.array([l]) ) for l in sys.l]
+    free_matrices = [solver.free_matrix(np.array([l])) for l in sys.l]
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
