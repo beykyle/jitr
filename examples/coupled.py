@@ -133,15 +133,15 @@ def coupled_channels_example(visualize=False):
     plt.show()
 
     # plot in r-space
-    r_values = s_values / channels["k"][:,np.newaxis]
+    r_values = s_values / channels["k"][:, np.newaxis]
 
     print("k_i =  ", *channels["k"])
 
     lines = []
     for i in range(nchannels):
         u_values = u[i](s_values)
-        (p1,) = plt.plot(r_values[i,:], np.real(u_values), label=r"$n=%d$" % i)
-        (p2,) = plt.plot(r_values[i,:], np.imag(u_values), ":", color=p1.get_color())
+        (p1,) = plt.plot(r_values[i, :], np.real(u_values), label=r"$n=%d$" % i)
+        (p2,) = plt.plot(r_values[i, :], np.imag(u_values), ":", color=p1.get_color())
         lines.append([p1, p2])
 
     legend1 = plt.legend(
