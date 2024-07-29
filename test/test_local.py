@@ -4,7 +4,7 @@ from numba import njit
 from jitr import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    LagrangeRMatrixSolver,
+    RMatrixSolver,
     woods_saxon_potential,
     coulomb_charged_sphere,
     delta,
@@ -47,7 +47,7 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = LagrangeRMatrixSolver(40, 1, sys.channel_radii[0:1])
+    solver = RMatrixSolver(40, 1, sys.channel_radii[0:1])
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel

@@ -123,8 +123,8 @@ class Wavefunctions:
                 [
                     self.coeffs[i, n]
                     / np.sqrt(self.channels[i].domain[1])
-                    * self.solver.f(n + 1, self.channels[i].domain[1], s)
-                    for n in range(self.solver.kernel.nbasis)
+                    * self.solver.kernel.f(n + 1, self.channels[i].domain[1], s)
+                    for n in range(self.solver.kernel.quadrature.nbasis)
                 ],
                 axis=0,
             )
