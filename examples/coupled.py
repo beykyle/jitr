@@ -29,7 +29,7 @@ def coupled_channels_example(visualize=False):
 
     nchannels = 3
     nodes_within_radius = 5
-    levels = np.array([0, 10, 20])
+    levels = np.array([0, 2.3, 3.1])
 
     # target (A,Z)
     Ca48 = (28, 20)
