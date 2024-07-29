@@ -1,9 +1,53 @@
 import numpy as np
 from numba.experimental import jitclass
-from numba import int32, float64, njit
+from numba import int32, float64
+import scipy.special as sc
 
 
-def laguerre_quadrature(nbasis: int):
+def laguerre(n: np.int32, a: np.float64, s: np.float64, quadrature):
+    r"""
+    nth Lagrange-Laguerre function, scaled by a. Eq. 3.70 in Baye, 2015
+    with alpha = 0.
+
+    Note: n is indexed from 1 (constant function is not part of basis)
+    """
+    assert n <= quadrature.nbasis and n >= 1
+
+    x = s / a
+    xn = quadrature.abscissa[n - 1]
+
+    return (
+        (-1) ** n
+        / np.sqrt(xn)
+        * sc.special.eval_laguerre(n, x)
+        / (x - xn)
+        * x
+        * np.exp(-x / 2)
+    )
+
+
+def legendre(n: np.int32, a: np.float64, s: np.float64, quadrature):
+    r"""
+    nth Lagrange-Legendre polynomial shifted onto [0,a_i] and regularized by
+    s.  Eq. 3.122 in Baye, 2015
+
+    Note: n is indexed from 1 (constant function is not part of basis)
+    """
+    assert n <= quadrature.nbasis and n >= 1
+    N = quadrature.nbasis
+    x = s / a
+    xn = quadrature.abscissa[n - 1]
+
+    return (
+        (-1.0) ** (N - n)
+        * np.sqrt((1 - xn) / xn)
+        * sc.eval_legendre(N, 2.0 * x - 1.0)
+        * x
+        / (x - xn)
+    )
+
+
+def generate_laguerre_quadrature(nbasis: int):
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Laguerre
     basis. See Ch. 3.3 of Baye, 2015
@@ -11,7 +55,7 @@ def laguerre_quadrature(nbasis: int):
     return np.polynomial.laguerre.laggauss(nbasis)
 
 
-def legendre_quadrature(nbasis: int):
+def generate_legendre_quadrature(nbasis: int):
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Legendre
     basis shifted and scaled onto [0,a]. See Ch. 3.4 of Baye, 2015
@@ -22,29 +66,26 @@ def legendre_quadrature(nbasis: int):
     return x, w
 
 
-kernel_static_typing = [
+quadrature_dtype = [
     ("nbasis", int32),
-    ("nchannels", int32),
     ("abscissa", float64[:]),
     ("weights", float64[:]),
     ("overlap", float64[:, :]),
 ]
 
 
-@jitclass(kernel_static_typing)
-class LagrangeLaguerreRMatrixKernel:
+@jitclass(quadrature_dtype)
+class LagrangeLaguerreQuadrature:
     r"""
     Lagrange Laguerre mesh for the Schrödinger equation following ch. 3.3 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
-    with the only difference being the domain is scaled in each channel; e.g.  r
-    -> s_i = r * k_i, and each channel's equation is then divided by it's
-    asymptotic kinetic energy in the channel T_i = E_inc - E_i
+    with the only difference being the domain is scaled in each channel;
+    e.g r  -> s_i = r * k_i, and each channel's equation is then divided by
+    it's asymptotic kinetic energy in the channel T_i = E_inc - E_i
     """
 
     def __init__(
         self,
-        nbasis: int32,
-        nchannels: int32,
         abscissa: np.array,
         weights: np.array,
         overlap: np.array = None,
@@ -53,14 +94,14 @@ class LagrangeLaguerreRMatrixKernel:
         Constructs the Schrödinger equation in a basis of Lagrange Laguerre
         functions
         """
-        self.nbasis = nbasis
-        self.nchannels = nchannels
+        self.nbasis = len(abscissa)
+        assert len(abscissa) == len(weights)
         self.abscissa = abscissa
         self.weights = weights
 
         if overlap is None:
             # Eq. 3.71 in Baye, 2015
-            imj = np.arange(nbasis) - np.arange(nbasis)[:, np.newaxis]
+            imj = np.arange(self.nbasis) - np.arange(self.nbasis)[:, np.newaxis]
             self.overlap += (-1) ** imj / np.sqrt(np.outer(abscissa, abscissa))
         else:
             self.overlap = overlap
@@ -82,9 +123,7 @@ class LagrangeLaguerreRMatrixKernel:
         if n == m:
             # Eq. 3.75 in [Baye, 2015], scaled by 1/E and with r->s=kr
             centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = (
-                -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
-            )
+            radial = -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
             return radial - correction + centrifugal
         else:
             # Eq. 3.76 in [Baye, 2015], scaled by 1/E and with r->s=kr
@@ -103,27 +142,9 @@ class LagrangeLaguerreRMatrixKernel:
         F = F + np.triu(F, k=1).T
         return F
 
-    def free_matrix(
-        self,
-        a: np.array,
-        l: np.array,
-    ):
-        r"""
-        @returns the full (Nxn)x(Nxn) fulll free Schrödinger equation 1/E (H-E)
-        in the Lagrange Laguerre basis, where each channel is an NxN block (N being the
-        basis size), and there are nxn such blocks.
-        """
-        nb = self.nbasis
-        sz = nb * self.nchannels
-        F = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(self.nchannels):
-            Fij = self.kinetic_matrix(a[i], l[i]) - self.overlap
-            F[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
-        return F
 
-
-@jitclass(kernel_static_typing)
-class LagrangeLegendreRMatrixKernel:
+@jitclass(quadrature_dtype)
+class LagrangeLegendreQuadrature:
     r"""
     Lagrange Legendre mesh for the Schrödinger equation following ch. 3.4 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -134,8 +155,6 @@ class LagrangeLegendreRMatrixKernel:
 
     def __init__(
         self,
-        nbasis: int32,
-        nchannels: int32,
         abscissa: np.array,
         weights: np.array,
         overlap: np.array = None,
@@ -144,13 +163,13 @@ class LagrangeLegendreRMatrixKernel:
         Constructs the Schrödinger equation in a basis of Lagrange Legendre
         functions
         """
-        self.nbasis = nbasis
-        self.nchannels = nchannels
+        self.nbasis = len(abscissa)
+        assert len(abscissa) == len(weights)
         self.abscissa = abscissa
         self.weights = weights
 
         if overlap is None:
-            self.overlap = np.diag(np.ones(nbasis))
+            self.overlap = np.diag(np.ones(self.nbasis))
         else:
             self.overlap = overlap
 
@@ -190,7 +209,7 @@ class LagrangeLegendreRMatrixKernel:
 
     def kinetic_matrix(self, a: float64, l: int32):
         r"""
-        @returns the kinetic operator matrix in the Lagrange Lagrange basis
+        @returns the kinetic operator matrix in the Lagrange Legendre basis
         """
         F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
@@ -198,87 +217,3 @@ class LagrangeLegendreRMatrixKernel:
                 F[n - 1, m - 1] = self.kinetic_operator_element(n, m, a, l)
         F = F + np.triu(F, k=1).T
         return F
-
-    def free_matrix(
-        self,
-        a: np.array,
-        l: np.array,
-    ):
-        r"""
-        @returns the full (Nxn)x(Nxn) fulll free Schrödinger equation 1/E (H-E)
-        in the Lagrange basis, where each channel is an NxN block (N being the
-        basis size), and there are nxn such blocks.
-        """
-        nb = self.nbasis
-        sz = nb * self.nchannels
-        F = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(self.nchannels):
-            Fij = self.kinetic_matrix(a[i], l[i]) - self.overlap
-            F[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
-        return F
-
-
-@njit
-def rmsolve_smatrix(
-    A: np.array,
-    b: np.array,
-    asymptotics: tuple,
-    incoming_weights: np.array,
-    a: np.array,
-    nchannels: int32,
-    nbasis: int32,
-):
-    r"""
-    @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
-    all in Lagrange- Legendre coordinates, as well as the derivative of
-    asymptotic channel Wavefunctions evaluated at the channel radius. Everything
-    returned as block-matrices and block vectors in channel space.
-
-    This follows: Descouvemont, P. (2016).  An R-matrix package for
-    coupled-channel problems in nuclear physics.  Computer physics
-    communications, 200, 199-219.
-    """
-    (Hp, Hm, Hpp, Hmp) = asymptotics
-
-    # Eqn 15 in Descouvemont, 2016
-    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
-
-    # Eqn 17 in Descouvemont, 2016
-    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
-    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
-
-    # Eqn 16 in Descouvemont, 2016
-    S = np.linalg.solve(Zp, Zm)
-
-    uext_prime_boundary = Hmp * incoming_weights - S @ Hpp
-
-    return R, S, uext_prime_boundary
-
-
-@njit
-def solution_coeffs(
-    A: np.array,
-    b: np.array,
-    S: np.array,
-    uext_prime_boundary: np.array,
-    nchannels: int32,
-    nbasis: int32,
-):
-    r"""
-    @returns the multichannel wavefunction coefficients, in Lagrange- Legendre
-    coordinates.
-
-    This follows: Descouvemont, P. (2016).  An R-matrix package for
-    coupled-channel problems in nuclear physics.  Computer physics
-    communications, 200, 199-219.  and P. Descouvemont and D. Baye 2010 Rep.
-    Prog. Phys. 73 036301
-    """
-
-    # Eqn 3.92 in Descouvemont & Baye, 2010
-    b2 = (
-        b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]
-    ).reshape(nchannels * nbasis)
-    x = np.linalg.solve(A, b2).reshape(nchannels, nbasis)
-
-    return x
