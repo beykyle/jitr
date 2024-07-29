@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 
 from jitr import (
     InteractionMatrix,
-    LagrangeRMatrixSolver,
+    RMatrixSolver,
     ProjectileTargetSystem,
     Wavefunctions,
     coulomb_charged_sphere,
@@ -57,7 +57,7 @@ def test_wavefunction():
     s_values = np.linspace(0.01, sys.channel_radii[0], 200)
 
     # Lagrange-Mesh
-    solver_lm = LagrangeRMatrixSolver(100, 1, sys.channel_radii)
+    solver_lm = RMatrixSolver(100, 1, sys.channel_radii)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
         ints, channels, wavefunction=True
     )
