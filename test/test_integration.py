@@ -3,8 +3,8 @@ from numba import njit
 import numpy as np
 
 channel_radii = np.array([np.pi])
-solver_le = jitr.QuadratureKernel(30, 1, basis="Legendre")
-solver_la = jitr.QuadratureKernel(30, 1, basis="Laguerre")
+solver_le = jitr.QuadratureKernel(30, basis="Legendre")
+solver_la = jitr.QuadratureKernel(30, basis="Laguerre")
 a = channel_radii[0]
 
 

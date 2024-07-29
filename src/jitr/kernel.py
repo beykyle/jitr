@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.special as sc
 
-from .utils import block
 from .quadrature import (
     legendre,
     laguerre,
@@ -16,10 +15,8 @@ class QuadratureKernel:
     def __init__(
         self,
         nbasis: np.int32,
-        nchannels: np.int32,
         basis="Legendre",
     ):
-        self.nchannels = nchannels
         self.overlap = np.diag(np.ones(nbasis))
         if basis == "Legendre":
             x, w = generate_legendre_quadrature(nbasis)
@@ -44,12 +41,6 @@ class QuadratureKernel:
 
     def f(self, n: np.int32, a: np.float64, s: np.float64):
         return self.basis_function(n, a, s, self.quadrature)
-
-    def get_channel_block(self, matrix: np.array, i: np.int32, j: np.int32 = None):
-        N = self.quadrature.nbasis
-        if j is None:
-            j = i
-        return block(matrix, (i, j), (N, N))
 
     def integrate_local(self, f, a: np.float64, args=()):
         """
@@ -195,14 +186,15 @@ class QuadratureKernel:
         l: np.array,
     ):
         r"""
-        @returns the full (Nxn)x(Nxn) fulll free Schrödinger equation 1/E (H-E)
-        in the Lagrange Laguerre basis, where each channel is an NxN block (N
-        being the basis size), and there are nxn such blocks.
+        @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E (H-E)
+        in the Lagrange basis, where each channel is an NbxNb block (Nb
+        being the basis size), and there are NchxNch such blocks.
         """
-        nb = self.quadrature.nbasis
-        sz = nb * self.nchannels
+        Nb = self.quadrature.nbasis
+        Nch = np.size(a)
+        sz = Nb * Nch
         F = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(self.nchannels):
+        for i in range(Nch):
             Fij = self.quadrature.kinetic_matrix(a[i], l[i]) - self.overlap
-            F[i * nb : i * nb + nb, i * nb : i * nb + nb] += Fij
+            F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
         return F

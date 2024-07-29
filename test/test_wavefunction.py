@@ -57,7 +57,7 @@ def test_wavefunction():
     s_values = np.linspace(0.01, sys.channel_radii[0], 200)
 
     # Lagrange-Mesh
-    solver_lm = RMatrixSolver(100, 1, sys.channel_radii)
+    solver_lm = RMatrixSolver(100)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
         ints, channels, wavefunction=True
     )

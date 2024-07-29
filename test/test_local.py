@@ -47,11 +47,15 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = RMatrixSolver(40, 1, sys.channel_radii[0:1])
+    solver = RMatrixSolver(40)
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel
-    free_matrices = [solver.free_matrix(np.array([l])) for l in sys.l]
+    free_matrices = solver.free_matrix(sys.channel_radii, sys.l, full_matrix=False)
+
+    # precompute values of Lagrange basis functions at channel radius
+    # radius is the same for each partial wave channel so just do it once
+    basis_boundary = solver.precompute_boundaries(sys.channel_radii[0:1])
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -63,8 +67,8 @@ def rmse_RK_LM():
     params = (V0, W0, R0, a0, proton[1] * Ca48[1], RC)
 
     # use same interaction for all channels (no spin-orbit coupling)
-    interaction_matrix = InteractionMatrix(1)
-    interaction_matrix.set_local_interaction(interaction, args=params)
+    im = InteractionMatrix(1)
+    im.set_local_interaction(interaction, args=params)
 
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
@@ -74,18 +78,22 @@ def rmse_RK_LM():
         channel_data = make_channel_data(channels)
 
         for l in lgrid:
+            # get view of single channel corresponding to partial wave l
             ch = channels[l : l + 1]
 
-            # Lagrange-Legendre R-Matrix
+            # Lagrange-Legendre R-Matrix solve for this partial wave
             R_lm, S_lm, uext_boundary = solver.solve(
-                interaction_matrix, ch, free_matrix=free_matrices[l]
+                im,
+                ch,
+                basis_boundary=basis_boundary,
+                free_matrix=free_matrices[l],
             )
 
-            # Runge-Kutta
+            # Runge-Kutta solve for this partial wave
             domain, init_con = channel_data[l].initial_conditions()
             sol_rk = solve_ivp(
-                lambda s, y,: schrodinger_eqn_ivp_order1(
-                    s, y, channel_data[l], interaction_matrix.local_matrix[0, 0], params
+                lambda s, y: schrodinger_eqn_ivp_order1(
+                    s, y, channel_data[l], im.local_matrix[0, 0], params
                 ),
                 domain,
                 init_con,

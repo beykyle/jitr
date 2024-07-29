@@ -130,7 +130,7 @@ class Wavefunctions:
             )
 
         uint = []
-        for i in range(self.solver.kernel.nchannels):
+        for i in range(len(self.channels)):
             uint.append(uint_channel(i))
 
         return uint
