@@ -140,7 +140,6 @@ class RMatrixSolver:
         basis_boundary=None,
         wavefunction=None,
     ):
-
         if free_matrix is None:
             free_matrix = self.free_matrix(channels["a"], channels["l"])
         if basis_boundary is None:
