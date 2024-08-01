@@ -1,6 +1,11 @@
 from .potentials import *
 from .utils import *
-from .system import ProjectileTargetSystem, InteractionMatrix, make_channel_data
+from .system import (
+    ProjectileTargetSystem,
+    InteractionMatrix,
+    make_channel_data,
+    channel_dtype,
+)
 from .channel import ChannelData, Wavefunctions
 from .rmatrix import (
     solution_coeffs,
