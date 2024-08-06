@@ -7,7 +7,7 @@ from jitr import (
     InteractionMatrix,
     RMatrixSolver,
     woods_saxon_potential,
-    woods_saxon_prime
+    woods_saxon_prime,
 )
 
 # target (A,Z)
@@ -27,8 +27,7 @@ my_model_param_dtype = [
     ("Wso", np.float64),
     ("R", np.float64),
     ("a", np.float64),
-    ("l", np.int32)
-    ("j", np.int32)
+    ("l", np.int32)("j", np.int32),
 ]
 
 # only a subset of the actual model params are of interest
@@ -38,6 +37,7 @@ my_model_statistical_params = my_model_param_dtype[:-2]
 my_param_names = [param[0] for param in my_model_statistical_params]
 
 N_params = len(my_model_statistical_params)
+
 
 @njit
 def my_model_interaction(r, params: np.array):
@@ -62,19 +62,18 @@ def sample_params(mu, cov, N):
 
 mu = np.array([40.2, 10.0, 5.1, 0.3, 5.8, 3.1])
 cov = np.zeros((N_params, N_params))
-cov += np.diag([10.1, 6.8, 3.1, 2.9, 1.1, 0.5])**2
+cov += np.diag([10.1, 6.8, 3.1, 2.9, 1.1, 0.5]) ** 2
 
 # let's add some correlations between depth terms
-cov[1,0] = cov[0,1] = 0.4
-cov[1,2] = cov[2,1] = -0.1
-cov[1,3] = cov[3,1] = -0.6
-cov[0,2] = cov[2,0] = -0.6
-cov[0,3] = cov[3,0] = -0.1
+cov[1, 0] = cov[0, 1] = 0.4
+cov[1, 2] = cov[2, 1] = -0.1
+cov[1, 3] = cov[3, 1] = -0.6
+cov[0, 2] = cov[2, 0] = -0.6
+cov[0, 3] = cov[3, 0] = -0.1
 
 # and some depth-radius correlations
-cov[0,4] = cov[4,0] = -1.2
-cov[1,4] = cov[4,1] = -0.3
-cov[2,4] = cov[4,2] = -0.8
+cov[0, 4] = cov[4, 0] = -1.2
+cov[1, 4] = cov[4, 1] = -0.3
+cov[2, 4] = cov[4, 2] = -0.8
 
 samples = sample_params(mu, cov, 1000)
-
