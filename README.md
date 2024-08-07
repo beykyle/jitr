@@ -1,5 +1,8 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 # just-in-time R-Matrix (JITR)
+
+A fast solver for parametric reaction models
+
 ## quick start
 ```
  pip install jitr
@@ -29,6 +32,10 @@ Capable of:
 - non-local interactions
 - coupled-channels
 
+
+## BAND
+
+This package is part of the [BAND Framework](https://github.com/bandframework/)
 
 ## simple example: 2-body single-channel elastic scattering
 
