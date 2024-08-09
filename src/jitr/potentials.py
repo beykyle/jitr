@@ -28,14 +28,14 @@ def perey_buck_nonlocal(r, rp, *params):
 @njit
 def woods_saxon_potential(r, *params):
     V, W, R, a = params
-    return -(V + 1j * W) / (1 + np.exp((r - R) / a))
+    return (V + 1j * W) / (1 + np.exp((r - R) / a))
 
 
 @njit
 def woods_saxon_prime(r, *params):
     """derivative of the Woods-Saxon potential w.r.t. $r$"""
     V, W, R, a = params
-    return -1 * (V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
+    return -(V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
 
 
 @njit
