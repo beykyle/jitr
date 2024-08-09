@@ -15,7 +15,7 @@
 
 
 **Website:** [github.com/beykyle/jitr](https://github.com/beykyle/jitr), [pypi.org/project/jitr/](https://pypi.org/project/jitr/)
-**Contact:** [beyerk@msu.frib.edu](mailto:beyerk@msu.frib.edu)
+**Contact:** [beyerk@frib.msu.edu](mailto:beyerk@frib.msu.edu)
 **Description:** Just-in-time-compiled solver for the Shrödinger equation using the calculable R-Matrix method on a Lagrange-Legendre mesh 
 
 ### Mandatory Policies

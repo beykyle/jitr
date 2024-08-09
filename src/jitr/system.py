@@ -32,15 +32,21 @@ class InteractionMatrix:
     one for local interactions and one for nonlocal
     """
 
-    def __init__(self, nchannels: np.int32 = 1):
+    def __init__(
+        self, nchannels: np.int32 = 1, local_arg_type=tuple, nonlocal_arg_type=tuple
+    ):
         r"""Initialize the InteractionMatrix
 
         Parameters:
             - nchannels (int) : the number of channels
         """
         self.nchannels = nchannels
-        self.local_args = np.empty((self.nchannels, self.nchannels), dtype=object)
-        self.nonlocal_args = np.empty((self.nchannels, self.nchannels), dtype=object)
+        self.local_args = np.empty(
+            (self.nchannels, self.nchannels), dtype=local_arg_type
+        )
+        self.nonlocal_args = np.empty(
+            (self.nchannels, self.nchannels), dtype=nonlocal_arg_type
+        )
         self.local_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
         self.nonlocal_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
         self.nonlocal_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)

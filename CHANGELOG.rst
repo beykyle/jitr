@@ -2,7 +2,7 @@
 Release Notes
 =============
 
-Below are the notes from all `jitr` releases. For more details see [github.com/beykyle/jitr/releases](https://github.com/beykyle/jitr/releases)
+Below are the notes from all `jitr` releases. For more details see https://github.com/beykyle/jitr/releases
 
 Release 1.3
 -------------
