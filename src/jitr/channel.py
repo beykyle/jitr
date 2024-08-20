@@ -124,7 +124,8 @@ class Wavefunctions:
         def uint_channel(i):
             return lambda s: np.sum(
                 [
-                    self.coeffs[i, n] / self.channels[i].domain[1]
+                    self.coeffs[i, n]
+                    / self.channels[i].domain[1]
                     * self.solver.kernel.f(n + 1, self.channels[i].domain[1], s)
                     for n in range(self.solver.kernel.quadrature.nbasis)
                 ],
