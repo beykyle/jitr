@@ -100,6 +100,7 @@ class RMatrixSolver:
         for i in range(nchannels):
             channel_radius_r = channels["a"][i] / channels["k"][i]
             E = channels["E"][i]
+            k = channels["k"][i]
             for j in range(nchannels):
                 Cij = C[i * nb : i * nb + nb, j * nb : j * nb + nb]
                 int_local = interaction.local_matrix[i, j]
@@ -126,10 +127,9 @@ class RMatrixSolver:
                             is_symmetric,
                             nloc_args,
                         )
-                        / channels["k"][i]
+                        / k
                         / E
                     )
-                    # extra factor of 1/k because dr = 1/k ds
         return C
 
     def solve(
