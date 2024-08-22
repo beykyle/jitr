@@ -104,15 +104,18 @@ class Wavefunctions:
                         self.incoming_weights[j]
                         * self.S[i, j]
                         * H_plus(s, l, eta, asym=self.asym)
-                        for j in self.solver.kernel.nchannels
+                        for j in range(len(self.channels))
                     ],
                     axis=0,
                 )
 
-            return lambda s: asym_func_in(s) + asym_func_out(s)
+            return lambda s_mesh: np.array(
+                [1j / 2 * (asym_func_in(s) - asym_func_out(s)) for s in s_mesh],
+                dtype=np.complex128,
+            )
 
         uext = []
-        for i in range(self.solver.kernel.nchannels):
+        for i in range(len(self.channels)):
             uext.append(uext_channel(i))
 
         return uext
@@ -122,7 +125,7 @@ class Wavefunctions:
             return lambda s: np.sum(
                 [
                     self.coeffs[i, n]
-                    / np.sqrt(self.channels[i].domain[1])
+                    / self.channels[i].domain[1]
                     * self.solver.kernel.f(n + 1, self.channels[i].domain[1], s)
                     for n in range(self.solver.kernel.quadrature.nbasis)
                 ],

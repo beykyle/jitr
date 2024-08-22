@@ -52,7 +52,7 @@ def solve_smatrix_with_inverse(
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
 
-    uext_prime_boundary = Hmp * incoming_weights - S @ np.copy(Hpp)
+    uext_prime_boundary = 1j / 2 * (Hmp * incoming_weights - S @ np.copy(Hpp))
 
     return R, S, Ainv, uext_prime_boundary
 
