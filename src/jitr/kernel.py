@@ -186,9 +186,9 @@ class QuadratureKernel:
         l: np.array,
     ):
         r"""
-        @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E (H-E)
-        in the Lagrange basis, where each channel is an NbxNb block (Nb
-        being the basis size), and there are NchxNch such blocks.
+        @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E_0 (H-E)
+        in the Lagrange basis, where each channel is an NbxNb block (Nb being the
+        basis size), and there are NchxNch such blocks.
         """
         Nb = self.quadrature.nbasis
         Nch = np.size(a)
