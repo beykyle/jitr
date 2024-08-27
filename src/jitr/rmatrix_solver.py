@@ -40,13 +40,13 @@ class RMatrixSolver:
         nbasis = self.kernel.quadrature.nbasis
         nchannels = np.size(a)
         return np.hstack(
-            (
+            [
                 np.array(
                     [self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)],
                     dtype=np.complex128,
                 )
                 for i in range(nchannels)
-            )
+            ]
         )
 
     def get_channel_block(self, matrix: np.array, i: np.int32, j: np.int32 = None):
