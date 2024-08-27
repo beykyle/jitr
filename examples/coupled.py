@@ -132,29 +132,6 @@ def coupled_channels_example(visualize=False):
     plt.tight_layout()
     plt.show()
 
-    # plot in r-space
-    r_values = s_values / channels["k"][:, np.newaxis]
-
-    print("k_i =  ", *channels["k"])
-
-    lines = []
-    for i in range(nchannels):
-        u_values = u[i](s_values)
-        (p1,) = plt.plot(r_values[i, :], np.real(u_values), label=r"$n=%d$" % i)
-        (p2,) = plt.plot(r_values[i, :], np.imag(u_values), ":", color=p1.get_color())
-        lines.append([p1, p2])
-
-    legend1 = plt.legend(
-        lines[0], [r"$\mathfrak{Re}\, u_n(r) $", r"$\mathfrak{Im}\, u_n(r)$"], loc=3
-    )
-    plt.legend([l[0] for l in lines], [l[0].get_label() for l in lines], loc=1)
-    plt.gca().add_artist(legend1)
-
-    plt.xlabel(r"$r$ [fm]")
-    plt.ylabel(r"$u (r) $ [a.u.]")
-    plt.tight_layout()
-    plt.show()
-
 
 if __name__ == "__main__":
     coupled_channels_example(visualize=False)

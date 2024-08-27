@@ -41,10 +41,12 @@ class RMatrixSolver:
         nchannels = np.size(a)
         return np.hstack(
             [
-                [self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)]
+                np.array(
+                    [self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)],
+                    dtype=np.complex128,
+                )
                 for i in range(nchannels)
-            ],
-            dtype=np.complex128,
+            ]
         )
 
     def get_channel_block(self, matrix: np.array, i: np.int32, j: np.int32 = None):
@@ -52,6 +54,16 @@ class RMatrixSolver:
         if j is None:
             j = i
         return block(matrix, (i, j), (N, N))
+
+    def precompute_free_matrix_energy_scaling(self, channels: np.array):
+        r"""
+        precomputes the block array [E_i / E_0], with each channel block having
+        a length equal to the number of basis functions
+        """
+        # calculate channel scaling for free matrix
+        E_scaling = channels["E"] / channels["E"][0]
+        Nb = self.kernel.quadrature.nbasis
+        return (E_scaling * np.ones(Nb)[:, np.newaxis]).T.reshape((Nb * channels.size,))
 
     def free_matrix(self, a: np.array, l: np.array, full_matrix=True):
         r"""
@@ -85,8 +97,8 @@ class RMatrixSolver:
         r"""
         Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis, where
         each channel is an nxn block (n being the basis size), and there are
-        NxN such blocks, for N channels. Uses dimensionless coords with s=kr
-        and divided by E.
+        NxN such blocks, for N channels. Uses dimensionless coords with s=k0 r
+        and divided by E0, 0 denoting the entrance channel.
         """
         # ensure consistency in sizing between interaction and channels
         nchannels = interaction.nchannels
@@ -97,9 +109,12 @@ class RMatrixSolver:
         sz = nb * nchannels
         C = np.zeros((sz, sz), dtype=np.complex128)
 
+        # scale to s = k_0 r, wiht k_0 the entrance channel wavenumber
+        E0 = channels["E"][0]
+        k0 = channels["k"][0]
+
         for i in range(nchannels):
             channel_radius_r = channels["a"][i] / channels["k"][i]
-            E = channels["E"][i]
             for j in range(nchannels):
                 Cij = C[i * nb : i * nb + nb, j * nb : j * nb + nb]
                 int_local = interaction.local_matrix[i, j]
@@ -114,7 +129,7 @@ class RMatrixSolver:
                                 loc_args,
                             )
                         )
-                        / E
+                        / E0
                     )
                 if int_nonlocal is not None:
                     nloc_args = interaction.nonlocal_args[i, j]
@@ -126,10 +141,9 @@ class RMatrixSolver:
                             is_symmetric,
                             nloc_args,
                         )
-                        / channels["k"][i]
-                        / E
+                        / k0
+                        / E0
                     )
-                    # extra factor of 1/k because dr = 1/k ds
         return C
 
     def solve(
@@ -137,11 +151,16 @@ class RMatrixSolver:
         interaction: InteractionMatrix,
         channels: np.array,
         free_matrix=None,
+        free_matrix_energy_scaling=None,
         basis_boundary=None,
         wavefunction=None,
     ):
         if free_matrix is None:
             free_matrix = self.free_matrix(channels["a"], channels["l"])
+        if free_matrix_energy_scaling is None:
+            free_matrix_energy_scaling = self.precompute_free_matrix_energy_scaling(
+                channels
+            )
         if basis_boundary is None:
             basis_boundary = self.precompute_boundaries(channels["a"])
 
@@ -152,7 +171,9 @@ class RMatrixSolver:
         assert basis_boundary.shape == (sz,)
 
         # calculate full multichannel Schrödinger equation in the Lagrange basis
-        A = free_matrix + self.interaction_matrix(interaction, channels)
+        A = free_matrix / free_matrix_energy_scaling + self.interaction_matrix(
+            interaction, channels
+        )
 
         # solve system using the R-matrix method
         R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
