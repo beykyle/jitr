@@ -127,7 +127,7 @@ def coupled_channels_example(visualize=False):
     plt.legend([l[0] for l in lines], [l[0].get_label() for l in lines], loc=1)
     plt.gca().add_artist(legend1)
 
-    plt.xlabel(r"$s_n = k_n r$")
+    plt.xlabel(r"$s = k_0 r$")
     plt.ylabel(r"$u (s) $ [a.u.]")
     plt.tight_layout()
     plt.show()
