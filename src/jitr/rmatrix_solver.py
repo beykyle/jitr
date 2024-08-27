@@ -41,7 +41,10 @@ class RMatrixSolver:
         nchannels = np.size(a)
         return np.hstack(
             (
-                np.array([self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)], dtype=np.complex128)
+                np.array(
+                    [self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)],
+                    dtype=np.complex128,
+                )
                 for i in range(nchannels)
             )
         )
