@@ -2,7 +2,7 @@ import numpy as np
 
 from .system import InteractionMatrix
 from .utils import block
-from .rmatrix import (
+from .rmatrix_solver import (
     solution_coeffs,
     solution_coeffs_with_inverse,
     solve_smatrix_with_inverse,

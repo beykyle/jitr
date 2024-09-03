@@ -11,7 +11,7 @@ from .quadrature import (
 )
 
 
-class QuadratureKernel:
+class Kernel:
     def __init__(
         self,
         nbasis: np.int32,

@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 from scipy import special as sc
-from .utils import alpha, hbarc
+from .utils import ALPHA, HBARC
 
 
 def perey_buck(r, rp, local_potential, *params):
