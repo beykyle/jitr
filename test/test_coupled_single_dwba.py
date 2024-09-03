@@ -1,7 +1,6 @@
+from jitr import reactions, rmatrix
 import numpy as np
 from numba import njit
-
-import jitr
 
 
 @njit
@@ -12,7 +11,7 @@ def potential(r, depth):
 nchannels = 2
 nbasis = 40
 
-sys = jitr.ProjectileTargetSystem(
+sys = reactions.ProjectileTargetSystem(
     2 * np.pi * 3 * np.ones(nchannels),
     np.arange(0, nchannels, dtype=np.int32),
     mass_target=44657,
@@ -22,15 +21,15 @@ sys = jitr.ProjectileTargetSystem(
     nchannels=nchannels,
 )
 channels = sys.build_channels_kinematics(E_lab=42.1)
-solver = jitr.RMatrixSolver(nbasis)
+solver = rmatrix.Solver(nbasis)
 free_matrices = solver.free_matrix(sys.channel_radii, sys.l, full_matrix=False)
 
 # single-channel interaction
-interaction_matrix = jitr.InteractionMatrix(1)
+interaction_matrix = reactions.InteractionMatrix(1)
 interaction_matrix.set_local_interaction(potential, args=(10,))
 
 # multichanel interaction
-multi_channel_interaction = jitr.InteractionMatrix(nchannels)
+multi_channel_interaction = reactions.InteractionMatrix(nchannels)
 for i in range(nchannels):
     multi_channel_interaction.set_local_interaction(potential, i, i, args=(10,))
 

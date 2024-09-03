@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 from scipy import special as sc
-from .utils import ALPHA, HBARC
+from ..utils.constants import ALPHA, HBARC
 
 
 def perey_buck(r, rp, local_potential, *params):
@@ -46,7 +46,7 @@ def surface_peaked_gaussian_potential(r, *params):
 
 @njit
 def coulomb_charged_sphere(r, zz, r_c):
-    return zz * alpha * hbarc * regular_inverse_r(r, r_c)
+    return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
 
 
 @njit
@@ -54,8 +54,8 @@ def yamaguchi_potential(r, rp, *params):
     """
     non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
     """
-    W0, beta, alpha = params
-    return W0 * 2 * beta * (beta + alpha) ** 2 * np.exp(-beta * (r + rp))
+    W0, beta, ALPHA = params
+    return W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
 
 
 @njit

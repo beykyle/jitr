@@ -2,16 +2,22 @@ import numpy as np
 from numba import njit
 from scipy.integrate import solve_ivp
 
-from jitr import (
-    InteractionMatrix,
-    RMatrixSolver,
+from jitr import rmatrix
+from jitr.reactions import (
     ProjectileTargetSystem,
+    InteractionMatrix,
     Wavefunctions,
-    coulomb_charged_sphere,
-    schrodinger_eqn_ivp_order1,
-    smatrix,
-    woods_saxon_potential,
     make_channel_data,
+)
+from jitr.reactions.potentials import (
+    woods_saxon_potential,
+    surface_peaked_gaussian_potential,
+    coulomb_charged_sphere,
+)
+from jitr.utils import (
+    delta,
+    smatrix,
+    schrodinger_eqn_ivp_order1,
 )
 
 
@@ -57,7 +63,7 @@ def test_wavefunction():
     s_values = np.linspace(0.01, sys.channel_radii[0], 200)
 
     # Lagrange-Mesh
-    solver_lm = RMatrixSolver(100)
+    solver_lm = rmatrix.Solver(100)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
         ints, channels, wavefunction=True
     )

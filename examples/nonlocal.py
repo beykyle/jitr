@@ -1,12 +1,15 @@
 import numpy as np
-from jitr import (
-    ProjectileTargetSystem,
-    InteractionMatrix,
-    RMatrixSolver,
+
+from jitr import rmatrix
+
+from jitr.reactions import ProjectileTargetSystem, InteractionMatrix
+
+from jitr.reactions.potentials import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
-    hbarc,
 )
+
+from jitr.utils.constants import HBARC
 
 
 def nonlocal_interaction_example():
@@ -17,8 +20,8 @@ def nonlocal_interaction_example():
     params = (W0, beta, alpha)
 
     ecom = 0.1
-    mu = hbarc**2 / (2 * W0)
-    k = np.sqrt(2 * mu * ecom) / hbarc
+    mu = HBARC**2 / (2 * W0)
+    k = np.sqrt(2 * mu * ecom) / HBARC
     eta = 0
 
     sys = ProjectileTargetSystem(
@@ -30,7 +33,7 @@ def nonlocal_interaction_example():
     im = InteractionMatrix(1)
     im.set_nonlocal_interaction(yamaguchi_potential, args=params)
 
-    solver = RMatrixSolver(20)
+    solver = rmatrix.Solver(20)
     _, S, _ = solver.solve(im, channels)
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))

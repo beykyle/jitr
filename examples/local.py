@@ -2,17 +2,23 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 from numba import njit
-from jitr import (
+
+from jitr import rmatrix
+from jitr.reactions import (
     ProjectileTargetSystem,
     InteractionMatrix,
     Wavefunctions,
-    RMatrixSolver,
+    make_channel_data,
+)
+from jitr.reactions.potentials import (
     woods_saxon_potential,
+    surface_peaked_gaussian_potential,
     coulomb_charged_sphere,
+)
+from jitr.utils import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
-    make_channel_data,
 )
 
 # target (A,Z)
@@ -54,7 +60,7 @@ def local_interaction_example():
     ch = channel_data[0]
 
     # Lagrange-Mesh
-    solver_lm = RMatrixSolver(100)
+    solver_lm = rmatrix.Solver(100)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength
@@ -157,7 +163,7 @@ def channel_radius_dependence_test():
     im = InteractionMatrix(1)
     im.set_local_interaction(woods_saxon_potential, args=params)
 
-    solver = RMatrixSolver(60)
+    solver = rmatrix.Solver(60)
 
     for i, a in enumerate(a_grid):
         sys = ProjectileTargetSystem(
@@ -203,7 +209,7 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = RMatrixSolver(40)
+    solver = rmatrix.Solver(40)
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel

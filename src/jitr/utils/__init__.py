@@ -1,7 +1,7 @@
 from .utils import *
-from .kinematics import *
-from .constants import *
-from .free_solutions import *
+from . import kinematics
+from . import constants
+from . import free_solutions
 
 # read AME mass table into memory for fast lookup later
-init_AME_db()
+kinematics.init_AME_db()

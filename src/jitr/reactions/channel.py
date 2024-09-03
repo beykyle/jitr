@@ -2,7 +2,7 @@ from numba.experimental import jitclass
 from numba import float64, int64
 import numpy as np
 
-from .utils import (
+from ..utils.free_solutions import (
     Gamow_factor,
     H_plus,
     H_minus,

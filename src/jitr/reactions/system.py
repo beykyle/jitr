@@ -2,14 +2,15 @@ from numba.experimental import jitclass
 from numba import float64, int32
 import numpy as np
 
-from .channel import ChannelData
-from .utils import (
-    classical_kinematics,
+from ..utils.free_solutions import (
     H_plus,
     H_minus,
     H_plus_prime,
     H_minus_prime,
 )
+from ..utils.kinematics import classical_kinematics
+
+from .channel import ChannelData
 
 
 channel_dtype = [

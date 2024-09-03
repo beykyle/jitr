@@ -1,4 +1,4 @@
-from .rmatrix import RMatrixSolver
+from .rmatrix import Solver
 from .rmatrix_solver import (
     solution_coeffs,
     solution_coeffs_with_inverse,

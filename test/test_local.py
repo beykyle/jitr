@@ -1,16 +1,22 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 from numba import njit
-from jitr import (
+from jitr import rmatrix
+from jitr.reactions import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    RMatrixSolver,
+    Wavefunctions,
+    make_channel_data,
+)
+from jitr.reactions.potentials import (
     woods_saxon_potential,
+    surface_peaked_gaussian_potential,
     coulomb_charged_sphere,
+)
+from jitr.utils import (
     delta,
     smatrix,
     schrodinger_eqn_ivp_order1,
-    make_channel_data,
 )
 
 
@@ -47,7 +53,7 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = RMatrixSolver(40)
+    solver = rmatrix.Solver(40)
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel

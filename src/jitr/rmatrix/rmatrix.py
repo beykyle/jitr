@@ -1,17 +1,17 @@
 import numpy as np
 
-from .system import InteractionMatrix
-from .utils import block
+from ..reactions.system import InteractionMatrix
+from ..utils import block
 from .rmatrix_solver import (
     solution_coeffs,
     solution_coeffs_with_inverse,
     solve_smatrix_with_inverse,
     solve_smatrix_without_inverse,
 )
-from .kernel import QuadratureKernel
+from ..quadrature import Kernel
 
 
-class RMatrixSolver:
+class Solver:
     r"""
     A Schrödinger equation solver using the R-matrix method on a Lagrange mesh
     """
@@ -29,7 +29,7 @@ class RMatrixSolver:
             ecom (float) : center of mass frame scattering energy
             basis (str): what basis/mesh to use (see Ch. 3 of Baye, 2015)
         """
-        self.kernel = QuadratureKernel(nbasis, basis)
+        self.kernel = Kernel(nbasis, basis)
 
     def precompute_boundaries(self, a):
         r"""

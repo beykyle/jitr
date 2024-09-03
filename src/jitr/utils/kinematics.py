@@ -11,7 +11,7 @@ from .constants import ALPHA, HBARC, MASS_N, MASS_P
 # AME mass table DB initialized at import
 __AME_DB__ = None
 __AME_PATH__ = (
-    Path(__file__).parent.resolve() / Path("../data/mass_1.mas20.txt")
+    Path(__file__).parent.resolve() / Path("./../../data/mass_1.mas20.txt")
 ).resolve()
 
 

@@ -1,8 +1,15 @@
 import numpy as np
 from numba import njit
-from mpmath import coulombf, coulombg
 import scipy.special as sc
 from scipy.misc import derivative
+
+from .free_solutions import (
+    CoulombAsymptotics,
+    H_plus,
+    H_minus,
+    H_plus_prime,
+    H_minus_prime,
+)
 
 
 @njit
@@ -20,31 +27,6 @@ def block(matrix: np.array, block, block_size):
     i, j = block
     n, m = block_size
     return matrix[i * n : i * n + n, j * m : j * m + m]
-
-
-@njit
-def Gamow_factor(l, eta):
-    r"""This returns the... Gamow factor.
-    See [Wikipedia](https://en.wikipedia.org/wiki/Gamow_factor).
-
-    Parameters:
-        l (int): angular momentum
-        eta (float): Sommerfeld parameter (see
-            [Wikipedia](https://en.wikipedia.org/wiki/Sommerfeld_parameter))
-
-    Returns:
-        C_l (float): Gamow factor
-
-    """
-    if eta == 0.0:
-        if l == 0:
-            return 1
-        else:
-            return 1 / (2 * l + 1) * Gamow_factor(l - 1, 0)
-    elif l == 0:
-        return np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
-    else:
-        return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
 
 
 @njit

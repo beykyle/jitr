@@ -2,17 +2,19 @@ import numpy as np
 from numba import njit
 from matplotlib import pyplot as plt
 
-from jitr import (
+from jitr import rmatrix
+from jitr.reactions import (
     ProjectileTargetSystem,
     InteractionMatrix,
-    RMatrixSolver,
     Wavefunctions,
+    make_channel_data,
+)
+from jitr.reactions.potentials import (
     woods_saxon_potential,
     surface_peaked_gaussian_potential,
     coulomb_charged_sphere,
-    complex_det,
-    make_channel_data,
 )
+from jitr.utils import complex_det
 
 
 @njit
@@ -52,7 +54,7 @@ def coupled_channels_example(visualize=False):
     )
 
     # initialize solver
-    solver = RMatrixSolver(40)
+    solver = rmatrix.Solver(40)
 
     # Woods-Saxon potential parameters
     V0 = 60  # real potential strength

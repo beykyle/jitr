@@ -1,5 +1,34 @@
+from numba import njit
 import scipy.special as sc
+from mpmath import coulombf, coulombg
 from scipy.misc import derivative
+import numpy as np
+
+
+@njit
+def Gamow_factor(l, eta):
+    r"""This returns the... Gamow factor.
+    See [Wikipedia](https://en.wikipedia.org/wiki/Gamow_factor).
+
+    Parameters:
+        l (int): angular momentum
+        eta (float): Sommerfeld parameter (see
+            [Wikipedia](https://en.wikipedia.org/wiki/Sommerfeld_parameter))
+
+    Returns:
+        C_l (float): Gamow factor
+
+    """
+    if eta == 0.0:
+        if l == 0:
+            return 1
+        else:
+            return 1 / (2 * l + 1) * Gamow_factor(l - 1, 0)
+    elif l == 0:
+        return np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
+    else:
+        return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
+
 
 class FreeAsymptotics:
     r"""For neutral particles, one may desired to explicitly pass in the type FreeAsymptotics
