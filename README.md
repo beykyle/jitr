@@ -32,11 +32,7 @@ Capable of:
 
 ## examples and tutorials
 
-- Various notebooks and scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples)
-- Here are wavefunctions for a S-wave scattering on 3 coupled $0^+$ levels. For details, see [`examples/coupled`](https://github.com/beykyle/jitr/blob/main/examples/coupled.py).
-
-![](https://github.com/beykyle/jitr/blob/main/assets/cc.png)
-
+various notebooks and scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples)
 
 ## BAND
 
