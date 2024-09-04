@@ -1,7 +1,5 @@
 import numpy as np
-from numba.experimental import jitclass
-from numba import int32, float64, njit
-import scipy.special as sc
+from numba import int32, njit
 
 
 @njit

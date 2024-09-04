@@ -3,10 +3,8 @@ import numpy as np
 from ..reactions.system import InteractionMatrix
 from ..utils import block
 from .rmatrix_solver import (
-    solution_coeffs,
     solution_coeffs_with_inverse,
     solve_smatrix_with_inverse,
-    solve_smatrix_without_inverse,
 )
 from ..quadrature import Kernel
 

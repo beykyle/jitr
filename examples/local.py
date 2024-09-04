@@ -12,7 +12,6 @@ from jitr.reactions import (
 )
 from jitr.reactions.potentials import (
     woods_saxon_potential,
-    surface_peaked_gaussian_potential,
     coulomb_charged_sphere,
 )
 from jitr.utils import (

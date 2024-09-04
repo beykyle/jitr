@@ -1,7 +1,5 @@
 import numpy as np
 from numba import njit
-import scipy.special as sc
-from scipy.misc import derivative
 
 from .free_solutions import (
     CoulombAsymptotics,

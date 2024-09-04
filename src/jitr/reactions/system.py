@@ -1,4 +1,3 @@
-from numba.experimental import jitclass
 from numba import float64, int32
 import numpy as np
 
