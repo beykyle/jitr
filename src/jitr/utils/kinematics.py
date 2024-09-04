@@ -74,10 +74,11 @@ def get_binding_energy(A, Z):
     return Eb
 
 
-@njit
-def mass(A, Z, Eb):
+def mass(A, Z, Eb=None):
     r"""Calculates rest mass in MeV/c^2 given mass number, A, proton number, Z, and binding energy
     in MeV/c^2"""
+    if Eb is None:
+        Eb = get_binding_energy(A, Z)
     N = A - Z
     return Z * MASS_P + N * MASS_N - Eb
 
