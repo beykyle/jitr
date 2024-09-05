@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..reactions.system import InteractionMatrix
+from ..reactions.system import Channels, Asymptotics
 from ..utils import block
 from .rmatrix_solver import (
     solution_coeffs_with_inverse,
@@ -53,15 +53,22 @@ class Solver:
             j = i
         return block(matrix, (i, j), (N, N))
 
-    def precompute_free_matrix_energy_scaling(self, channels: np.array):
+    def precompute_free_matrix_energy_scaling(self, energies, full_vector=True):
         r"""
         precomputes the block array [E_i / E_0], with each channel block having
         a length equal to the number of basis functions
         """
         # calculate channel scaling for free matrix
-        E_scaling = channels["E"] / channels["E"][0]
+        E_scaling = energies / energies[0]
         Nb = self.kernel.quadrature.nbasis
-        return (E_scaling * np.ones(Nb)[:, np.newaxis]).T.reshape((Nb * channels.size,))
+        scaling = (E_scaling * np.ones(Nb)[:, np.newaxis]).T.reshape(
+            (Nb * energies.size,)
+        )
+        if full_vector:
+            return scaling
+        else:
+            return [scaling[i * Nb : (i + 1) * Nb] for i in range(energies.size)]
+        return
 
     def free_matrix(self, a: np.array, l: np.array, full_matrix=True):
         r"""
@@ -89,8 +96,11 @@ class Solver:
 
     def interaction_matrix(
         self,
-        interaction: InteractionMatrix,
-        channels: np.array,
+        channels: Channels,
+        local_interaction=None,
+        nonlocal_interaction=None,
+        args_local=None,
+        args_nonlocal=None,
     ):
         r"""
         Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis, where
@@ -98,91 +108,84 @@ class Solver:
         NxN such blocks, for N channels. Uses dimensionless coords with s=k0 r
         and divided by E0, 0 denoting the entrance channel.
         """
-        # ensure consistency in sizing between interaction and channels
-        nchannels = interaction.nchannels
-        assert channels.size == nchannels
-
         # allocate matrix to store full interaction in Lagrange basis
         nb = self.kernel.quadrature.nbasis
-        sz = nb * nchannels
-        C = np.zeros((sz, sz), dtype=np.complex128)
+        sz = nb * channels.size
+        V = np.zeros((sz, sz), dtype=np.complex128)
 
-        # scale to s = k_0 r, wiht k_0 the entrance channel wavenumber
-        E0 = channels["E"][0]
-        k0 = channels["k"][0]
+        # scale to s = k_0 r, with k_0 the entrance channel wavenumber
+        E0 = channels.E[0]
+        k0 = channels.k[0]
+        channel_radius_r = channels.a[0] / channels.k[0]
 
-        for i in range(nchannels):
-            channel_radius_r = channels["a"][i] / channels["k"][i]
-            for j in range(nchannels):
-                Cij = C[i * nb : i * nb + nb, j * nb : j * nb + nb]
-                int_local = interaction.local_matrix[i, j]
-                int_nonlocal = interaction.nonlocal_matrix[i, j]
-                if int_local is not None:
-                    loc_args = interaction.local_args[i, j]
-                    Cij += (
-                        np.diag(
-                            self.kernel.matrix_local(
-                                int_local,
-                                channel_radius_r,
-                                loc_args,
-                            )
-                        )
-                        / E0
+        if local_interaction is not None:
+            V += (
+                np.diag(
+                    self.kernel.matrix_local(
+                        local_interaction, channel_radius_r, args_local
                     )
-                if int_nonlocal is not None:
-                    nloc_args = interaction.nonlocal_args[i, j]
-                    is_symmetric = interaction.nonlocal_symmetric[i, j]
-                    Cij += (
-                        self.kernel.matrix_nonlocal(
-                            int_nonlocal,
-                            channel_radius_r,
-                            is_symmetric,
-                            nloc_args,
-                        )
-                        / k0
-                        / E0
-                    )
-        return C
+                )
+                .reshape(channels.size, channels.size, nb, nb)
+                .swapaxes(1, 2)
+                .reshape(sz, sz, order="C")
+            )
+        if nonlocal_interaction is not None:
+            Vl += (
+                self.kernel.matrix_nonlocal(
+                    nonlocal_interaction, channel_radius_r, args_nonlocal
+                )
+                .reshape(channels.size, channels.size, nb, nb)
+                .swapaxes(1, 2)
+                .reshape(sz, sz, order="C")
+                / k0
+            )
+
+        V /= E0
+        return V
 
     def solve(
         self,
-        interaction: InteractionMatrix,
-        channels: np.array,
+        channels: Channels,
+        asymptotics: Asymptotics,
+        local_interaction=None,
+        nonlocal_interaction=None,
+        args_local=None,
+        args_nonlocal=None,
         free_matrix=None,
         free_matrix_energy_scaling=None,
         basis_boundary=None,
         wavefunction=None,
     ):
         if free_matrix is None:
-            free_matrix = self.free_matrix(channels["a"], channels["l"])
+            free_matrix = self.free_matrix(channels.a, channels.l)
         if free_matrix_energy_scaling is None:
             free_matrix_energy_scaling = self.precompute_free_matrix_energy_scaling(
-                channels
+                channels.E
             )
         if basis_boundary is None:
-            basis_boundary = self.precompute_boundaries(channels["a"])
+            basis_boundary = self.precompute_boundaries(channels.a)
 
         # check consistent sizes
-        sz = interaction.nchannels * self.kernel.quadrature.nbasis
-        assert channels.size == interaction.nchannels
+        sz = channels.size * self.kernel.quadrature.nbasis
         assert free_matrix.shape == (sz, sz)
         assert basis_boundary.shape == (sz,)
 
         # calculate full multichannel Schrödinger equation in the Lagrange basis
-        A = free_matrix / free_matrix_energy_scaling + self.interaction_matrix(
-            interaction, channels
+        A = free_matrix / free_matrix_energy_scaling
+        A += self.interaction_matrix(
+            channels, local_interaction, nonlocal_interaction, args_local, args_nonlocal
         )
 
         # solve system using the R-matrix method
         R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
             A,
             basis_boundary,
-            channels["Hp"],
-            channels["Hm"],
-            channels["Hpp"],
-            channels["Hmp"],
-            channels["weight"],
-            channels["a"],
+            asymptotics.Hp,
+            asymptotics.Hm,
+            asymptotics.Hpp,
+            asymptotics.Hmp,
+            channels.weight,
+            channels.a,
             channels.size,
             self.kernel.quadrature.nbasis,
         )

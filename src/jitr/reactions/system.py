@@ -1,4 +1,5 @@
-from numba import float64, int32
+from numba import float64, int64, complex128
+from numba.experimental import jitclass
 import numpy as np
 
 from ..utils.free_solutions import (
@@ -7,89 +8,62 @@ from ..utils.free_solutions import (
     H_plus_prime,
     H_minus_prime,
 )
-from ..utils.kinematics import classical_kinematics
-
-from .channel import ChannelData
-
 
 channel_dtype = [
-    ("weight", np.float64),
-    ("l", np.int32),
-    ("mu", np.float64),
-    ("a", np.float64),
-    ("E", np.float64),
-    ("k", np.float64),
-    ("eta", np.float64),
-    ("Hp", np.complex128),
-    ("Hm", np.complex128),
-    ("Hpp", np.complex128),
-    ("Hmp", np.complex128),
+    ("size", int64),
+    ("E", float64[:]),
+    ("k", float64[:]),
+    ("mu", float64[:]),
+    ("eta", float64[:]),
+    ("a", float64[:]),
+    ("l", int64[:]),
+    ("weight", float64[:]),
+]
+
+asymm_dtype = [
+    ("Hp", complex128[:]),
+    ("Hm", complex128[:]),
+    ("Hpp", complex128[:]),
+    ("Hmp", complex128[:]),
 ]
 
 
-class InteractionMatrix:
-    r"""Represents the interaction potentials in each channel as numpy object arrays,
-    one for local interactions and one for nonlocal
-    """
+@jitclass(asymm_dtype)
+class Asymptotics:
+    def __init__(self, Hp, Hm, Hpp, Hmp):
+        self.Hp = Hp
+        self.Hm = Hm
+        self.Hpp = Hpp
+        self.Hmp = Hmp
 
-    def __init__(
-        self, nchannels: np.int32 = 1, local_arg_type=tuple, nonlocal_arg_type=tuple
-    ):
-        r"""Initialize the InteractionMatrix
 
-        Parameters:
-            - nchannels (int) : the number of channels
-        """
-        self.nchannels = nchannels
-        self.local_args = np.empty(
-            (self.nchannels, self.nchannels), dtype=local_arg_type
-        )
-        self.nonlocal_args = np.empty(
-            (self.nchannels, self.nchannels), dtype=nonlocal_arg_type
-        )
-        self.local_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
-        self.nonlocal_matrix = np.empty((self.nchannels, self.nchannels), dtype=object)
-        self.nonlocal_symmetric = np.ones((self.nchannels, self.nchannels), dtype=bool)
-
-        # initialize local interaction to 0's
-        for i in range(self.nchannels):
-            for j in range(self.nchannels):
-                self.local_matrix[i, j] = None
-                self.local_args[i, j] = None
-
-    def set_nonlocal_interaction(
-        self,
-        interaction,
-        i: np.int32 = 0,
-        j: np.int32 = 0,
-        is_symmetric=True,
-        args=None,
-    ):
-        self.nonlocal_matrix[i, j] = interaction
-        self.nonlocal_symmetric[i, j] = is_symmetric
-        self.nonlocal_args[i, j] = args
-
-    def set_local_interaction(
-        self, interaction, i: np.int32 = 0, j: np.int32 = 0, args=None
-    ):
-        self.local_matrix[i, j] = interaction
-        self.local_args[i, j] = args
+@jitclass(channel_dtype)
+class Channels:
+    def __init__(self, E, k, mu, eta, a, l, weight):
+        self.size = E.shape[0]
+        self.E = E
+        self.k = k
+        self.mu = mu
+        self.eta = eta
+        self.a = a
+        self.l = l
+        self.weight = weight
 
 
 class ProjectileTargetSystem:
     r"""
-    Stores energetics of the system. Calculates useful parameters for each channel.
+    Stores physics parameters of the system. Calculates useful parameters for each channel.
     """
 
     def __init__(
         self,
         channel_radii: float64[:],
-        l: int32[:],
+        l: int64[:],
         mass_target: float64 = 0,
         mass_projectile: float64 = 0,
         Ztarget: float64 = 0,
         Zproj: float64 = 0,
-        nchannels: int32 = 1,
+        nchannels: int64 = 1,
         level_energies: float64[:] = None,
         incoming_weights: float64[:] = None,
     ):
@@ -116,48 +90,64 @@ class ProjectileTargetSystem:
         assert level_energies.shape == (nchannels,)
         assert incoming_weights.shape == (nchannels,)
 
-    def build_channels_kinematics(self, E_lab):
-        Q = -self.level_energies
-        Zz = self.Zproj * self.Ztarget
-        mu, E_com, k, eta = classical_kinematics(
-            self.mass_target, self.mass_projectile, E_lab, Q, Zz
-        )
-        return self.build_channels(E_com, mu, k, eta)
+    def build_channels(
+        self,
+        Ecm,
+        mu,
+        k,
+        eta,
+    ):
+        r"""
+        Given the kinematic parameters as arrays of shape (nchannels,), returns a `Channels`
+        object. If the kinematic parameters are input as scalars rather than arrays, assumes
+        that they are the same in each channel.
+        """
+        if not isinstance(Ecm, np.ndarray):
+            Ecm = np.ones(self.nchannels) * Ecm
+        if not isinstance(mu, np.ndarray):
+            mu = np.ones(self.nchannels) * mu
+        if not isinstance(k, np.ndarray):
+            k = np.ones(self.nchannels) * k
+        if not isinstance(eta, np.ndarray):
+            eta = np.ones(self.nchannels) * eta
 
-    def build_channels(self, E_com, mu, k, eta):
-        channels = np.zeros(
-            self.nchannels,
-            dtype=channel_dtype,
-        )
-        channels["weight"] = self.incoming_weights
-        channels["l"] = self.l
-        channels["a"] = self.channel_radii
-        channels["E"] = E_com
-        channels["mu"] = mu
-        channels["k"] = k
-        channels["eta"] = eta
-        channels["Hp"] = np.array(
-            [H_plus(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hm"] = np.array(
-            [H_minus(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hpp"] = np.array(
-            [H_plus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
-        )
-        channels["Hmp"] = np.array(
-            [H_minus_prime(ch["a"], ch["l"], ch["eta"]) for ch in channels],
-            dtype=np.complex128,
+        channels = Channels(
+            Ecm,
+            k,
+            mu,
+            eta,
+            self.channel_radii,
+            self.l,
+            self.incoming_weights,
         )
 
-        return channels
+        Hp = np.array(
+            [
+                H_plus(channels.a[i], channels.l[i], channels.eta[i])
+                for i in range(channels.size)
+            ],
+            dtype=np.complex128,
+        )
+        Hm = np.array(
+            [
+                H_minus(channels.a[i], channels.l[i], channels.eta[i])
+                for i in range(channels.size)
+            ],
+            dtype=np.complex128,
+        )
+        Hpp = np.array(
+            [
+                H_plus_prime(channels.a[i], channels.l[i], channels.eta[i])
+                for i in range(channels.size)
+            ],
+            dtype=np.complex128,
+        )
+        Hmp = np.array(
+            [
+                H_minus_prime(channels.a[i], channels.l[i], channels.eta[i])
+                for i in range(channels.size)
+            ],
+            dtype=np.complex128,
+        )
 
-
-def make_channel_data(channels: np.array):
-    return [
-        ChannelData(*channels[["l", "mu", "a", "E", "k", "eta"]][i])
-        for i in range(channels.shape[0])
-    ]
+        return channels, Asymptotics(Hp, Hm, Hpp, Hmp)

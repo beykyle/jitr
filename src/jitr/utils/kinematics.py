@@ -82,12 +82,12 @@ def mass(A, Z, Eb=None):
     return Z * MASS_P + N * MASS_N - Eb
 
 
-def kinematics(
-    target: tuple,
-    projectile: tuple,
-    E_lab: float = None,
-    E_com: float = None,
-    binding_model: Callable[[int, int], float] = get_binding_energy,
+def semi_relativistic_kinematics(
+    mass_target,
+    mass_projectile,
+    Elab,
+    Zz=0,
+    Q=0,
 ):
     r"""Calculates the reduced mass, COM frame kinetic energy and wavenumber for a projectile (A,Z)
     scattering on a target nuclide (A,Z), with binding energies from binding_model, which defaults
@@ -96,57 +96,42 @@ def kinematics(
     Parameters:
         t : target (A,Z)
         p : projectile (A,Z)
-        E_lab: bombarding energy in the lab frame [MeV]. Either E_lab or E_com must be provided,
+        Elab: bombarding energy in the lab frame [MeV]. Either Elab or Ecm must be provided,
         not both.
-        E_com: bombarding energy in the com frame [MeV]. Either E_lab or E_com must be provided,
+        Ecm: bombarding energy in the com frame [MeV]. Either Elab or Ecm must be provided,
         not both.
         binding_model : optional callable taking in (A,Z) and returning binding energy in [MeV/c^2],
                         defaults to lookup in AME2020, and semi-empirical mass formula if not
                         available there
     Returns:
         mu (float) : reduced mass in MeV/c^2
-        E_com (float) : center-of-mass frame energy in MeV
+        Ecm (float) : center-of-mass frame energy in MeV
         k (float) : center-of-mass frame wavenumber in fm^-1
     """
-    Eb_target = binding_model(*target)
-    Eb_projectile = binding_model(*projectile)
-    m_t = mass(*target, Eb_target)
-    m_p = mass(*projectile, Eb_projectile)
+    m_t = mass_target - Q
+    m_p = mass_projectile
 
-    if E_lab is None:
-        return_Elab = True
-        assert E_com is not None
-        E_com = np.fabs(E_com)
-        E_lab = (m_t + m_p) / m_t * E_com
-    else:
-        return_Elab = False
-        assert E_com is None
-        E_lab = np.fabs(E_lab)
-        E_com = m_t / (m_t + m_p) * E_lab
-
-    Ep = E_com + m_p
+    Ecm = m_t / (m_t + m_p) * Elab + Q
+    Ep = Ecm + m_p
 
     # relativisitic correction from A. Ingemarsson 1974, Eqs. 17 & 20
     k = (
         m_t
-        * np.sqrt(E_lab * (E_lab + 2 * m_p))
-        / np.sqrt((m_t + m_p) ** 2 + 2 * m_t * E_lab)
+        * np.sqrt(Elab * (Elab + 2 * m_p))
+        / np.sqrt((m_t + m_p) ** 2 + 2 * m_t * Elab)
         / HBARC
     )
     mu = k**2 * Ep / (Ep**2 - m_p * m_p) * HBARC**2
-    k_C = ALPHA * projectile[1] * target[1] * mu / HBARC
+    k_C = ALPHA * Zz * mu / HBARC
     eta = k_C / k
 
-    if return_Elab:
-        return mu, E_lab, k, eta
-    else:
-        return mu, E_com, k, eta
+    return mu, Ecm, k, eta
 
 
 @njit
-def classical_kinematics(mass_target, mass_projectile, E_lab, Q, Zz):
+def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
-    E_com = mass_target / (mass_target + mass_projectile) * E_lab
-    k = np.sqrt(2 * (E_com + Q) * mu) / HBARC
+    Ecm = mass_target / (mass_target + mass_projectile) * Elab + Q
+    k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
-    return mu, E_com, k, eta
+    return mu, Ecm, k, eta

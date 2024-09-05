@@ -1,5 +1,7 @@
 import numpy as np
 from numba import njit
+from scipy.misc import derivative
+from scipy.special import eval_legendre
 
 from .free_solutions import (
     CoulombAsymptotics,
@@ -8,6 +10,15 @@ from .free_solutions import (
     H_plus_prime,
     H_minus_prime,
 )
+
+
+def eval_assoc_legendre(n, x):
+    if n == 0:
+        return np.zeros(x.size)
+    else:
+        return -((1 - x**2) ** (1 / 2)) * derivative(
+            lambda z: eval_legendre(n, z), x, dx=1e-9
+        )
 
 
 @njit

@@ -11,11 +11,8 @@ def interaction(r, V0, W0, R0, a0, Zz):
     return nuclear + coulomb
 
 
-interaction_matrix = reactions.InteractionMatrix(1, local_arg_type=dict)
-interaction_matrix.set_local_interaction(interaction)
-
 # define system
-E_lab = 35  # MeV
+Elab = 35  # MeV
 Ca48 = (28, 20)
 proton = (1, 1)
 
@@ -27,15 +24,22 @@ sys = reactions.ProjectileTargetSystem(
     Ztarget=Ca48[1],
     Zproj=proton[1],
 )
-channels = sys.build_channels_kinematics(E_lab)
+Ecm, mu, k, eta = kinematics.classical_kinematics(
+    sys.mass_target,
+    sys.mass_projectile,
+    Elab,
+    sys.Ztarget * sys.Zproj,
+)
+channels, asymptotics = sys.build_channels(Ecm, mu, k, eta)
 
 # set up solver
 solver = rmatrix.Solver(nbasis=40)
 
 # solve for a set of parameters
 params = (42.0, 18.1, 4.8, 0.7, sys.Zproj * sys.Ztarget)
-interaction_matrix.local_args[0, 0] = params
-R, S, uext_boundary = solver.solve(interaction_matrix, channels)
+R, S, uext_boundary = solver.solve(
+    channels, asymptotics, interaction, args_local=params
+)
 
 # get phase shift in degrees
 phase_shift, phase_attenuation = delta(S[0, 0])
