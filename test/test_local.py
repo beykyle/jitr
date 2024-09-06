@@ -4,20 +4,13 @@ from numba import njit
 from jitr import rmatrix
 from jitr.reactions import (
     ProjectileTargetSystem,
-    InteractionMatrix,
-    Wavefunctions,
     make_channel_data,
 )
 from jitr.reactions.potentials import (
     woods_saxon_potential,
-    surface_peaked_gaussian_potential,
     coulomb_charged_sphere,
 )
-from jitr.utils import (
-    delta,
-    smatrix,
-    schrodinger_eqn_ivp_order1,
-)
+from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 
 @njit
@@ -30,7 +23,7 @@ def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
     n_partial_waves = 10
-    lgrid = np.arange(0, n_partial_waves, dtype=np.int32)
+    lgrid = np.arange(0, n_partial_waves, dtype=np.int64)
     egrid = np.linspace(0.5, 100, 10)
     nodes_within_radius = 5
 
@@ -57,7 +50,7 @@ def rmse_RK_LM():
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel
-    free_matrices = solver.free_matrix(sys.channel_radii, sys.l, full_matrix=False)
+    free_matrices = solver.free_matrix(sys.channel_radii, sys.l, coupled=False)
 
     # precompute values of Lagrange basis functions at channel radius
     # radius is the same for each partial wave channel so just do it once
@@ -73,33 +66,32 @@ def rmse_RK_LM():
     params = (V0, W0, R0, a0, proton[1] * Ca48[1], RC)
 
     # use same interaction for all channels (no spin-orbit coupling)
-    im = InteractionMatrix(1)
-    im.set_local_interaction(interaction, args=params)
-
     error_matrix = np.zeros((len(lgrid), len(egrid)), dtype=complex)
 
-    for i, e in enumerate(egrid):
+    for i, Elab in enumerate(egrid):
         # calculate channel kinematics at this energy
-        channels = sys.build_channels_kinematics(e)
-        channel_data = make_channel_data(channels)
+        mu, Ecm, k, eta = kinematics.classical_kinematics(
+            sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+        )
+        channels, asymptotics = sys.uncoupled(Ecm, mu, k, eta)
 
         for l in lgrid:
-            # get view of single channel corresponding to partial wave l
-            ch = channels[l : l + 1]
-
             # Lagrange-Legendre R-Matrix solve for this partial wave
             R_lm, S_lm, uext_boundary = solver.solve(
-                im,
-                ch,
+                channels[l],
+                asymptotics[l],
+                local_interaction=interaction,
+                local_args=params,
                 basis_boundary=basis_boundary,
                 free_matrix=free_matrices[l],
             )
 
             # Runge-Kutta solve for this partial wave
-            domain, init_con = channel_data[l].initial_conditions()
+            rk_solver_info = make_channel_data(channels[l])[0]
+            domain, init_con = rk_solver_info.initial_conditions()
             sol_rk = solve_ivp(
                 lambda s, y: schrodinger_eqn_ivp_order1(
-                    s, y, channel_data[l], im.local_matrix[0, 0], params
+                    s, y, rk_solver_info, interaction, params
                 ),
                 domain,
                 init_con,
@@ -110,7 +102,7 @@ def rmse_RK_LM():
 
             a = domain[1]
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-            S_rk = smatrix(R_rk, a, l, channel_data[l].eta)
+            S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
             # comparison between solvers
             delta_lm, atten_lm = delta(S_lm)

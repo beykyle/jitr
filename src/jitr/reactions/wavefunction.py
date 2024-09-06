@@ -79,7 +79,7 @@ class Wavefunctions:
             )
 
         uint = []
-        for i in range(len(self.channels)):
+        for i in range(self.channels.size):
             uint.append(uint_channel(i))
 
         return uint

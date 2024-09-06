@@ -53,7 +53,7 @@ class Solver:
             j = i
         return block(matrix, (i, j), (N, N))
 
-    def precompute_free_matrix_energy_scaling(self, energies, full_vector=True):
+    def precompute_free_matrix_energy_scaling(self, energies, coupled=True):
         r"""
         precomputes the block array [E_i / E_0], with each channel block having
         a length equal to the number of basis functions
@@ -64,20 +64,20 @@ class Solver:
         scaling = (E_scaling * np.ones(Nb)[:, np.newaxis]).T.reshape(
             (Nb * energies.size,)
         )
-        if full_vector:
+        if coupled:
             return scaling
         else:
             return [scaling[i * Nb : (i + 1) * Nb] for i in range(energies.size)]
         return
 
-    def free_matrix(self, a: np.array, l: np.array, full_matrix=True):
+    def free_matrix(self, a: np.array, l: np.array, coupled=True):
         r"""
         precompute free matrix, which only depend on the channel orbital
         angular momenta l and dimensionless channel radii a
         Parameters:
             a: dimensionless radii (e.g. a = k * r_max) for each channel
             l: orbital angular momentum quantum number for each channel
-            full_matrix: whether to return the full matrix or just the block
+            coupled: whether to return the full matrix or just the block
             diagonal elements (elements off of the channel diagonal are all 0
             for the free matrix). If False, returns a list of Nch (Nb,Nb)
             matrices, where Nch is the number of channels and Nb is the number
@@ -89,7 +89,7 @@ class Solver:
 
         free_matrix = self.kernel.free_matrix(a, l)
 
-        if full_matrix:
+        if coupled:
             return free_matrix
         else:
             return [self.get_channel_block(free_matrix, i) for i in range(a.size)]
@@ -98,9 +98,9 @@ class Solver:
         self,
         channels: Channels,
         local_interaction=None,
+        local_args=None,
         nonlocal_interaction=None,
-        args_local=None,
-        args_nonlocal=None,
+        nonlocal_args=None,
     ):
         r"""
         Returns the full (Nxn)x(Nxn) interaction in the Lagrange basis, where
@@ -119,20 +119,23 @@ class Solver:
         channel_radius_r = channels.a[0] / channels.k[0]
 
         if local_interaction is not None:
-            V += (
-                np.diag(
-                    self.kernel.matrix_local(
-                        local_interaction, channel_radius_r, args_local
+            # matrix_local just gives us the diagonal elements of each block ...
+            Vl = self.kernel.matrix_local(
+                local_interaction, channel_radius_r, local_args
+            ).reshape(channels.size, channels.size, nb)
+            # ... so we have to manually put them in the locations of the diagonals of each block
+            for i in range(channels.size):
+                for j in range(channels.size):
+                    V[i * nb : (i + 1) * nb, j * nb : (j + 1) * nb] = np.diag(
+                        Vl[i, j, ...]
                     )
-                )
-                .reshape(channels.size, channels.size, nb, nb)
-                .swapaxes(1, 2)
-                .reshape(sz, sz, order="C")
-            )
+
         if nonlocal_interaction is not None:
+            # matrix_nonlocal gives us an (nchannels, nchannels, nbasis, nbasis) array
+            # which we can just reshape into the the block matrix we want
             Vl += (
                 self.kernel.matrix_nonlocal(
-                    nonlocal_interaction, channel_radius_r, args_nonlocal
+                    nonlocal_interaction, channel_radius_r, nonlocal_args
                 )
                 .reshape(channels.size, channels.size, nb, nb)
                 .swapaxes(1, 2)
@@ -148,9 +151,9 @@ class Solver:
         channels: Channels,
         asymptotics: Asymptotics,
         local_interaction=None,
+        local_args=None,
         nonlocal_interaction=None,
-        args_local=None,
-        args_nonlocal=None,
+        nonlocal_args=None,
         free_matrix=None,
         free_matrix_energy_scaling=None,
         basis_boundary=None,
@@ -173,7 +176,7 @@ class Solver:
         # calculate full multichannel Schrödinger equation in the Lagrange basis
         A = free_matrix / free_matrix_energy_scaling
         A += self.interaction_matrix(
-            channels, local_interaction, nonlocal_interaction, args_local, args_nonlocal
+            channels, local_interaction, local_args, nonlocal_interaction, nonlocal_args
         )
 
         # solve system using the R-matrix method

@@ -90,7 +90,7 @@ class ProjectileTargetSystem:
         assert level_energies.shape == (nchannels,)
         assert incoming_weights.shape == (nchannels,)
 
-    def build_channels(
+    def coupled(
         self,
         Ecm,
         mu,
@@ -151,3 +151,61 @@ class ProjectileTargetSystem:
         )
 
         return channels, Asymptotics(Hp, Hm, Hpp, Hmp)
+
+    def uncoupled(
+        self,
+        Ecm,
+        mu,
+        k,
+        eta,
+    ):
+        r"""
+        Given the kinematic parameters as arrays of shape (nchannels,), returns a `Channels`
+        object. If the kinematic parameters are input as scalars rather than arrays, assumes
+        that they are the same in each channel.
+        """
+        if not isinstance(Ecm, np.ndarray):
+            Ecm = np.ones(self.nchannels) * Ecm
+        if not isinstance(mu, np.ndarray):
+            mu = np.ones(self.nchannels) * mu
+        if not isinstance(k, np.ndarray):
+            k = np.ones(self.nchannels) * k
+        if not isinstance(eta, np.ndarray):
+            eta = np.ones(self.nchannels) * eta
+
+        channels = []
+        asymptotics = []
+        for i in range(self.nchannels):
+            channels.append(
+                Channels(
+                    Ecm[i : i + 1],
+                    k[i : i + 1],
+                    mu[i : i + 1],
+                    eta[i : i + 1],
+                    self.channel_radii[i : i + 1],
+                    self.l[i : i + 1],
+                    self.incoming_weights[i : i + 1],
+                )
+            )
+            asymptotics.append(
+                Asymptotics(
+                    Hp=np.array(
+                        [H_plus(self.channel_radii[i], self.l[i], eta[i])],
+                        dtype=np.complex128,
+                    ),
+                    Hm=np.array(
+                        [H_minus(self.channel_radii[i], self.l[i], eta[i])],
+                        dtype=np.complex128,
+                    ),
+                    Hpp=np.array(
+                        [H_plus_prime(self.channel_radii[i], self.l[i], eta[i])],
+                        dtype=np.complex128,
+                    ),
+                    Hmp=np.array(
+                        [H_minus_prime(self.channel_radii[i], self.l[i], eta[i])],
+                        dtype=np.complex128,
+                    ),
+                )
+            )
+
+        return channels, asymptotics

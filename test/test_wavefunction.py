@@ -5,30 +5,22 @@ from scipy.integrate import solve_ivp
 from jitr import rmatrix
 from jitr.reactions import (
     ProjectileTargetSystem,
-    InteractionMatrix,
-    Wavefunctions,
     make_channel_data,
 )
-from jitr.reactions.potentials import (
-    woods_saxon_potential,
-    surface_peaked_gaussian_potential,
-    coulomb_charged_sphere,
-)
-from jitr.utils import (
-    delta,
-    smatrix,
-    schrodinger_eqn_ivp_order1,
-)
+from jitr.reactions import potentials, wavefunction
+from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 
 @njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
-    return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
+    coulomb = potentials.coulomb_charged_sphere(r, zz, RC)
+    nuclear = -potentials.woods_saxon_potential(r, V0, W0, R0, a0)
+    return coulomb + nuclear
 
 
 def test_wavefunction():
-    E = 14.1
+    Elab = 14.1
     nodes_within_radius = 5
 
     # target (A,Z)
@@ -39,9 +31,10 @@ def test_wavefunction():
     proton = (1, 1)
     mass_proton = 938.271653086152  # MeV/c^2
 
+    # p-wave (l=1)
     sys = ProjectileTargetSystem(
         channel_radii=np.array([nodes_within_radius * (2 * np.pi)]),
-        l=np.array([1]),
+        l=np.array([1], dtype=np.int64),
         mass_target=mass_Ca48,
         mass_projectile=mass_proton,
         Ztarget=Ca48[1],
@@ -55,29 +48,37 @@ def test_wavefunction():
     a0 = 1.2  # Woods-Saxon potential diffuseness
     params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
 
-    ints = InteractionMatrix(1)
-    ints.set_local_interaction(interaction, args=params)
-
-    channels = sys.build_channels_kinematics(E)
-    channel_data = make_channel_data(channels)
+    mu, Ecm, k, eta = kinematics.classical_kinematics(
+        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+    )
+    channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
     s_values = np.linspace(0.01, sys.channel_radii[0], 200)
 
     # Lagrange-Mesh
     solver_lm = rmatrix.Solver(100)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        ints, channels, wavefunction=True
+        channels,
+        asymptotics,
+        wavefunction=True,
+        local_interaction=interaction,
+        local_args=params,
     )
-    u_lm = Wavefunctions(
-        solver_lm, x, S_lm, uext_prime_boundary, sys.incoming_weights, channel_data
+    u_lm = wavefunction.Wavefunctions(
+        solver_lm,
+        x,
+        S_lm,
+        uext_prime_boundary,
+        sys.incoming_weights,
+        channels,
     ).uint()[0]
     u_lm = u_lm(s_values)
 
     # Runge-Kutta
-    ch = channel_data[0]
-    domain, init_con = ch.initial_conditions()
+    rk_solver_channel_data = make_channel_data(channels)[0]
+    domain, init_con = rk_solver_channel_data.initial_conditions()
     sol_rk = solve_ivp(
         lambda s, y: schrodinger_eqn_ivp_order1(
-            s, y, ch, ints.local_matrix[0, 0], params
+            s, y, rk_solver_channel_data, interaction, params
         ),
         domain,
         init_con,
@@ -88,7 +89,7 @@ def test_wavefunction():
     a = domain[1]
     u_rk = sol_rk(s_values)[0]
     R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-    S_rk = smatrix(R_rk, a, ch.l, ch.eta)
+    S_rk = smatrix(R_rk, a, rk_solver_channel_data.l, rk_solver_channel_data.eta)
 
     np.testing.assert_almost_equal(R_rk, R_lm[0, 0], decimal=5)
     np.testing.assert_almost_equal(S_rk, S_lm[0, 0], decimal=5)

@@ -89,9 +89,8 @@ def semi_relativistic_kinematics(
     Zz=0,
     Q=0,
 ):
-    r"""Calculates the reduced mass, COM frame kinetic energy and wavenumber for a projectile (A,Z)
-    scattering on a target nuclide (A,Z), with binding energies from binding_model, which defaults
-    to lookup in AME2020 mass table. Uses relatavistic approximation of Ingemarsson, 1974:
+    r"""Calculates the CM frame kinetic energy and wavenumber for a projectile scattering on a
+    target nuclide using the relatavistic approximation of Ingemarsson, 1974:
     https://doi.org/10.1088/0031-8949/9/3/004
     Parameters:
         t : target (A,Z)

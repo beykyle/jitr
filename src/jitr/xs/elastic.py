@@ -41,11 +41,11 @@ class ElasticXSWorkspace:
         self.target = target
         self.solver = solver
         self.free_matrices = self.solver.free_matrix(
-            self.channels["a"], self.channels["l"], full_matrix=False
+            self.channels["a"], self.channels["l"], coupled=False
         )
         self.basis_boundary = self.solver.precompute_boundaries(self.channels[0:1]["a"])
         self.energy_scaling = self.solver.precompute_free_matrix_energy_scaling(
-            self.channels["E"], full_matrix=False
+            self.channels["E"], coupled=False
         )
         self.k = self.ch[0]["k"]
         self.mu = self.ch[0]["mu"]

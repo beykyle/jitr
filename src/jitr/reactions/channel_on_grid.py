@@ -26,7 +26,7 @@ def make_channel_data(channels: Channels):
             channels.k[i],
             channels.eta[i],
         )
-        for i in range(channels.shape[0])
+        for i in range(channels.size)
     ]
 
 
