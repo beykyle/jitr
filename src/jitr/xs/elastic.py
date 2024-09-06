@@ -86,7 +86,7 @@ class ElasticXSWorkspace:
     def solve_and_get_xs(self, im: InteractionMatrix):
         splus = np.zeros(self.lmax, dtype=np.complex128)
         sminus = np.zeros(self.lmax - 1, dtype=np.complex128)
-        for l in range(lmax):
+        for l in range(self.lmax):
             _, S, _ = self.solver.solve(
                 im,
                 self.channels,
