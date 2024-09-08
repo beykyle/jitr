@@ -4,19 +4,6 @@ from scipy import special as sc
 from ..utils.constants import ALPHA, HBARC
 
 
-def perey_buck(r, rp, local_potential, *params):
-    """Eq. A.1 in Perey  & Buck, 1962. The full non-local kernel"""
-    return perey_buck_diagonal(r, rp, local_potential, params) * perey_buck_nonlocal(
-        r, rp, params
-    )
-
-
-@njit
-def perey_buck_diagonal(r, rp, local_potential, *params):
-    """Evaluate U in Eq. A.1 in Perey  & Buck, 1962. The local part of the non-local kernel"""
-    return local_potential(0.5 * (r + rp), params)
-
-
 def perey_buck_nonlocal(r, rp, *params):
     """Eq. A.2 in Perey  & Buck, 1962. Just the non-local factor H(r,rp)."""
     beta, l = params
@@ -35,13 +22,13 @@ def woods_saxon_potential(r, *params):
 def woods_saxon_prime(r, *params):
     """derivative of the Woods-Saxon potential w.r.t. $r$"""
     V, W, R, a = params
-    return -(V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
+    return (V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
 
 
 @njit
 def surface_peaked_gaussian_potential(r, *params):
     V, W, R, a = params
-    return -(V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
+    return (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
 
 
 @njit
@@ -55,7 +42,7 @@ def yamaguchi_potential(r, rp, *params):
     non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
     """
     W0, beta, ALPHA = params
-    return W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
+    return -W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
 
 
 @njit
