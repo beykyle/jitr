@@ -67,16 +67,16 @@ class ProjectileTargetSystem:
         level_energies: float64[:] = None,
         incoming_weights: float64[:] = None,
     ):
-        self.channel_radii = channel_radii
+        self.channel_radii = np.array(channel_radii, dtype=np.float64)
         if level_energies is None:
-            level_energies = np.zeros(nchannels)
+            level_energies = np.zeros(nchannels, dtype=np.float64)
 
         if incoming_weights is None:
-            incoming_weights = np.zeros(nchannels)
+            incoming_weights = np.zeros(nchannels, dtype=np.float64)
             incoming_weights[0] = 1
 
-        self.level_energies = level_energies
-        self.incoming_weights = incoming_weights
+        self.level_energies = np.array(level_energies, dtype=np.float64)
+        self.incoming_weights = np.array(incoming_weights, dtype=np.float64)
         self.l = np.array(l, dtype=np.int64)
 
         self.mass_target = mass_target
@@ -103,13 +103,13 @@ class ProjectileTargetSystem:
         that they are the same in each channel.
         """
         if not isinstance(Ecm, np.ndarray):
-            Ecm = np.ones(self.nchannels) * Ecm
+            Ecm = np.ones(self.nchannels, dtype=np.float64) * Ecm
         if not isinstance(mu, np.ndarray):
-            mu = np.ones(self.nchannels) * mu
+            mu = np.ones(self.nchannels, dtype=np.float64) * mu
         if not isinstance(k, np.ndarray):
-            k = np.ones(self.nchannels) * k
+            k = np.ones(self.nchannels, dtype=np.float64) * k
         if not isinstance(eta, np.ndarray):
-            eta = np.ones(self.nchannels) * eta
+            eta = np.ones(self.nchannels, dtype=np.float64) * eta
 
         channels = Channels(
             Ecm,
