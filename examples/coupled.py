@@ -23,7 +23,7 @@ def interaction_3level(r, V, W, R0, a0, Zz, coupling_matrix):
         ]
     )
     off_diag = coupling_matrix[...,np.newaxis] * spg(r, V, W, R0, a0)
-    return diagonal
+    return diagonal + off_diag
 
 
 def coupled_channels_example():
@@ -32,9 +32,9 @@ def coupled_channels_example():
     particles. Potentials are real, so S-matrix is unitary and symmetric
     """
 
-    Elab = 12  # MeV
+    Elab = 5  # MeV
     nchannels = 3
-    nodes_within_radius = 5
+    nodes_within_radius = 3
     levels = np.array([0, 2.3, 3.1])
 
     # target (A,Z)
@@ -68,7 +68,7 @@ def coupled_channels_example():
     coupling_matrix = np.array(
         [
             [0, 0.8, 0.1],
-            [0, 0, 0.5],
+            [0, 0, 0.8],
             [0, 0, 0.0],
         ]
     )
@@ -80,7 +80,7 @@ def coupled_channels_example():
         asymptotics,
         local_interaction=interaction_3level,
         local_args=(
-            42,
+            -42,
             0,
             4,
             0.8,
