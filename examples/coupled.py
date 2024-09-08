@@ -22,7 +22,7 @@ def interaction_3level(r, V, W, R0, a0, Zz, coupling_matrix):
             [zero, zero, nuclear + coulomb],
         ]
     )
-    off_diag = coupling_matrix[...,np.newaxis] * spg(r, V, W, R0, a0)
+    off_diag = coupling_matrix[..., np.newaxis] * spg(r, V, W, R0, a0)
     return diagonal
 
 
