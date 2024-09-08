@@ -1,50 +1,54 @@
 import numpy as np
-from numba import njit
 from matplotlib import pyplot as plt
 
 from jitr import rmatrix
-from jitr.reactions import (
-    ProjectileTargetSystem,
-    InteractionMatrix,
-    Wavefunctions,
-    make_channel_data,
-)
+from jitr.reactions import ProjectileTargetSystem, wavefunction
 from jitr.reactions.potentials import (
-    woods_saxon_potential,
-    surface_peaked_gaussian_potential,
-    coulomb_charged_sphere,
+    woods_saxon_potential as ws,
+    surface_peaked_gaussian_potential as spg,
+    coulomb_charged_sphere as coul,
 )
-from jitr.utils import complex_det
+from jitr.utils import complex_det, kinematics
 
 
-@njit
-def diagonal_interaction(r, *args):
-    (V0, W0, R0, a0, zz, r_c) = args
-    return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, r_c)
+def interaction_3level(r, V, W, R0, a0, Zz, coupling_matrix):
+    coulomb = coul(r, Zz, R0)
+    nuclear = ws(r, V, W, R0, a0)
+    zero = np.zeros_like(r)
+    diagonal = np.array(
+        [
+            [nuclear + coulomb, zero, zero],
+            [zero, nuclear + coulomb, zero],
+            [zero, zero, nuclear + coulomb],
+        ]
+    )
+    off_diag = coupling_matrix[...,np.newaxis] * spg(r, V, W, R0, a0)
+    return diagonal
 
 
-def coupled_channels_example(visualize=False):
+def coupled_channels_example():
     """
     3 level system example with local diagonal and transition potentials and neutral
     particles. Potentials are real, so S-matrix is unitary and symmetric
     """
 
+    Elab = 12  # MeV
     nchannels = 3
     nodes_within_radius = 5
     levels = np.array([0, 2.3, 3.1])
 
     # target (A,Z)
     Ca48 = (28, 20)
-    mass_Ca48 = 44657.26581995028  # MeV/c^2
+    mass_Ca48 = kinematics.mass(*Ca48)
 
     # projectile (A,Z)
     proton = (1, 1)
-    mass_proton = 938.271653086152  # MeV/c^2
+    mass_proton = kinematics.mass(*proton)
 
     # S-wave only
     sys = ProjectileTargetSystem(
         2 * np.pi * nodes_within_radius * np.ones(nchannels),
-        np.zeros(nchannels),
+        np.zeros(nchannels, dtype=np.int64),
         mass_target=mass_Ca48,
         mass_projectile=mass_proton,
         Ztarget=Ca48[1],
@@ -53,61 +57,47 @@ def coupled_channels_example(visualize=False):
         level_energies=levels,
     )
 
+    mu, Ecm, k, eta = kinematics.classical_kinematics(
+        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+    )
+    channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
+
     # initialize solver
     solver = rmatrix.Solver(40)
 
-    # Woods-Saxon potential parameters
-    V0 = 60  # real potential strength
-    W0 = 0  # imag potential strength
-    R0 = 4  # Woods-Saxon potential radius
-    a0 = 0.5  # Woods-Saxon potential diffuseness
-    RC = R0  # Coulomb cutoff
-
-    params = (V0, W0, R0, a0, proton[1] * Ca48[1], RC)
-
-    interaction_matrix = InteractionMatrix(3)
-
-    # diagonal potentials are just Woods-Saxons
-    for i in range(nchannels):
-        interaction_matrix.set_local_interaction(
-            diagonal_interaction, i, i, args=params
-        )
-
-    # transition potentials have depths damped by a factor
-    # compared to diagonal terms and use surface peaked Gaussian
-    # form factors rather than Woods-Saxons
-    transition_dampening_factor = 0.2
-    Vt = V0 * transition_dampening_factor
-    Wt = W0 * transition_dampening_factor
-    params_off_diag = (Vt, Wt, R0, a0)
-
-    # off diagonal potential terms
-    for i in range(sys.nchannels):
-        for j in range(sys.nchannels):
-            if i != j:
-                interaction_matrix.set_local_interaction(
-                    surface_peaked_gaussian_potential,
-                    i,
-                    j,
-                    args=params_off_diag,
-                )
-
-    ecom = 35
-    channels = sys.build_channels_kinematics(ecom)
+    coupling_matrix = np.array(
+        [
+            [0, 0.8, 0.1],
+            [0, 0, 0.5],
+            [0, 0, 0.0],
+        ]
+    )
+    coupling_matrix += coupling_matrix.T
 
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(
-        interaction_matrix, channels, wavefunction=True
+        channels,
+        asymptotics,
+        local_interaction=interaction_3level,
+        local_args=(
+            42,
+            0,
+            4,
+            0.8,
+            sys.Zproj * sys.Zproj,
+            coupling_matrix,
+        ),
+        wavefunction=True,
     )
 
     # calculate wavefunctions in s = k_i r space
-    u = Wavefunctions(
+    u = wavefunction.Wavefunctions(
         solver,
         x,
         S,
         uext_prime_boundary,
         sys.incoming_weights,
-        make_channel_data(channels),
+        channels,
     ).uint()
 
     # S must be unitary
@@ -136,4 +126,4 @@ def coupled_channels_example(visualize=False):
 
 
 if __name__ == "__main__":
-    coupled_channels_example(visualize=False)
+    coupled_channels_example()
