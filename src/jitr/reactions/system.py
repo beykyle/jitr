@@ -77,7 +77,7 @@ class ProjectileTargetSystem:
 
         self.level_energies = level_energies
         self.incoming_weights = incoming_weights
-        self.l = l
+        self.l = np.array(l, dtype=np.int64)
 
         self.mass_target = mass_target
         self.mass_projectile = mass_projectile
