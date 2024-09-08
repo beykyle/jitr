@@ -4,7 +4,7 @@ import numpy as np
 
 
 def potential_scalar(r, depth, mass):
-    return depth * np.exp(-r / mass)
+    return -depth * np.exp(-r / mass)
 
 
 def potential_2level(r, depth, mass, coupling):

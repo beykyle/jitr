@@ -16,7 +16,7 @@ from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
 @njit
 def interaction(r, *args):
     (V0, W0, R0, a0, zz, r_c) = args
-    return woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, r_c)
+    return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, r_c)
 
 
 def rmse_RK_LM():
