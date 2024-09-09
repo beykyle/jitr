@@ -33,10 +33,10 @@ pip install -r ./jitr/requirements.txt
 pip install -e ./jitr
 ```
 
-then run the tests using 
+then run the tests from the main project directory:
 
 ```
-pytest
+pytest jitr
 ```
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
