@@ -2,7 +2,7 @@ import numpy as np
 
 from jitr import rmatrix
 
-from jitr.reactions import ProjectileTargetSystem, InteractionMatrix
+from jitr.reactions import ProjectileTargetSystem
 
 from jitr.reactions.potentials import (
     yamaguchi_potential,
@@ -28,13 +28,15 @@ def nonlocal_interaction_example():
         channel_radii=np.array([30.0]),
         l=np.array([0]),
     )
-    channels = sys.build_channels(ecom, mu, k, eta)
-
-    im = InteractionMatrix(1)
-    im.set_nonlocal_interaction(yamaguchi_potential, args=params)
+    channels, asymptotics = sys.coupled(ecom, mu, k, eta)
 
     solver = rmatrix.Solver(20)
-    _, S, _ = solver.solve(im, channels)
+    _, S, _ = solver.solve(
+        channels,
+        asymptotics,
+        nonlocal_interaction=yamaguchi_potential,
+        nonlocal_args=params,
+    )
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))
 
@@ -42,7 +44,7 @@ def nonlocal_interaction_example():
     print("Lagrange-Legendre Mesh: {:.6f} [degrees]".format(delta))
     print(
         "Analytic              : {:.6f} [degrees]".format(
-            yamaguchi_swave_delta(channels["k"][0], *params)
+            yamaguchi_swave_delta(channels.k[0], *params)
         )
     )
 

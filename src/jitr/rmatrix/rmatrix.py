@@ -121,7 +121,7 @@ class Solver:
         if local_interaction is not None:
             # matrix_local just gives us the diagonal elements of each block ...
             Vl = self.kernel.matrix_local(
-                local_interaction, channel_radius_r, local_args
+                local_interaction, channel_radius_r, args=local_args
             ).reshape(channels.size, channels.size, nb)
             # ... so we have to manually put them in the locations of the diagonals of each block
             for i in range(channels.size):
@@ -133,16 +133,15 @@ class Solver:
         if nonlocal_interaction is not None:
             # matrix_nonlocal gives us an (nchannels, nchannels, nbasis, nbasis) array
             # which we can just reshape into the the block matrix we want
-            Vl += (
+            V += (
                 self.kernel.matrix_nonlocal(
-                    nonlocal_interaction, channel_radius_r, nonlocal_args
+                    nonlocal_interaction, channel_radius_r, args=nonlocal_args
                 )
                 .reshape(channels.size, channels.size, nb, nb)
                 .swapaxes(1, 2)
                 .reshape(sz, sz, order="C")
                 / k0
             )
-
         V /= E0
         return V
 

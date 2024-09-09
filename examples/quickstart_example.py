@@ -6,7 +6,7 @@ from jitr.utils import kinematics, delta
 
 # define interaction
 def interaction(r, V0, W0, R0, a0, Zz):
-    nuclear = woods_saxon_potential(r, V0, W0, R0, a0)
+    nuclear = -woods_saxon_potential(r, V0, W0, R0, a0)
     coulomb = coulomb_charged_sphere(r, Zz, R0)
     return nuclear + coulomb
 
@@ -30,7 +30,7 @@ Ecm, mu, k, eta = kinematics.classical_kinematics(
     Elab,
     sys.Ztarget * sys.Zproj,
 )
-channels, asymptotics = sys.build_channels(Ecm, mu, k, eta)
+channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
 
 # set up solver
 solver = rmatrix.Solver(nbasis=40)
@@ -38,7 +38,7 @@ solver = rmatrix.Solver(nbasis=40)
 # solve for a set of parameters
 params = (42.0, 18.1, 4.8, 0.7, sys.Zproj * sys.Ztarget)
 R, S, uext_boundary = solver.solve(
-    channels, asymptotics, interaction, args_local=params
+    channels, asymptotics, interaction, local_args=params
 )
 
 # get phase shift in degrees
