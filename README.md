@@ -1,22 +1,17 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
+[![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
 # just-in-time R-Matrix (JITR)
 
 A fast solver for parametric reaction models, production ready for calibration and uncertainty-quantification.
 
 ## quick start
+
 ```
  pip install jitr
 ```
 
-Package hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
-
-## testing
-From the main repository directory, run:
-
-```
-pytest
-```
+The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
 
 ## description
 A framework for handling parametric reaction models.
@@ -28,13 +23,20 @@ Solves the radial BlochShrödinger equation in the continuum using the calculabl
 with the primary difference being that this code uses the energy-scaled version of the Bloch-Shrödinger equation, with dimensionless domain, $s = k_0 r$, where $r$ is the radial coordinate and $k_0$ is the entrance channel wavenumber.
 
 
-## contributing
+## contributing, developing, and testing
 
-To set up the repository for contributing, or for access to the examples and notebooks, clone the repository and install locally:
+To set up the repository for contributing, testing, access to non-release branches, access to the examples and notebooks, etc., clone the repository and install locally:
 
 ```
 git clone git@github.com:beykyle/jitr.git
+pip install -r ./jitr/requirements.txt
 pip install -e ./jitr
+```
+
+then run the tests using 
+
+```
+pytest
 ```
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
