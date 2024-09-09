@@ -31,7 +31,6 @@ def surface_peaked_gaussian_potential(r, *params):
     return (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
 
 
-@njit
 def coulomb_charged_sphere(r, zz, r_c):
     return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
 
@@ -45,14 +44,16 @@ def yamaguchi_potential(r, rp, *params):
     return -W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
 
 
-@njit
 def regular_inverse_r(r, r_c):
     if isinstance(r, float):
         return 1 / (2 * r_c) * (3 - (r / r_c) ** 2) if r < r_c else 1 / r
     else:
-        ii = np.where(r <= r_c)[0]
-        jj = np.where(r > r_c)[0]
-        return np.hstack((1 / (2 * r_c) * (3 - (r[ii] / r_c) ** 2), 1 / r[jj]))
+        mask = r <= r_c
+        not_mask = np.logical_not(mask)
+        V = np.zeros_like(r)
+        V[mask] = (1. / (2. * r_c) * (3. - (r[mask] / r_c) ** 2))
+        V[not_mask] = 1./r[not_mask]
+        return V
 
 
 @njit

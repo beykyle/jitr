@@ -167,18 +167,7 @@ class Kernel:
         r"""
         @returns matrix for arbitrary vectorized operator f(x,xp)
         """
-        if is_symmetric:
-            n = self.quadrature.nbasis
-            M = np.zeros((n, n), dtype=np.complex128)
-            xn = self.Xn[self.upper_mask] * a
-            xm = self.Xm[self.upper_mask] * a
-            M[self.upper_mask] = (
-                np.sqrt(self.weight_matrix[self.upper_mask]) * f(xn, xm, *args) * a
-            )
-            M += np.triu(M, k=1).T
-            return M
-        else:
-            return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
+        return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
 
     def free_matrix(
         self,
