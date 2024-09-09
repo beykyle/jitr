@@ -11,7 +11,6 @@ from jitr.reactions import potentials, wavefunction
 from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 
-@njit
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
     coulomb = potentials.coulomb_charged_sphere(r, zz, RC)

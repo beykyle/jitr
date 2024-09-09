@@ -38,7 +38,6 @@ def block(matrix: np.array, block, block_size):
     return matrix[i * n : i * n + n, j * m : j * m + m]
 
 
-@njit
 def second_derivative_op(s, channel, interaction, args=()):
     r"""second derivative operator of reduced, scaled radial Schrodinger equation"""
     return (
@@ -48,7 +47,6 @@ def second_derivative_op(s, channel, interaction, args=()):
     )
 
 
-@njit
 def schrodinger_eqn_ivp_order1(s, y, channel, interaction, args=()):
     r"""
     callable for scipy.integrate.solve_ivp; converts SE to
@@ -68,7 +66,6 @@ def smatrix(Rl, a, l, eta, asym=CoulombAsymptotics):
     ) / (H_plus(a, l, eta, asym=asym) - a * Rl * H_plus_prime(a, l, eta, asym=asym))
 
 
-@njit
 def delta(Sl):
     """
     returns the phase shift and attentuation factor in degrees
@@ -77,11 +74,9 @@ def delta(Sl):
     return np.rad2deg(np.real(delta)), np.rad2deg(np.imag(delta))
 
 
-@njit
 def eval_scaled_interaction(s, interaction, ch, args):
     return interaction(s / ch.k, *args) / ch.E
 
 
-@njit
 def eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args):
     return interaction(s / ch.k, sp / ch.k, *args) / ch.E
