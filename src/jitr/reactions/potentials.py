@@ -1,7 +1,8 @@
 import numpy as np
-from numba import njit
 from scipy import special as sc
 from ..utils.constants import ALPHA, HBARC
+
+MAX_ARG = np.log(1 / 1e-16)
 
 
 def perey_buck_nonlocal(r, rp, *params):
@@ -12,20 +13,70 @@ def perey_buck_nonlocal(r, rp, *params):
     return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
 
 
-@njit
 def woods_saxon_potential(r, *params):
     V, W, R, a = params
-    return (V + 1j * W) / (1 + np.exp((r - R) / a))
+    return (V + 1j * W) * woods_saxon_safe(r, R, a)
 
 
-@njit
 def woods_saxon_prime(r, *params):
     """derivative of the Woods-Saxon potential w.r.t. $r$"""
     V, W, R, a = params
-    return (V + 1j * W) / a * np.exp((r - R) / a) / (1 + np.exp((r - R) / a)) ** 2
+    return (V + 1j * W) * woods_saxon_prime_safe(r, R, a)
 
 
-@njit
+def woods_saxon_safe(r, R, a):
+    """Woods-Saxon potential
+
+    * avoids `exp` overflows
+
+    """
+    x = (r - R) / a
+    if isinstance(x, float):
+        return 1 / (1 + np.exp(x)) if x < MAX_ARG else 0
+    else:
+        ii = np.where(x <= MAX_ARG)[0]
+        jj = np.where(x > MAX_ARG)[0]
+        return np.hstack((1 / (1 + np.exp(x[ii])), np.zeros(jj.size)))
+
+
+def woods_saxon_prime_safe(r, R, a):
+    """derivative of the Woods-Saxon potential w.r.t. $r$
+
+    * avoids `exp` overflows
+
+    """
+    x = (r - R) / a
+    if isinstance(x, float):
+        return -1 / a * np.exp(x) / (1 + np.exp(x)) ** 2 if x < MAX_ARG else 0
+    else:
+        ii = np.where(x <= MAX_ARG)[0]
+        jj = np.where(x > MAX_ARG)[0]
+        return np.hstack(
+            (-1 / a * np.exp(x[ii]) / (1 + np.exp(x[ii])) ** 2, np.zeros(jj.size))
+        )
+
+
+def thomas_safe(r, R, a):
+    """1/r * derivative of the Woods-Saxon potential w.r.t. $r$
+
+    * avoids `exp` overflows, while correctly handeling 1/r term
+
+    """
+    x = (r - R) / a
+    y = 1.0 / r
+    if isinstance(x, float):
+        return y * -1 / a * np.exp(x) / (1 + np.exp(x)) ** 2 if x < MAX_ARG else 0
+    else:
+        ii = np.where(x <= MAX_ARG)[0]
+        jj = np.where(x > MAX_ARG)[0]
+        return np.hstack(
+            (
+                y[ii] * -1 / a * np.exp(x[ii]) / (1 + np.exp(x[ii])) ** 2,
+                np.zeros(jj.size),
+            )
+        )
+
+
 def surface_peaked_gaussian_potential(r, *params):
     V, W, R, a = params
     return (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
@@ -35,7 +86,6 @@ def coulomb_charged_sphere(r, zz, r_c):
     return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
 
 
-@njit
 def yamaguchi_potential(r, rp, *params):
     """
     non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
@@ -56,7 +106,6 @@ def regular_inverse_r(r, r_c):
         return V
 
 
-@njit
 def yamaguchi_swave_delta(k, *params):
     """
     analytic k * cot(phase shift) for yamaguchi potential; Eq. 6.15 in [Baye, 2015]
