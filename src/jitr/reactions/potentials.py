@@ -51,8 +51,8 @@ def regular_inverse_r(r, r_c):
         mask = r <= r_c
         not_mask = np.logical_not(mask)
         V = np.zeros_like(r)
-        V[mask] = (1. / (2. * r_c) * (3. - (r[mask] / r_c) ** 2))
-        V[not_mask] = 1./r[not_mask]
+        V[mask] = 1.0 / (2.0 * r_c) * (3.0 - (r[mask] / r_c) ** 2)
+        V[not_mask] = 1.0 / r[not_mask]
         return V
 
 
