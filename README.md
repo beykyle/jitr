@@ -1,7 +1,7 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 # just-in-time R-Matrix (JITR)
 
-A fast solver for parametric reaction models
+A fast solver for parametric reaction models. Production ready for calibration and uncertainty-quantification.
 
 ## quick start
 ```
