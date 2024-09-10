@@ -17,6 +17,7 @@ channel_dtype = [
     ("eta", float64[:]),
     ("a", float64[:]),
     ("l", int64[:]),
+    ("l_dot_s", float64[:, :]),
     ("weight", float64[:]),
 ]
 
@@ -39,7 +40,7 @@ class Asymptotics:
 
 @jitclass(channel_dtype)
 class Channels:
-    def __init__(self, E, k, mu, eta, a, l, weight):
+    def __init__(self, E, k, mu, eta, a, l, l_dot_s, weight):
         self.size = E.shape[0]
         self.E = E
         self.k = k
@@ -47,48 +48,44 @@ class Channels:
         self.eta = eta
         self.a = a
         self.l = l
+        self.l_dot_s = l_dot_s
         self.weight = weight
 
 
 class ProjectileTargetSystem:
     r"""
-    Stores physics parameters of the system. Calculates useful parameters for each channel.
+    Stores physics parameters of a spin-1/2-spin0 system. Calculates useful parameters for
+    each partial wave.
     """
 
     def __init__(
         self,
-        channel_radii: float64[:],
-        l: int64[:],
+        channel_radius: float64,
+        lmax: int64,
         mass_target: float64 = 0,
         mass_projectile: float64 = 0,
         Ztarget: float64 = 0,
         Zproj: float64 = 0,
-        nchannels: int64 = 1,
         level_energies: float64[:] = None,
         incoming_weights: float64[:] = None,
     ):
-        self.channel_radii = np.array(channel_radii, dtype=np.float64)
         if level_energies is None:
-            level_energies = np.zeros(nchannels, dtype=np.float64)
+            level_energies = np.zeros(lmax, dtype=np.float64)
 
         if incoming_weights is None:
-            incoming_weights = np.zeros(nchannels, dtype=np.float64)
+            incoming_weights = np.zeros(lmax, dtype=np.float64)
             incoming_weights[0] = 1
 
         self.level_energies = np.array(level_energies, dtype=np.float64)
         self.incoming_weights = np.array(incoming_weights, dtype=np.float64)
-        self.l = np.array(l, dtype=np.int64)
+        self.lmax = lmax
+        self.l = np.arange(0, lmax, dtype=np.int64)
+        self.l_dot_s = np.array([couplings(l) for l in self.l[1:]])
 
         self.mass_target = mass_target
         self.mass_projectile = mass_projectile
         self.Ztarget = Ztarget
         self.Zproj = Zproj
-        self.nchannels = nchannels
-
-        assert l.shape == (nchannels,)
-        assert channel_radii.shape == (nchannels,)
-        assert level_energies.shape == (nchannels,)
-        assert incoming_weights.shape == (nchannels,)
 
     def coupled(
         self,
@@ -118,6 +115,7 @@ class ProjectileTargetSystem:
             eta,
             self.channel_radii,
             self.l,
+            self.l_dot_s,
             self.incoming_weights,
         )
 
@@ -175,7 +173,11 @@ class ProjectileTargetSystem:
 
         channels = []
         asymptotics = []
-        for i in range(self.nchannels):
+        for i in range(0, self.nchannels):
+            if i == 0:
+                l_dot_s = np.array([0])
+            else:
+                l_dot_s = self.l_dot_s[i : i + 1, :]
             channels.append(
                 Channels(
                     Ecm[i : i + 1],
@@ -184,6 +186,7 @@ class ProjectileTargetSystem:
                     eta[i : i + 1],
                     self.channel_radii[i : i + 1],
                     self.l[i : i + 1],
+                    l_dot_s,
                     self.incoming_weights[i : i + 1],
                 )
             )
@@ -209,3 +212,17 @@ class ProjectileTargetSystem:
             )
 
         return channels, asymptotics
+
+
+def couplings(l):
+    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus, there are
+    maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
+
+    Parameters:
+        l (int): angular momentum
+
+    Returns:
+        couplings (list): epectation value of l dot s
+    """
+    js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
+    return [(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]

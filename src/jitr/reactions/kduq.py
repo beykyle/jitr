@@ -17,6 +17,7 @@ from ..utils import kinematics
 from ..utils.constants import MASS_PION, HBARC, ALPHA
 from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
 
+
 @njit
 def Vv(E, v1, v2, v3, v4, Ef):
     r"""energy-dependent, volume-central strength - real term, Eq. (7)"""
@@ -126,9 +127,9 @@ class KDGlobal:
                 "./../../data/KD_default.json"
             )
 
-        if projectile == (1,0):
+        if projectile == (1, 0):
             tag = "_n"
-        elif projectile == (1,1):
+        elif projectile == (1, 1):
             tag = "_p"
         else:
             raise RuntimeError(
@@ -194,7 +195,7 @@ class KDGlobal:
                 self.aso_0 = data["KDRealSpinOrbit"]["a_0"]
 
                 # Coulomb
-                if self.projectile == (1,1):
+                if self.projectile == (1, 1):
                     self.rc_0 = data["KDCoulomb"]["r_C_0"]
                     self.rc_A = data["KDCoulomb"]["r_C_A"]
                     self.rc_A2 = data["KDCoulomb"]["r_C_A2"]
@@ -252,7 +253,7 @@ class KDGlobal:
                 self.aso_0 = data["KDRealSpinOrbit_a_0"]
 
                 # Coulomb
-                if self.projectile == (1,1):
+                if self.projectile == (1, 1):
                     self.rc_0 = data["KDCoulomb_r_C_0"]
                     self.rc_A = data["KDCoulomb_r_C_A"]
                     self.rc_A2 = data["KDCoulomb_r_C_A2"]
@@ -260,7 +261,7 @@ class KDGlobal:
                 raise ValueError("Unrecognized parameter file format for KDUQ!")
 
             # fermi energy
-            if self.projectile == (1,0):
+            if self.projectile == (1, 0):
                 self.Ef_0 = -11.2814
                 self.Ef_A = 0.02646
             else:
@@ -276,7 +277,7 @@ class KDGlobal:
         N = A - Z
         delta = (N - Z) / A
         factor = 1.0
-        if self.projectile == (1,1):
+        if self.projectile == (1, 1):
             delta *= -1.0
             factor = -1.0
 
@@ -333,7 +334,7 @@ class KDGlobal:
 
         # Coulomb radius
         R_C = 0
-        if self.projectile == (1,1):
+        if self.projectile == (1, 1):
             # Coulomb radius
             rc0 = (
                 self.rc_0
