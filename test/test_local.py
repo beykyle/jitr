@@ -106,7 +106,7 @@ def rmse_RK_LM():
             S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
             # comparison between solvers
-            delta_lm, atten_lm = delta(S_lm[0,0])
+            delta_lm, atten_lm = delta(S_lm[0, 0])
             delta_rk, atten_rk = delta(S_rk)
 
             err = 0 + 0j
