@@ -21,8 +21,17 @@ class ElasticXS:
     rxn: np.float64
 
 
-class SpinOrbitInteraction:
-    pass
+class PartialWaveInteraction:
+    def __init__(self, scalar, spin_orbit, l_dot_s):
+        self.l_dot_s = l_dot_s
+        self.scalar = scalar
+        self.spin_orbit = spin_orbit
+
+    def __call__(self, r, args_scalar, args_spin_orbit):
+        scalar = self.scalar(r, *args_scalar)
+        so = self.spin_orbit(r, *args_spin_orbit)
+        return scalar + self.l_dot_s * so
+
 
 class ElasticXSWorkspace:
     def __init__(
@@ -41,6 +50,7 @@ class ElasticXSWorkspace:
 
         self.projectile = projectile
         self.target = target
+        self.sys = sys
         self.solver = solver
         self.free_matrices = self.solver.free_matrix(
             sys.channel_radii, sys.l, coupled=False
@@ -54,17 +64,30 @@ class ElasticXSWorkspace:
         )
         self.channels = sys.uncoupled(self.Ecm, self.mu, self.k, self.eta)
 
+        self.sys.lmax = sys.lmax
         self.local_interaction_scalar = local_interaction_scalar
         self.local_interaction_spin_orbit = local_interaction_spin_orbit
+        self.interactions = [
+            [
+                PartialWaveInteraction(
+                    self.local_interaction_scalar,
+                    self.local_interaction_spin_orbit,
+                    l_dot_s,
+                )
+                for l_dot_s in self.sys.l_dot_s[l]
+            ]
+            for l in range(0, self.sys.lmax)
+        ]
 
-        self.lmax = np.max(sys.l)
+        # preocmpute angular distributions in each partial wave
         self.angles = angles
         ls = self.sys.l[:, np.newaxis]
-        self.interactions = []
         self.P_l_costheta = eval_legendre(ls, np.cos(self.angles))
         self.P_1_l_costheta = np.array(
             [eval_assoc_legendre(l, np.cos(self.angles)) for l in self.sys.l]
         )
+
+        # precompute things related to Coulomb interaction
         self.Zz = self.projectile[1] * self.target[1]
         if self.Zz > 0:
             self.k_c = constants.ALPHA * self.Zz * self.mu / constants.HBARC
@@ -86,63 +109,57 @@ class ElasticXSWorkspace:
             self.k_c = 0
             self.eta = 0
             self.sigma_l = np.angle(gamma(1 + ls + 1j * 0))
-            self.f_c = 0.0 * np.exp(2j * self.sigma_l[0])
-            self.rutherford = 0.0 / (np.sin(self.angles / 2) ** 4)
+            self.f_c = np.zeros_like
+            self.rutherford = np.zeros_like(angles)
 
-    def solve_and_get_xs(self, local_args=None):
-        splus = np.zeros(self.lmax, dtype=np.complex128)
-        sminus = np.zeros(self.lmax - 1, dtype=np.complex128)
+    def xs(self, args_scalar=None, args_spin_orbit=None):
+        splus = np.zeros(self.sys.lmax, dtype=np.complex128)
+        sminus = np.zeros(self.sys.lmax - 1, dtype=np.complex128)
 
         # s-wave
-        _, S, _ = self.solver.solve(
+        _, splus[0], _ = self.solver.solve(
             self.channels[0],
             self.asymptotics[0],
             local_interaction=self.local_interaction_scalar,
-            local_args=local_args,
+            local_args=args_scalar,
             free_matrix=self.free_matrices[0],
             basis_boundary=self.basis_boundary[0],
         )
-        splus[0] = S[0, 0]
+
         # higher partial waves
-        for l in range(1, self.lmax):
-            _, Sp, _ = self.solver.solve(
+        for l in range(1, self.sys.lmax):
+            # j = l + 1/2
+            _, splus[l], _ = self.solver.solve(
                 self.channels[l],
                 self.asymptotics[l],
-                local_interaction=self,  # TODO
-                local_args=local_args,
+                local_interaction=self.interactions[l][0],
+                local_args=(args_scalar, args_spin_orbit),
                 free_matrix=self.free_matrices[l],
                 basis_boundary=self.basis_boundary[l],
             )
 
-    def xs(self, Splus, Sminus):
+            # j = l - 1/2
+            _, sminus[l], _ = self.solver.solve(
+                self.channels[l],
+                self.asymptotics[l],
+                local_interaction=self.interactions[l][0],
+                local_args=(args_scalar, args_spin_orbit),
+                free_matrix=self.free_matrices[l],
+                basis_boundary=self.basis_boundary[l],
+            )
+
         return ElasticXS(
             elastic_xs(
                 self.k,
                 self.angles,
-                Splus,
-                Sminus,
+                splus,
+                sminus,
                 self.P_l_costheta,
                 self.P_1_l_costheta,
                 self.f_c,
                 self.sigma_l,
             )
         )
-
-    def xs_rutherford_ratio(self, Splus, Sminus):
-        xs = ElasticXS(
-            elastic_xs(
-                self.k,
-                self.angles,
-                Splus,
-                Sminus,
-                self.P_l_costheta,
-                self.P_1_l_costheta,
-                self.f_c,
-                self.sigma_l,
-            )
-        )
-        xs.dsdo /= self.rutherford
-        return xs
 
 
 @njit

@@ -31,6 +31,10 @@ asymm_dtype = [
 
 @jitclass(asymm_dtype)
 class Asymptotics:
+    r"""
+    Stores the asymptotic behavior in a set of partial wave channels
+    """
+
     def __init__(self, Hp, Hm, Hpp, Hmp):
         self.Hp = Hp
         self.Hm = Hm
@@ -40,6 +44,10 @@ class Asymptotics:
 
 @jitclass(channel_dtype)
 class Channels:
+    r"""
+    Stores information about a set of partial wave channels
+    """
+
     def __init__(self, E, k, mu, eta, a, l, l_dot_s, weight):
         self.size = E.shape[0]
         self.E = E
@@ -54,7 +62,7 @@ class Channels:
 
 class ProjectileTargetSystem:
     r"""
-    Stores physics parameters of a spin-1/2-spin0 system. Calculates useful parameters for
+    Stores physics parameters of a spin-1/2-spin-0 system. Calculates useful parameters for
     each partial wave.
     """
 
@@ -68,6 +76,7 @@ class ProjectileTargetSystem:
         Zproj: float64 = 0,
         level_energies: float64[:] = None,
         incoming_weights: float64[:] = None,
+        coupling=spin_half_orbit_coupling,
     ):
         if level_energies is None:
             level_energies = np.zeros(lmax, dtype=np.float64)
@@ -80,7 +89,8 @@ class ProjectileTargetSystem:
         self.incoming_weights = np.array(incoming_weights, dtype=np.float64)
         self.lmax = lmax
         self.l = np.arange(0, lmax, dtype=np.int64)
-        self.l_dot_s = np.array([couplings(l) for l in self.l[1:]])
+        self.channel_radii = np.ones(self.lmax, dtype=np.float64) * channel_radius
+        self.couplings = [coupling(l) for l in self.l]
 
         self.mass_target = mass_target
         self.mass_projectile = mass_projectile
@@ -174,10 +184,7 @@ class ProjectileTargetSystem:
         channels = []
         asymptotics = []
         for i in range(0, self.nchannels):
-            if i == 0:
-                l_dot_s = np.array([0])
-            else:
-                l_dot_s = self.l_dot_s[i : i + 1, :]
+            l_dot_s = self.l_dot_s[i : i + 1, :]
             channels.append(
                 Channels(
                     Ecm[i : i + 1],
@@ -214,7 +221,7 @@ class ProjectileTargetSystem:
         return channels, asymptotics
 
 
-def couplings(l):
+def spin_half_orbit_coupling(l):
     r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus, there are
     maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
 
@@ -222,7 +229,7 @@ def couplings(l):
         l (int): angular momentum
 
     Returns:
-        couplings (list): epectation value of l dot s
+        couplings (list): expectation value of l dot s
     """
     js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
     return [(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]
