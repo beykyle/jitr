@@ -32,16 +32,14 @@ def local_interaction_example():
     Elab = 14.1
     nodes_within_radius = 3
     n_partial_waves = 1
-    l = np.array([0])
 
     sys = ProjectileTargetSystem(
-        channel_radii=2 * np.pi * nodes_within_radius * np.ones(n_partial_waves),
-        l=l,
+        channel_radius=2 * np.pi * nodes_within_radius,
+        lmax=0,
         mass_target=mass_Ca48,
         mass_projectile=mass_proton,
         Ztarget=Ca48[1],
         Zproj=proton[1],
-        nchannels=n_partial_waves,
     )
 
     mu, Ecm, k, eta = kinematics.classical_kinematics(
