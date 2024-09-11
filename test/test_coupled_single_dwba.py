@@ -7,7 +7,18 @@ def potential_scalar(r, depth, mass):
     return -depth * np.exp(-r / mass)
 
 
+def coupling_2level(l):
+    r"""
+    Each partial wave has 2 uncoupled channels
+    """
+    return np.array([[1, 0], [0, 1]])
+
+
 def potential_2level(r, depth, mass, coupling):
+    r"""
+    if coupling=0, this 2 level interaction acts on each
+    channel independently
+    """
     diag = potential_scalar(r, depth, mass)
     off_diag = potential_scalar(r, coupling, mass)
     return np.array(
@@ -19,28 +30,34 @@ nbasis = 40
 solver = rmatrix.Solver(nbasis)
 
 nchannels = 2
-sys = reactions.ProjectileTargetSystem(
-    5 * np.pi * np.ones(nchannels),
-    np.arange(0, nchannels, dtype=np.int64),
+sys_2level = reactions.ProjectileTargetSystem(
+    channel_radius=5 * np.pi,
+    lmax=10,
     mass_target=44657,
     mass_projectile=938.3,
     Ztarget=20,
     Zproj=1,
-    nchannels=nchannels,
+    coupling=coupling_2level,
 )
 
+l = 0
 Elab = 42.1
 mu, Ecm, k, eta = classical_kinematics(
-    sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+    sys_2level.mass_target,
+    sys_2level.mass_projectile,
+    Elab,
+    sys_2level.Zproj * sys_2level.Ztarget,
 )
+channels, asymptotics = sys_2level.get_partial_wave_channels(Ecm, mu, k, eta)
 
-# for solving the un-coupled channels independently
-channels_uncoupled, asymptotics_uncoupled = sys.uncoupled(Ecm, mu, k, eta)
+# get coupled channels for partial wave l
+channels_coupled = channels[l]
+asymptotics_coupled = asymptotics[l]
 
-# for solving as a single (block-diagonal) system
-channels_coupled, asymptotics_coupled = sys.coupled(Ecm, mu, k, eta)
+# get un-coupled channels for partial wave l
+channels_uncoupled = channels[l].decouple()
+asymptotics_uncoupled = asymptotics[l].decouple()
 
-# the 2-level system is block diagonal consisting of 2 copies of the
 # un-coupled scalar subsystems
 params_2level = (10, 4, 0)
 params_scalar = (10, 4)
@@ -69,11 +86,7 @@ def test_coupled_vs_single():
         params_2level,
     )
 
-    b = solver.precompute_boundaries(sys.channel_radii[0:1])
-    bm = solver.precompute_boundaries(sys.channel_radii)
-    np.testing.assert_almost_equal(b, bm[:nbasis])
-    np.testing.assert_almost_equal(b, bm[nbasis : 2 * nbasis])
-
+    b = solver.precompute_boundaries(sys_2level.channel_radius)
     np.testing.assert_almost_equal(np.linalg.det(Sm.conj().T @ Sm), 1)
     np.testing.assert_almost_equal(np.linalg.det(S.conj().T @ S), 1)
     np.testing.assert_almost_equal(Sm[1, 0], 0)
@@ -85,20 +98,37 @@ def test_coupled_vs_single():
     np.testing.assert_almost_equal(Sm[0, 0], S)
     np.testing.assert_almost_equal(Rm[0, 0], R)
 
-    free = solver.free_matrix(sys.channel_radii, sys.l)
+    b = solver.precompute_boundaries(sys_2level.channel_radius)
+    free = solver.free_matrix(
+        channels_coupled.a, channels_coupled.l, channels_coupled.E / channels_coupled.E[0]
+    )
     interaction = solver.interaction_matrix(
         channels_coupled, potential_2level, params_2level
     )
 
-    # test diaginal blocks
+# test diaginal blocks
+    free_0 = solver.free_matrix(
+        channels_uncoupled[0].a,
+        channels_uncoupled[0].l,
+        channels_uncoupled[0].E / channels_uncoupled[0].E[0],
+    )
+    free_1 = solver.free_matrix(
+        channels_uncoupled[1].a,
+        channels_uncoupled[1].l,
+        channels_uncoupled[1].E / channels_uncoupled[1].E[0],
+    )
+
     np.testing.assert_almost_equal(
-        solver.free_matrix(sys.channel_radii[0:1], sys.l[0:1]),
+        free_0,
         solver.get_channel_block(free, 0, 0),
     )
     np.testing.assert_almost_equal(
-        solver.interaction_matrix(
-            channels_uncoupled[0], potential_scalar, params_scalar
-        ),
+        free_1,
+        solver.get_channel_block(free, 1, 1),
+    )
+
+    np.testing.assert_almost_equal(
+        solver.interaction_matrix(channels_uncoupled[0], potential_scalar, params_scalar),
         solver.get_channel_block(
             interaction,
             0,
@@ -106,13 +136,7 @@ def test_coupled_vs_single():
         ),
     )
     np.testing.assert_almost_equal(
-        solver.free_matrix(sys.channel_radii[1:], sys.l[1:]),
-        solver.get_channel_block(free, 1, 1),
-    )
-    np.testing.assert_almost_equal(
-        solver.interaction_matrix(
-            channels_uncoupled[1], potential_scalar, params_scalar
-        ),
+        solver.interaction_matrix(channels_uncoupled[1], potential_scalar, params_scalar),
         solver.get_channel_block(
             interaction,
             1,
@@ -120,7 +144,7 @@ def test_coupled_vs_single():
         ),
     )
 
-    # test off diag blocks
+# test off diag blocks
     for i in range(nchannels):
         for j in range(nchannels):
             if j != i:
@@ -129,13 +153,13 @@ def test_coupled_vs_single():
                     solver.get_channel_block(interaction, i, j), 0
                 )
 
-    # test full matric
+# test full matrix
     A = solver.interaction_matrix(
         channels_uncoupled[0], potential_scalar, params_scalar
-    ) + solver.free_matrix(sys.channel_radii[:1], sys.l[:1])
+    ) + free_0
     Am = free + interaction
     np.testing.assert_almost_equal(Am[:nbasis, :nbasis], A)
-    np.testing.assert_almost_equal(bm[:nbasis], b)
+    bm = np.hstack([b,b])
     x = np.linalg.solve(A, b)
     xm = np.linalg.solve(Am, bm)
     np.testing.assert_almost_equal(x, xm[:nbasis])

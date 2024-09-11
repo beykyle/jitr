@@ -10,6 +10,39 @@ from jitr.reactions import (
 from jitr.reactions import potentials, wavefunction
 from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
 
+Elab = 14.1
+nodes_within_radius = 5
+
+# target (A,Z)
+Ca48 = (28, 20)
+mass_Ca48 = 44657.26581995028  # MeV/c^2
+
+# projectile (A,z)
+proton = (1, 1)
+mass_proton = 938.271653086152  # MeV/c^2
+
+# p-wave (l=1)
+sys = ProjectileTargetSystem(
+    channel_radius=nodes_within_radius * (2 * np.pi),
+    lmax=10,
+    mass_target=mass_Ca48,
+    mass_projectile=mass_proton,
+    Ztarget=Ca48[1],
+    Zproj=proton[1],
+)
+
+# Woods-Saxon potential parameters
+V0 = 70  # real potential strength
+W0 = 40  # imag potential strength
+R0 = 6  # Woods-Saxon potential radius
+a0 = 1.2  # Woods-Saxon potential diffuseness
+params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
+
+mu, Ecm, k, eta = kinematics.classical_kinematics(
+    sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+)
+channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+
 
 def interaction(r, *params):
     (V0, W0, R0, a0, zz, RC) = params
@@ -18,46 +51,17 @@ def interaction(r, *params):
     return coulomb + nuclear
 
 
-def test_wavefunction():
-    Elab = 14.1
-    nodes_within_radius = 5
+def test_wavefunction(l=0):
+    ch = channels[l]
+    asym = asymptotics[l]
 
-    # target (A,Z)
-    Ca48 = (28, 20)
-    mass_Ca48 = 44657.26581995028  # MeV/c^2
-
-    # projectile (A,z)
-    proton = (1, 1)
-    mass_proton = 938.271653086152  # MeV/c^2
-
-    # p-wave (l=1)
-    sys = ProjectileTargetSystem(
-        channel_radii=np.array([nodes_within_radius * (2 * np.pi)]),
-        l=np.array([1], dtype=np.int64),
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=Ca48[1],
-        Zproj=proton[1],
-    )
-
-    # Woods-Saxon potential parameters
-    V0 = 70  # real potential strength
-    W0 = 40  # imag potential strength
-    R0 = 6  # Woods-Saxon potential radius
-    a0 = 1.2  # Woods-Saxon potential diffuseness
-    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
-
-    mu, Ecm, k, eta = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-    channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
-    s_values = np.linspace(0.01, sys.channel_radii[0], 200)
+    s_values = np.linspace(0.01, sys.channel_radius, 200)
 
     # Lagrange-Mesh
     solver_lm = rmatrix.Solver(100)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        channels,
-        asymptotics,
+        ch,
+        asym,
         wavefunction=True,
         local_interaction=interaction,
         local_args=params,
@@ -67,13 +71,12 @@ def test_wavefunction():
         x,
         S_lm,
         uext_prime_boundary,
-        sys.incoming_weights,
-        channels,
+        ch,
     ).uint()[0]
     u_lm = u_lm(s_values)
 
     # Runge-Kutta
-    rk_solver_channel_data = make_channel_data(channels)[0]
+    rk_solver_channel_data = make_channel_data(ch)[0]
     domain, init_con = rk_solver_channel_data.initial_conditions()
     sol_rk = solve_ivp(
         lambda s, y: schrodinger_eqn_ivp_order1(
