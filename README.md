@@ -16,7 +16,9 @@ The release versions of the package are hosted at [pypi.org/project/jitr/](https
 ## description
 A framework for handling parametric reaction models.
 
-Solves the radial BlochShrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh, using just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). The theory generally follows:
+Solves the radial Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh. Fairly fast due to using vectorized operations from [numpy](https://numpy.org/) and just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). 
+
+The theory generally follows:
 - Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219,
 - Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
 
