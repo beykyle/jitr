@@ -1,32 +1,36 @@
 import numpy as np
-from numba import int32, njit
+from numba import int32, float64, njit
 
 
 @njit
-def rmatrix_with_inverse(A, b, nchannels, nbasis, a):
+def rmatrix_with_inverse(
+    A: float64[:, :], b: float64[:], nchannels: int32, nbasis: int32, a: float64
+):
     r"""Eqn 15 in Descouvemont, 2016"""
     R = np.zeros((nchannels, nchannels), dtype=np.complex128)
     C = np.linalg.inv(A)
+
     for i in range(nchannels):
+        bi = b[i * nbasis : (i + 1) * nbasis]
         for j in range(nchannels):
-            R[i, j] = (
-                b[i * nbasis : (i + 1) * nbasis].T
-                @ C[i * nbasis : (i + 1) * nbasis, j * nbasis : (j + 1) * nbasis]
-                @ b[j * nbasis : (j + 1) * nbasis]
+            bj = b[j * nbasis : (j + 1) * nbasis]
+            Cblock = np.ascontiguousarray(
+                C[i * nbasis : (i + 1) * nbasis, j * nbasis : (j + 1) * nbasis]
             )
-    return R / np.outer(a, a), C
+            R[i, j] = bi.T @ Cblock @ bj
+    return R / a**2, C
 
 
 @njit
 def solve_smatrix_with_inverse(
-    A: np.array,
-    b: np.array,
-    Hp: np.array,
-    Hm: np.array,
-    Hpp: np.array,
-    Hmp: np.array,
-    incoming_weights: np.array,
-    a: np.array,
+    A: float64[:, :],
+    b: float64[:],
+    Hp: float64[:],
+    Hm: float64[:],
+    Hpp: float64[:],
+    Hmp: float64[:],
+    incoming_weights: float64[:],
+    a: float64,
     nchannels: int32,
     nbasis: int32,
 ):
@@ -44,8 +48,8 @@ def solve_smatrix_with_inverse(
     R, Ainv = rmatrix_with_inverse(A, b, nchannels, nbasis, a)
 
     # Eqn 17 in Descouvemont, 2016
-    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
-    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
+    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a
+    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
@@ -56,51 +60,11 @@ def solve_smatrix_with_inverse(
 
 
 @njit
-def solve_smatrix_without_inverse(
-    A: np.array,
-    b: np.array,
-    Hp: np.array,
-    Hm: np.array,
-    Hpp: np.array,
-    Hmp: np.array,
-    incoming_weights: np.array,
-    a: np.array,
-    nchannels: int32,
-    nbasis: int32,
-):
-    r"""
-    @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
-    all in Lagrange-Legendre coordinates, as well as the derivative of
-    asymptotic channel Wavefunctions evaluated at the channel radius. Everything
-    returned as block-matrices and block vectors in channel space.
-
-    This follows: Descouvemont, P. (2016).  An R-matrix package for
-    coupled-channel problems in nuclear physics.  Computer physics
-    communications, 200, 199-219.
-    """
-
-    # Eqn 15 in Descouvemont, 2016
-    x = np.linalg.solve(A, b).reshape(nchannels, nbasis)
-    R = x @ b.reshape(nchannels, nbasis).T / np.outer(a, a)
-
-    # Eqn 17 in Descouvemont, 2016
-    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a[:, np.newaxis]
-    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a[:, np.newaxis]
-
-    # Eqn 16 in Descouvemont, 2016
-    S = np.linalg.solve(Zp, Zm)
-
-    uext_prime_boundary = Hmp * incoming_weights - S @ np.copy(Hpp)
-
-    return R, S, uext_prime_boundary
-
-
-@njit
 def solution_coeffs_with_inverse(
-    Ainv: np.array,
-    b: np.array,
-    S: np.array,
-    uext_prime_boundary: np.array,
+    Ainv: float64[:, :],
+    b: float64[:],
+    S: float64[:],
+    uext_prime_boundary: float64[:],
     nchannels: int32,
     nbasis: int32,
 ):
@@ -113,33 +77,7 @@ def solution_coeffs_with_inverse(
     communications, 200, 199-219.  and P. Descouvemont and D. Baye 2010 Rep.
     Prog. Phys. 73 036301
     """
-    b2 = b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]
-    b2 = b2.reshape(nchannels * nbasis)
-    return (Ainv @ b2).reshape(nchannels, nbasis)
-
-
-@njit
-def solution_coeffs(
-    A: np.array,
-    b: np.array,
-    S: np.array,
-    uext_prime_boundary: np.array,
-    nchannels: int32,
-    nbasis: int32,
-):
-    r"""
-    @returns the multichannel wavefunction coefficients, in Lagrange- Legendre
-    coordinates.
-
-    This follows: Descouvemont, P. (2016).  An R-matrix package for
-    coupled-channel problems in nuclear physics.  Computer physics
-    communications, 200, 199-219.  and P. Descouvemont and D. Baye 2010 Rep.
-    Prog. Phys. 73 036301
-    """
-
-    # Eqn 3.92 in Descouvemont & Baye, 2010
-    b2 = b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]
-    b2 = b2.reshape(nchannels * nbasis)
-    x = np.linalg.solve(A, b2).reshape(nchannels, nbasis)
-
-    return x
+    x = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
+        nchannels * nbasis
+    )
+    return (Ainv @ x).reshape(nchannels, nbasis)

@@ -21,12 +21,12 @@ def make_channel_data(channels: Channels):
         SingleChannelData(
             channels.l[i],
             channels.mu[i],
-            channels.a[i],
+            channels.a,
             channels.E[i],
             channels.k[i],
             channels.eta[i],
         )
-        for i in range(channels.size)
+        for i in range(channels.num_channels)
     ]
 
 

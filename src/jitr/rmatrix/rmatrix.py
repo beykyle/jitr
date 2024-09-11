@@ -21,6 +21,7 @@ class Solver:
         **args,
     ):
         r"""
+        Constructs an R-matrix solver on a Lagrange mesh
         @parameters:
             nbasis (int) : size of basis; e.g. number of quadrature points for
             integration
@@ -29,10 +30,11 @@ class Solver:
         """
         self.kernel = Kernel(nbasis, basis)
 
-    def precompute_boundaries(self, a):
+    def precompute_boundaries(self, a: np.float64):
         r"""
         precompute boundary values of Lagrange basis functions for a set of
         channel radii a
+        @parameters:
             a: dimensionless radii (e.g. a = k * r_max) for each channel
         """
         nbasis = self.kernel.quadrature.nbasis
@@ -40,59 +42,43 @@ class Solver:
         return np.hstack(
             [
                 np.array(
-                    [self.kernel.f(n, a[i], a[i]) for n in range(1, nbasis + 1)],
+                    [self.kernel.f(n, a, a) for n in range(1, nbasis + 1)],
                     dtype=np.complex128,
                 )
                 for i in range(nchannels)
             ]
         )
 
-    def get_channel_block(self, matrix: np.array, i: np.int32, j: np.int32 = None):
+    def get_channel_block(self, matrix: np.ndarray, i: np.int32, j: np.int32 = None):
         N = self.kernel.quadrature.nbasis
         if j is None:
             j = i
         return block(matrix, (i, j), (N, N))
 
-    def precompute_free_matrix_energy_scaling(self, energies, coupled=True):
-        r"""
-        precomputes the block array [E_i / E_0], with each channel block having
-        a length equal to the number of basis functions
-        """
-        # calculate channel scaling for free matrix
-        E_scaling = energies / energies[0]
-        Nb = self.kernel.quadrature.nbasis
-        scaling = (E_scaling * np.ones(Nb)[:, np.newaxis]).T.reshape(
-            (Nb * energies.size,)
-        )
-        if coupled:
-            return scaling
-        else:
-            return [scaling[i * Nb : (i + 1) * Nb] for i in range(energies.size)]
-        return
-
-    def free_matrix(self, a: np.array, l: np.array, coupled=True):
+    def free_matrix(
+        self, a: np.float64, l: np.array, energy_ratio: np.ndarray, coupled=True
+    ):
         r"""
         precompute free matrix, which only depend on the channel orbital
         angular momenta l and dimensionless channel radii a
-        Parameters:
+        @parameters:
             a: dimensionless radii (e.g. a = k * r_max) for each channel
             l: orbital angular momentum quantum number for each channel
+            energy_ratio: ratio of energy in each channel to the energy in the
+                entrance channel
             coupled: whether to return the full matrix or just the block
-            diagonal elements (elements off of the channel diagonal are all 0
-            for the free matrix). If False, returns a list of Nch (Nb,Nb)
-            matrices, where Nch is the number of channels and Nb is the number
-            of basis elements, othereise returns the full (Nch x Nb, Nch x Nb)
-            matrix
+                diagonal elements (elements off of the channel diagonal are all
+                0 for the free matrix). If False, returns a list of Nch (Nb,Nb)
+                matrices, where Nch is the number of channels and Nb is the
+                number of basis elements, othereise returns the full
+                (Nch x Nb, Nch x Nb) matrix
         """
-        assert a.size == l.size
-        assert a.shape == (a.size,)
-
-        free_matrix = self.kernel.free_matrix(a, l)
+        free_matrix = self.kernel.free_matrix(a, l, energy_ratio)
 
         if coupled:
             return free_matrix
         else:
-            return [self.get_channel_block(free_matrix, i) for i in range(a.size)]
+            return [self.get_channel_block(free_matrix, i) for i in range(l.size)]
 
     def interaction_matrix(
         self,
@@ -116,7 +102,7 @@ class Solver:
         # scale to s = k_0 r, with k_0 the entrance channel wavenumber
         E0 = channels.E[0]
         k0 = channels.k[0]
-        channel_radius_r = channels.a[0] / channels.k[0]
+        channel_radius_r = channels.a / channels.k[0]
 
         if local_interaction is not None:
             # matrix_local just gives us the diagonal elements of each block ...
@@ -154,28 +140,33 @@ class Solver:
         nonlocal_interaction=None,
         nonlocal_args=None,
         free_matrix=None,
-        free_matrix_energy_scaling=None,
         basis_boundary=None,
+        weights=None,
         wavefunction=None,
     ):
         if free_matrix is None:
-            free_matrix = self.free_matrix(channels.a, channels.l)
-        if free_matrix_energy_scaling is None:
-            free_matrix_energy_scaling = self.precompute_free_matrix_energy_scaling(
-                channels.E
+            free_matrix = self.free_matrix(
+                channels.a, channels.l, channels.E / channels.E[0]
             )
         if basis_boundary is None:
             basis_boundary = self.precompute_boundaries(channels.a)
+        if weights is None:
+            weights = np.zeros(channels.size, dtype=np.float64)
+            weights[0] = 1
 
         # check consistent sizes
         sz = channels.size * self.kernel.quadrature.nbasis
         assert free_matrix.shape == (sz, sz)
         assert basis_boundary.shape == (sz,)
 
-        # calculate full multichannel Schrödinger equation in the Lagrange basis
-        A = free_matrix / free_matrix_energy_scaling
+        # calculate full multichannel Schrödinger equation in Lagrange basis
+        A = free_matrix
         A += self.interaction_matrix(
-            channels, local_interaction, local_args, nonlocal_interaction, nonlocal_args
+            channels,
+            local_interaction,
+            local_args,
+            nonlocal_interaction,
+            nonlocal_args,
         )
 
         # solve system using the R-matrix method
@@ -186,7 +177,7 @@ class Solver:
             asymptotics.Hm,
             asymptotics.Hpp,
             asymptotics.Hmp,
-            channels.weight,
+            weights,
             channels.a,
             channels.size,
             self.kernel.quadrature.nbasis,

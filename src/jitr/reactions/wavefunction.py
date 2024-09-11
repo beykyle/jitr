@@ -8,9 +8,10 @@ from ..utils.free_solutions import (
 
 class Wavefunctions:
     """
-    Represents a wavefunction, expressed internally to the channel as a linear combination
-    of Lagrange-Legendre functions, and externally as a linear combination of incoming and
-    outgoing Coulomb scattering wavefunctions
+    Represents a wavefunction, expressed internally to the channel as a
+    linear combination of Lagrange-Legendre functions, and externally as
+    a linear combination of incoming and outgoing Coulomb scattering
+    wavefunctions
     """
 
     def __init__(
@@ -19,22 +20,26 @@ class Wavefunctions:
         coeffs,
         S,
         uext_prime_boundary,
-        incoming_weights,
         channels,
+        incoming_weights=None,
         asym=CoulombAsymptotics,
     ):
         self.solver = solver
         self.coeffs = coeffs
         self.S = S
-        self.channels = channels
-        self.incoming_weights = incoming_weights
         self.uext_prime_boundary = uext_prime_boundary
+        self.channels = channels
+        if incoming_weights is None:
+            incoming_weights = np.zeros(channels.size, dtype=np.float64)
+            incoming_weights[0] = 1
+        self.incoming_weights = incoming_weights
         self.asym = asym
 
     def uext(self):
-        r"""Returns a callable which evaluates the asymptotic form of wavefunction in each channel,
-        valid external to the channel radii. Follows Eqn. 3.79 from P. Descouvemont and D. Baye
-        2010 Rep. Prog. Phys. 73 036301
+        r"""Returns a callable which evaluates the asymptotic form of
+        wavefunction in each channel, valid external to the channel radii.
+        Follows Eqn. 3.79 from P. Descouvemont and D. Baye 2010 Rep.
+        Prog. Phys. 73 036301
         """
 
         def uext_channel(i):
@@ -71,8 +76,8 @@ class Wavefunctions:
             return lambda s: np.sum(
                 [
                     self.coeffs[i, n]
-                    / self.channels.a[i]
-                    * self.solver.kernel.f(n + 1, self.channels.a[i], s)
+                    / self.channels.a
+                    * self.solver.kernel.f(n + 1, self.channels.a, s)
                     for n in range(self.solver.kernel.quadrature.nbasis)
                 ],
                 axis=0,

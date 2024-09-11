@@ -148,10 +148,9 @@ class ElasticXSWorkspace:
                 basis_boundary=self.basis_boundary[l],
             )
 
-            if (
-                np.absolute(splus[l]) < self.smatrix_abs_tol
-                and np.absolute(sminus[l]) < self.smatrix_abs_tol
-            ):
+            if (1.0 - np.absolute(splus[l])) < self.smatrix_abs_tol and (
+                1.0 - np.absolute(sminus[l])
+            ) < self.smatrix_abs_tol:
                 break
 
         return ElasticXS(

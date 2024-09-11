@@ -74,7 +74,9 @@ class Kernel:
                 self.weight_matrix * f(self.Xn * a, self.Xm * a, *args)
             )
 
-    def fourier_bessel_transform(self, l: np.int32, f, k: np.array, a: np.array, *args):
+    def fourier_bessel_transform(
+        self, l: np.int32, f, k: np.array, a: np.float64, *args
+    ):
         """
         performs a Fourier-Bessel transform of order l from r->k coordinates
         with r on [0,a]
@@ -142,48 +144,55 @@ class Kernel:
         is_symmetric: bool = True,
     ):
         r"""
-        @returns the DWBA matrix element for the nonlocal operator
+        @returns DWBA (complex128): matrix element for the nonlocal operator
         `interaction`, between distorted wave `bra` and `ket`, which are
         represented as a set of `self.nbasis` complex coefficients for the
         Lagrange functions, generalizing Eq. 29 in Descouvemont, 2016 (or 2.85
         in Baye, 2015).
 
-        Note: integral is performed in s,s' space, with ds = k dr. To get value of
-        integral over r space, result should be scaled by 1/(kk')
+        Note: integral is performed in s,s' space, with ds = k dr. To get value
+        of integral over r space, result should be scaled by 1/(kk')
         """
         # get operator in Lagrange coords as (nbasis x nbasis) matrix
         Vnm = self.matrix_nonlocal(f, a, is_symmetric=is_symmetric, args=args)
         # reduce
         return bra.conj().T @ Vnm @ ket
 
-    def matrix_local(self, f, a, args=()):
+    def matrix_local(self, f, a: np.float64, args=()):
         r"""
-        @returns diagonal elements of matrix for arbitrary local vectorized
-        operator f(x)
+        @returns matrix (np.ndarray): diagonal elements of arbitrary vectorized
+            operator f(x) in lagrange basis
         """
         return f(self.quadrature.abscissa * a, *args)
 
-    def matrix_nonlocal(self, f, a, is_symmetric=True, args=()):
+    def matrix_nonlocal(self, f, a: np.float64, is_symmetric=True, args=()):
         r"""
-        @returns matrix for arbitrary vectorized operator f(x,xp)
+        @returns matrix (np.ndarray): arbitrary vectorized operator f(x,xp) in
+            lagrange basis
         """
         return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
 
     def free_matrix(
         self,
-        a: np.array,
+        a: np.float64,
         l: np.array,
+        energy_ratio: np.ndarray,
     ):
         r"""
-        @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E_0 (H-E)
-        in the Lagrange basis, where each channel is an NbxNb block (Nb being the
-        basis size), and there are NchxNch such blocks.
+        @returns:
+            free_matrix (np.ndarray): the full (NchxNb)x(NchxNb) free
+            Schrödinger equation 1/E_0 (H-E) in the Lagrange basis, where
+            each channel is an NbxNb block (Nb being the basis size), and
+            there are NchxNch such blocks.
+        @parameters:
         """
         Nb = self.quadrature.nbasis
-        Nch = np.size(a)
+        Nch = np.size(l)
         sz = Nb * Nch
         F = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(Nch):
-            Fij = self.quadrature.kinetic_matrix(a[i], l[i]) - self.overlap
+            Fij = (
+                self.quadrature.kinetic_matrix(a, l[i]) - self.overlap * energy_ratio[i]
+            )
             F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
         return F
