@@ -37,7 +37,7 @@ def rmse_RK_LM():
 
     sys = ProjectileTargetSystem(
         channel_radius=2 * np.pi * nodes_within_radius,
-        lmax=n_partial_waves-1,
+        lmax=n_partial_waves - 1,
         mass_target=mass_Ca48,
         mass_projectile=mass_proton,
         Ztarget=Ca48[1],

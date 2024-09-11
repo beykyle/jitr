@@ -50,7 +50,7 @@ class Solver:
         return block(matrix, (i, j), (N, N))
 
     def free_matrix(
-        self, a: np.float64, l: np.array, energy_ratio: np.ndarray=None, coupled=True
+        self, a: np.float64, l: np.array, energy_ratio: np.ndarray = None, coupled=True
     ):
         r"""
         precompute free matrix, which only depend on the channel orbital
