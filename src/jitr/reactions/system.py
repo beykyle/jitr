@@ -120,18 +120,18 @@ class ProjectileTargetSystem:
         eta,
     ):
         r"""
-        Given the kinematic parameters as arrays of shape (nchannels,), returns a `Channels`
+        Given the kinematic parameters as arrays of shape (lmax+1,), returns a `Channels`
         object. If the kinematic parameters are input as scalars rather than arrays, assumes
         that they are the same in each channel.
         """
         if not isinstance(Ecm, np.ndarray):
-            Ecm = np.ones(self.nchannels, dtype=np.float64) * Ecm
+            Ecm = np.ones(self.lmax + 1, dtype=np.float64) * Ecm
         if not isinstance(mu, np.ndarray):
-            mu = np.ones(self.nchannels, dtype=np.float64) * mu
+            mu = np.ones(self.lmax + 1, dtype=np.float64) * mu
         if not isinstance(k, np.ndarray):
-            k = np.ones(self.nchannels, dtype=np.float64) * k
+            k = np.ones(self.lmax + 1, dtype=np.float64) * k
         if not isinstance(eta, np.ndarray):
-            eta = np.ones(self.nchannels, dtype=np.float64) * eta
+            eta = np.ones(self.lmax + 1, dtype=np.float64) * eta
 
         channels = Channels(
             Ecm,
@@ -183,22 +183,22 @@ class ProjectileTargetSystem:
         eta,
     ):
         r"""
-        Given the kinematic parameters as arrays of shape (nchannels,), returns a `Channels`
+        Given the kinematic parameters as arrays of shape (lmax+1,), returns a `Channels`
         object. If the kinematic parameters are input as scalars rather than arrays, assumes
         that they are the same in each channel.
         """
         if not isinstance(Ecm, np.ndarray):
-            Ecm = np.ones(self.nchannels) * Ecm
+            Ecm = np.ones(self.lmax + 1) * Ecm
         if not isinstance(mu, np.ndarray):
-            mu = np.ones(self.nchannels) * mu
+            mu = np.ones(self.lmax + 1) * mu
         if not isinstance(k, np.ndarray):
-            k = np.ones(self.nchannels) * k
+            k = np.ones(self.lmax + 1) * k
         if not isinstance(eta, np.ndarray):
-            eta = np.ones(self.nchannels) * eta
+            eta = np.ones(self.lmax + 1) * eta
 
         channels = []
         asymptotics = []
-        for i in range(0, self.nchannels):
+        for i in range(0, self.lmax + 1):
             l_dot_s = self.l_dot_s[i : i + 1, :]
             channels.append(
                 Channels(
