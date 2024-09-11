@@ -37,6 +37,7 @@ class Asymptotics:
         self.Hm = Hm
         self.Hpp = Hpp
         self.Hmp = Hmp
+        self.size = Hp.shape[0]
 
     def decouple(self):
         r"""
@@ -47,8 +48,8 @@ class Asymptotics:
         for i in range(self.size):
             asym.append(
                 Asymptotics(
-                    self.Hm[i : i + 1],
                     self.Hp[i : i + 1],
+                    self.Hm[i : i + 1],
                     self.Hpp[i : i + 1],
                     self.Hmp[i : i + 1],
                 )
@@ -94,7 +95,7 @@ class Channels:
                     self.mu[i : i + 1],
                     self.eta[i : i + 1],
                     self.a,
-                    self.l[i],
+                    self.l[i : i + 1],
                     np.array([[couplings[i]]]),
                 )
             )
@@ -114,7 +115,6 @@ class ProjectileTargetSystem:
         mass_projectile: np.float64 = 0,
         Ztarget: np.float64 = 0,
         Zproj: np.float64 = 0,
-        level_energies: np.ndarray = None,
         coupling=scalar_couplings,
     ):
         r"""
