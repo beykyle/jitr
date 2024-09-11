@@ -76,7 +76,7 @@ class ElasticXSWorkspace:
                 )
                 for l_dot_s in self.sys.l_dot_s[l]
             ]
-            for l in range(0, self.sys.lmax)
+            for l in self.sys.l
         ]
 
         # preocmpute angular distributions in each partial wave
@@ -127,7 +127,7 @@ class ElasticXSWorkspace:
         )
 
         # higher partial waves
-        for l in range(1, self.sys.lmax):
+        for l in self.sys.l:
             # j = l + 1/2
             _, splus[l], _ = self.solver.solve(
                 self.channels[l],
@@ -147,6 +147,12 @@ class ElasticXSWorkspace:
                 free_matrix=self.free_matrices[l],
                 basis_boundary=self.basis_boundary[l],
             )
+
+            if (
+                np.absolute(splus[l]) < self.smatrix_abs_tol
+                and np.absolute(sminus[l]) < self.smatrix_abs_tol
+            ):
+                break
 
         return ElasticXS(
             elastic_xs(

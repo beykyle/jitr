@@ -9,6 +9,21 @@ from ..utils.free_solutions import (
     H_minus_prime,
 )
 
+
+def spin_half_orbit_coupling(l):
+    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus, there are
+    maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
+
+    Parameters:
+        l (int): angular momentum
+
+    Returns:
+        couplings (list): expectation value of l dot s
+    """
+    js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
+    return [(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]
+
+
 channel_dtype = [
     ("size", int64),
     ("E", float64[:]),
@@ -79,17 +94,17 @@ class ProjectileTargetSystem:
         coupling=spin_half_orbit_coupling,
     ):
         if level_energies is None:
-            level_energies = np.zeros(lmax, dtype=np.float64)
+            level_energies = np.zeros(lmax + 1, dtype=np.float64)
 
         if incoming_weights is None:
-            incoming_weights = np.zeros(lmax, dtype=np.float64)
+            incoming_weights = np.zeros(lmax + 1, dtype=np.float64)
             incoming_weights[0] = 1
 
         self.level_energies = np.array(level_energies, dtype=np.float64)
         self.incoming_weights = np.array(incoming_weights, dtype=np.float64)
         self.lmax = lmax
-        self.l = np.arange(0, lmax, dtype=np.int64)
-        self.channel_radii = np.ones(self.lmax, dtype=np.float64) * channel_radius
+        self.l = np.arange(0, lmax + 1, dtype=np.int64)
+        self.channel_radii = np.ones(self.lmax + 1, dtype=np.float64) * channel_radius
         self.couplings = [coupling(l) for l in self.l]
 
         self.mass_target = mass_target
@@ -219,17 +234,3 @@ class ProjectileTargetSystem:
             )
 
         return channels, asymptotics
-
-
-def spin_half_orbit_coupling(l):
-    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus, there are
-    maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
-
-    Parameters:
-        l (int): angular momentum
-
-    Returns:
-        couplings (list): expectation value of l dot s
-    """
-    js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
-    return [(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]
