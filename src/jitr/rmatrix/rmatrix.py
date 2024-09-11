@@ -38,15 +38,9 @@ class Solver:
             a: dimensionless radii (e.g. a = k * r_max) for each channel
         """
         nbasis = self.kernel.quadrature.nbasis
-        nchannels = np.size(a)
-        return np.hstack(
-            [
-                np.array(
-                    [self.kernel.f(n, a, a) for n in range(1, nbasis + 1)],
-                    dtype=np.complex128,
-                )
-                for i in range(nchannels)
-            ]
+        return np.array(
+            [self.kernel.f(n, a, a) for n in range(1, nbasis + 1)],
+            dtype=np.complex128,
         )
 
     def get_channel_block(self, matrix: np.ndarray, i: np.int32, j: np.int32 = None):
@@ -157,7 +151,7 @@ class Solver:
         # check consistent sizes
         sz = channels.size * self.kernel.quadrature.nbasis
         assert free_matrix.shape == (sz, sz)
-        assert basis_boundary.shape == (sz,)
+        assert basis_boundary.shape == (self.kernel.quadrature.nbasis,)
 
         # calculate full multichannel Schrödinger equation in Lagrange basis
         A = free_matrix

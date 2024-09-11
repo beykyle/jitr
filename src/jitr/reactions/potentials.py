@@ -32,11 +32,12 @@ def woods_saxon_safe(r, R, a):
     """
     x = (r - R) / a
     if isinstance(x, float):
-        return 1 / (1 + np.exp(x)) if x < MAX_ARG else 0
+        return 1.0 / (1.0 + np.exp(x)) if x < MAX_ARG else 0
     else:
-        ii = np.where(x <= MAX_ARG)[0]
-        jj = np.where(x > MAX_ARG)[0]
-        return np.hstack((1 / (1 + np.exp(x[ii])), np.zeros(jj.size)))
+        mask = x <= MAX_ARG
+        V = np.zeros_like(r)
+        V[mask] = 1.0 / (1.0 + np.exp(x[mask]))
+        return V
 
 
 def woods_saxon_prime_safe(r, R, a):
@@ -49,11 +50,10 @@ def woods_saxon_prime_safe(r, R, a):
     if isinstance(x, float):
         return -1 / a * np.exp(x) / (1 + np.exp(x)) ** 2 if x < MAX_ARG else 0
     else:
-        ii = np.where(x <= MAX_ARG)[0]
-        jj = np.where(x > MAX_ARG)[0]
-        return np.hstack(
-            (-1 / a * np.exp(x[ii]) / (1 + np.exp(x[ii])) ** 2, np.zeros(jj.size))
-        )
+        mask = x <= MAX_ARG
+        V = np.zeros_like(r)
+        V[mask] = -1 / a * np.exp(x[mask]) / (1 + np.exp(x[mask])) ** 2
+        return V
 
 
 def thomas_safe(r, R, a):
@@ -67,14 +67,10 @@ def thomas_safe(r, R, a):
     if isinstance(x, float):
         return y * -1 / a * np.exp(x) / (1 + np.exp(x)) ** 2 if x < MAX_ARG else 0
     else:
-        ii = np.where(x <= MAX_ARG)[0]
-        jj = np.where(x > MAX_ARG)[0]
-        return np.hstack(
-            (
-                y[ii] * -1 / a * np.exp(x[ii]) / (1 + np.exp(x[ii])) ** 2,
-                np.zeros(jj.size),
-            )
-        )
+        mask = x <= MAX_ARG
+        V = np.zeros_like(r)
+        V[mask] = y[mask] * -1 / a * np.exp(x[mask]) / (1 + np.exp(x[mask])) ** 2
+        return V
 
 
 def surface_peaked_gaussian_potential(r, *params):

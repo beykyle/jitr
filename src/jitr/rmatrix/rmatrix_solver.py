@@ -11,13 +11,12 @@ def rmatrix_with_inverse(
     C = np.linalg.inv(A)
 
     for i in range(nchannels):
-        bi = b[i * nbasis : (i + 1) * nbasis]
         for j in range(nchannels):
-            bj = b[j * nbasis : (j + 1) * nbasis]
+            # TODO  benchmark if this is faster, can we do without inverting?
             Cblock = np.ascontiguousarray(
                 C[i * nbasis : (i + 1) * nbasis, j * nbasis : (j + 1) * nbasis]
             )
-            R[i, j] = bi.T @ Cblock @ bj
+            R[i, j] = b.T @ Cblock @ b
     return R / a**2, C
 
 
@@ -77,7 +76,5 @@ def solution_coeffs_with_inverse(
     communications, 200, 199-219.  and P. Descouvemont and D. Baye 2010 Rep.
     Prog. Phys. 73 036301
     """
-    x = (b.reshape(nchannels, nbasis) * uext_prime_boundary[:, np.newaxis]).reshape(
-        nchannels * nbasis
-    )
+    x = (b * uext_prime_boundary[:, np.newaxis]).reshape(nchannels * nbasis)
     return (Ainv @ x).reshape(nchannels, nbasis)

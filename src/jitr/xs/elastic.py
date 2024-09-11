@@ -22,6 +22,7 @@ class ElasticXS:
 
 
 class PartialWaveInteraction:
+    # TODO split interaction from Workspace
     def __init__(self, scalar, spin_orbit, l_dot_s):
         self.l_dot_s = l_dot_s
         self.scalar = scalar
