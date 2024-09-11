@@ -100,13 +100,15 @@ def test_coupled_vs_single():
 
     b = solver.precompute_boundaries(sys_2level.channel_radius)
     free = solver.free_matrix(
-        channels_coupled.a, channels_coupled.l, channels_coupled.E / channels_coupled.E[0]
+        channels_coupled.a,
+        channels_coupled.l,
+        channels_coupled.E / channels_coupled.E[0],
     )
     interaction = solver.interaction_matrix(
         channels_coupled, potential_2level, params_2level
     )
 
-# test diaginal blocks
+    # test diaginal blocks
     free_0 = solver.free_matrix(
         channels_uncoupled[0].a,
         channels_uncoupled[0].l,
@@ -128,7 +130,9 @@ def test_coupled_vs_single():
     )
 
     np.testing.assert_almost_equal(
-        solver.interaction_matrix(channels_uncoupled[0], potential_scalar, params_scalar),
+        solver.interaction_matrix(
+            channels_uncoupled[0], potential_scalar, params_scalar
+        ),
         solver.get_channel_block(
             interaction,
             0,
@@ -136,7 +140,9 @@ def test_coupled_vs_single():
         ),
     )
     np.testing.assert_almost_equal(
-        solver.interaction_matrix(channels_uncoupled[1], potential_scalar, params_scalar),
+        solver.interaction_matrix(
+            channels_uncoupled[1], potential_scalar, params_scalar
+        ),
         solver.get_channel_block(
             interaction,
             1,
@@ -144,7 +150,7 @@ def test_coupled_vs_single():
         ),
     )
 
-# test off diag blocks
+    # test off diag blocks
     for i in range(nchannels):
         for j in range(nchannels):
             if j != i:
@@ -153,13 +159,16 @@ def test_coupled_vs_single():
                     solver.get_channel_block(interaction, i, j), 0
                 )
 
-# test full matrix
-    A = solver.interaction_matrix(
-        channels_uncoupled[0], potential_scalar, params_scalar
-    ) + free_0
+    # test full matrix
+    A = (
+        solver.interaction_matrix(
+            channels_uncoupled[0], potential_scalar, params_scalar
+        )
+        + free_0
+    )
     Am = free + interaction
     np.testing.assert_almost_equal(Am[:nbasis, :nbasis], A)
-    bm = np.hstack([b,b])
+    bm = np.hstack([b, b])
     x = np.linalg.solve(A, b)
     xm = np.linalg.solve(Am, bm)
     np.testing.assert_almost_equal(x, xm[:nbasis])
