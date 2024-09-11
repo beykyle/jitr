@@ -13,8 +13,7 @@ import json
 import numpy as np
 from numba import njit
 
-from ..utils import kinematics
-from ..utils.constants import MASS_PION, HBARC, ALPHA
+from ..utils.constants import MASS_PION
 from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
 
 
