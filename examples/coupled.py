@@ -11,9 +11,10 @@ from jitr.reactions.potentials import (
 from jitr.utils import complex_det, kinematics
 
 
-def interaction_3level(r, V, W, R0, a0, Zz, coupling_matrix):
+def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
+    r""" A real potential. Symmetric IFF coupling_matrix is symmetric """
     coulomb = coul(r, Zz, R0)
-    nuclear = ws(r, V, W, R0, a0)
+    nuclear = ws(r, V, 0, R0, a0)
     zero = np.zeros_like(r)
     diagonal = np.array(
         [
@@ -22,7 +23,7 @@ def interaction_3level(r, V, W, R0, a0, Zz, coupling_matrix):
             [zero, zero, nuclear + coulomb],
         ]
     )
-    off_diag = coupling_matrix[..., np.newaxis] * spg(r, V, W, R0, a0)
+    off_diag = coupling_matrix[..., np.newaxis] * spg(r, V, 0, R0, a0)
     return diagonal + off_diag
 
 
@@ -45,43 +46,47 @@ def coupled_channels_example():
     proton = (1, 1)
     mass_proton = kinematics.mass(*proton)
 
-    # S-wave only
-    sys = ProjectileTargetSystem(
-        2 * np.pi * nodes_within_radius * np.ones(nchannels),
-        np.zeros(nchannels, dtype=np.int64),
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=Ca48[1],
-        Zproj=proton[1],
-        nchannels=nchannels,
-        level_energies=levels,
-    )
-
-    mu, Ecm, k, eta = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-    channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
-
-    # initialize solver
-    solver = rmatrix.Solver(40)
-
+    # the coupling is meant to be the purely geometric channel coupling and
+    # sets the size of the coupled channel matrix in a partial wave
     coupling_matrix = np.array(
         [
             [0, 0.8, 0.1],
-            [0, 0, 0.8],
+            [0, 0, 0.1],
             [0, 0, 0.0],
         ]
     )
     coupling_matrix += coupling_matrix.T
 
+    sys = ProjectileTargetSystem(
+        channel_radius=2 * np.pi * nodes_within_radius,
+        lmax=10,
+        mass_target=mass_Ca48,
+        mass_projectile=mass_proton,
+        Ztarget=Ca48[1],
+        Zproj=proton[1],
+        channel_levels=levels,
+        coupling = lambda l: coupling_matrix,
+    )
+
+    mu, Ecm, k, eta = kinematics.classical_kinematics(
+        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+    )
+    Ecm -= sys.channel_levels #
+    channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+
+    # initialize solver
+    solver = rmatrix.Solver(40)
+
+    # choose a partial wave
+    l = 0
+
     # get R and S-matrix, and both internal and external soln
     R, S, x, uext_prime_boundary = solver.solve(
-        channels,
-        asymptotics,
+        channels[l],
+        asymptotics[l],
         local_interaction=interaction_3level,
         local_args=(
             -42,
-            0,
             4,
             0.8,
             sys.Zproj * sys.Zproj,
@@ -96,15 +101,14 @@ def coupled_channels_example():
         x,
         S,
         uext_prime_boundary,
-        sys.incoming_weights,
-        channels,
+        channels[l],
     ).uint()
 
     # S must be unitary
     assert np.isclose(complex_det(S), 1.0)
 
     # plot in s-space
-    s_values = np.linspace(0.05, sys.channel_radii[0], 500)
+    s_values = np.linspace(0.05, sys.channel_radius, 500)
 
     lines = []
     for i in range(nchannels):

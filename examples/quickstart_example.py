@@ -17,8 +17,8 @@ Ca48 = (28, 20)
 proton = (1, 1)
 
 sys = reactions.ProjectileTargetSystem(
-    channel_radii=np.array([5 * np.pi]),
-    l=np.array([0]),
+    channel_radius=5 * np.pi,
+    lmax=10,
     mass_target=kinematics.mass(*Ca48),
     mass_projectile=kinematics.mass(*proton),
     Ztarget=Ca48[1],
@@ -30,15 +30,16 @@ Ecm, mu, k, eta = kinematics.classical_kinematics(
     Elab,
     sys.Ztarget * sys.Zproj,
 )
-channels, asymptotics = sys.coupled(Ecm, mu, k, eta)
+channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
 
 # set up solver
 solver = rmatrix.Solver(nbasis=40)
 
 # solve for a set of parameters
+l = 0
 params = (42.0, 18.1, 4.8, 0.7, sys.Zproj * sys.Ztarget)
 R, S, uext_boundary = solver.solve(
-    channels, asymptotics, interaction, local_args=params
+    channels[l], asymptotics[l], interaction, local_args=params
 )
 
 # get phase shift in degrees
