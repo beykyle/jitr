@@ -136,11 +136,15 @@ class Solver:
         local_args=None,
         nonlocal_interaction=None,
         nonlocal_args=None,
+        interaction_matrix=None,
         free_matrix=None,
         basis_boundary=None,
         weights=None,
         wavefunction=None,
     ):
+
+
+        # calculate everything that hasn't been precomputed
         if free_matrix is None:
             free_matrix = self.free_matrix(
                 channels.a, channels.l, channels.E / channels.E[0], coupled=True,
@@ -150,21 +154,23 @@ class Solver:
         if weights is None:
             weights = np.zeros(channels.size, dtype=np.float64)
             weights[0] = 1
+        if interaction_matrix is None:
+            interaction_matrix = self.interaction_matrix(
+                channels,
+                local_interaction,
+                local_args,
+                nonlocal_interaction,
+                nonlocal_args,
+            )
 
         # check consistent sizes
         sz = channels.size * self.kernel.quadrature.nbasis
         assert free_matrix.shape == (sz, sz)
+        assert interaction_matrix.shape == (sz, sz)
         assert basis_boundary.shape == (self.kernel.quadrature.nbasis,)
 
-        # calculate full multichannel Schrödinger equation in Lagrange basis
-        A = self.interaction_matrix(
-            channels,
-            local_interaction,
-            local_args,
-            nonlocal_interaction,
-            nonlocal_args,
-        )
-        A += free_matrix
+        # this is the full multi-channel representation of 1/E_0 (H-E)
+        A = free_matrix + interaction_matrix
 
         # solve system using the R-matrix method
         R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
@@ -180,11 +186,10 @@ class Solver:
             self.kernel.quadrature.nbasis,
         )
 
-        # get the wavefunction expansion coefficients in the Lagrange
-        # basis if needed
         if wavefunction is None:
             return R, S, uext_prime_boundary
         else:
+            # get the wavefunction expansion coefficients in the Lagrange basis
             x = solution_coeffs_with_inverse(
                 Ainv,
                 basis_boundary,
