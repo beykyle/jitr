@@ -210,7 +210,7 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = rmatrix.Solver(40)
+    solver = rmatrix.Solver(50)
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel
@@ -239,15 +239,23 @@ def rmse_RK_LM():
         )
         channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
 
+        # since our interaction is l-independent and we're using the same
+        # set of parameters for each partial wave, we can actually pre-compute
+        # the interaction part of the Lagrange-matrix
+        im = solver.interaction_matrix(
+            channels[0],
+            local_interaction=interaction,
+            local_args=params,
+        )
+
         for l in sys.l:
             # Lagrange-Legendre R-Matrix solve for this partial wave
             R_lm, S_lm, uext_boundary = solver.solve(
                 channels[l],
                 asymptotics[l],
-                local_interaction=interaction,
-                local_args=params,
                 basis_boundary=basis_boundary,
                 free_matrix=free_matrices[l],
+                interaction_matrix=im,
             )
 
             # Runge-Kutta solve for this partial wave
@@ -275,7 +283,8 @@ def rmse_RK_LM():
         plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
 
     plt.ylabel(
-        r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} | / | \mathcal{S}_{l}^{\rm RK}|$ [%]"
+        r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} |"
+        r" / | \mathcal{S}_{l}^{\rm RK}|$ [%]"
     )
     plt.xlabel(r"$E$ [MeV]")
 
