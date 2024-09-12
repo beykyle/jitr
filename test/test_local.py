@@ -103,25 +103,10 @@ def rmse_RK_LM():
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
-            # comparison between solvers
-            delta_lm, atten_lm = delta(S_lm[0, 0])
-            delta_rk, atten_rk = delta(S_rk)
-
-            err = 0 + 0j
-
-            if np.fabs(delta_rk) > 1e-12:
-                err += np.fabs(delta_lm - delta_rk)
-
-            if np.fabs(atten_rk) > 1e-12:
-                err += 1j * np.fabs(atten_lm - atten_rk)
-
-            error_matrix[l, i] = err
-
-        return np.real(error_matrix), np.imag(error_matrix)
-
+            error_matrix[l,i] = np.absolute(S_rk - S_lm[0,0]) / np.absolute(S_rk)
+        return error_matrix
 
 def test_local():
-    rtol = 1.0e-2
-    real_err, imag_err = rmse_RK_LM()
-    assert not np.any(real_err / 180 > rtol)
-    assert not np.any(imag_err / 180 > rtol)
+    rtol = 1.0e-2 # 1 % max error
+    err = rmse_RK_LM()
+    assert not np.any(err > rtol)
