@@ -143,7 +143,10 @@ class Solver:
     ):
         if free_matrix is None:
             free_matrix = self.free_matrix(
-                channels.a, channels.l, channels.E / channels.E[0], coupled=True,
+                channels.a,
+                channels.l,
+                channels.E / channels.E[0],
+                coupled=True,
             )
         if basis_boundary is None:
             basis_boundary = self.precompute_boundaries(channels.a)

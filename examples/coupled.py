@@ -12,7 +12,7 @@ from jitr.utils import complex_det, kinematics
 
 
 def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
-    r""" A real potential. Symmetric IFF coupling_matrix is symmetric """
+    r"""A real potential. Symmetric IFF coupling_matrix is symmetric"""
     coulomb = coul(r, Zz, R0)
     nuclear = ws(r, V, 0, R0, a0)
     zero = np.zeros_like(r)
@@ -65,13 +65,13 @@ def coupled_channels_example():
         Ztarget=Ca48[1],
         Zproj=proton[1],
         channel_levels=levels,
-        coupling = lambda l: coupling_matrix,
+        coupling=lambda l: coupling_matrix,
     )
 
     mu, Ecm, k, eta = kinematics.classical_kinematics(
         sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
     )
-    Ecm -= sys.channel_levels #
+    Ecm -= sys.channel_levels  #
     channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
 
     # initialize solver

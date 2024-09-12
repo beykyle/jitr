@@ -171,7 +171,9 @@ def channel_radius_dependence_test():
     for i, a in enumerate(a_grid):
         sys.channel_radius = a
         channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
-        R, S, _ = solver.solve(channels[l], asymptotics[l], woods_saxon_potential, params)
+        R, S, _ = solver.solve(
+            channels[l], asymptotics[l], woods_saxon_potential, params
+        )
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
 
@@ -187,7 +189,7 @@ def rmse_RK_LM():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
     n_partial_waves = 3
-    egrid = np.linspace(0.1,120,200)
+    egrid = np.linspace(0.1, 120, 200)
     nodes_within_radius = 5
 
     # target (A,Z)
@@ -266,14 +268,15 @@ def rmse_RK_LM():
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
-            error_matrix[l,i] = np.absolute(S_rk - S_lm[0,0]) / np.absolute(S_rk)
-
+            error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
 
     lines = []
     for l in sys.l:
         plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
 
-    plt.ylabel(r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} | / | \mathcal{S}_{l}^{\rm RK}|$ [%]")
+    plt.ylabel(
+        r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} | / | \mathcal{S}_{l}^{\rm RK}|$ [%]"
+    )
     plt.xlabel(r"$E$ [MeV]")
 
     plt.legend()
@@ -283,6 +286,6 @@ def rmse_RK_LM():
 
 
 if __name__ == "__main__":
-    #channel_radius_dependence_test()
-    #local_interaction_example()
+    # channel_radius_dependence_test()
+    # local_interaction_example()
     rmse_RK_LM()

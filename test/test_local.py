@@ -103,10 +103,11 @@ def rmse_RK_LM():
             R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
             S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
-            error_matrix[l,i] = np.absolute(S_rk - S_lm[0,0]) / np.absolute(S_rk)
+            error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
         return error_matrix
 
+
 def test_local():
-    rtol = 1.0e-2 # 1 % max error
+    rtol = 1.0e-2  # 1 % max error
     err = rmse_RK_LM()
     assert not np.any(err > rtol)
