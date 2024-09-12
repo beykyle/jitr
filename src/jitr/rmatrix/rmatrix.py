@@ -143,7 +143,7 @@ class Solver:
     ):
         if free_matrix is None:
             free_matrix = self.free_matrix(
-                channels.a, channels.l, channels.E / channels.E[0]
+                channels.a, channels.l, channels.E / channels.E[0], coupled=True,
             )
         if basis_boundary is None:
             basis_boundary = self.precompute_boundaries(channels.a)
@@ -157,14 +157,14 @@ class Solver:
         assert basis_boundary.shape == (self.kernel.quadrature.nbasis,)
 
         # calculate full multichannel Schrödinger equation in Lagrange basis
-        A = free_matrix
-        A += self.interaction_matrix(
+        A = self.interaction_matrix(
             channels,
             local_interaction,
             local_args,
             nonlocal_interaction,
             nonlocal_args,
         )
+        A += free_matrix
 
         # solve system using the R-matrix method
         R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(

@@ -116,6 +116,7 @@ class ProjectileTargetSystem:
         Ztarget: np.float64 = 0,
         Zproj: np.float64 = 0,
         coupling=scalar_couplings,
+        channel_levels=None,
     ):
         r"""
         @params
@@ -126,6 +127,10 @@ class ProjectileTargetSystem:
         self.lmax = lmax
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
         self.couplings = [coupling(l) for l in self.l]
+
+        if channel_levels is None:
+            channel_levels = np.zeros(self.couplings[0].shape[0], dtype=np.float64)
+        self.channel_levels = channel_levels
 
         self.mass_target = mass_target
         self.mass_projectile = mass_projectile
