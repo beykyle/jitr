@@ -20,10 +20,10 @@ def interaction(r, *args):
     )
 
 
-def rmse_RK_LM():
+def test_local():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
-    n_partial_waves = 10
+    n_partial_waves = 3
     egrid = np.linspace(0.5, 100, 10)
     nodes_within_radius = 5
 
@@ -45,7 +45,7 @@ def rmse_RK_LM():
     )
 
     # initialize solver
-    solver = rmatrix.Solver(40)
+    solver = rmatrix.Solver(70)
 
     # precompute sub matrices for kinetic energy operator in
     # each partial wave channel
@@ -65,7 +65,7 @@ def rmse_RK_LM():
     params = (V0, W0, R0, a0, proton[1] * Ca48[1], RC)
 
     # use same interaction for all channels (no spin-orbit coupling)
-    error_matrix = np.zeros((n_partial_waves, n_partial_waves), dtype=complex)
+    error_matrix = np.zeros((n_partial_waves, len(egrid)), dtype=complex)
 
     for i, Elab in enumerate(egrid):
         # calculate channel kinematics at this energy
@@ -104,10 +104,6 @@ def rmse_RK_LM():
             S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
 
             error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
-        return error_matrix
 
-
-def test_local():
     rtol = 1.0e-2  # 1 % max error
-    err = rmse_RK_LM()
-    assert not np.any(err > rtol)
+    np.testing.assert_array_less(error_matrix, rtol)
