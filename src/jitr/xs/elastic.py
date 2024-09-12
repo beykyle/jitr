@@ -21,20 +21,11 @@ class ElasticXS:
     rxn: np.float64
 
 
-class PartialWaveInteraction:
-    # TODO split interaction from Workspace
-    def __init__(self, scalar, spin_orbit, l_dot_s):
-        self.l_dot_s = l_dot_s
-        self.scalar = scalar
-        self.spin_orbit = spin_orbit
-
-    def __call__(self, r, args_scalar, args_spin_orbit):
-        scalar = self.scalar(r, *args_scalar)
-        so = self.spin_orbit(r, *args_spin_orbit)
-        return scalar + self.l_dot_s * so
-
-
 class ElasticXSWorkspace:
+    r"""
+    Workspace for elastic scattering observables for a parametric,
+    local and l-independent interaction
+    """
     def __init__(
         self,
         projectile: tuple,
@@ -68,17 +59,7 @@ class ElasticXSWorkspace:
         self.sys.lmax = sys.lmax
         self.local_interaction_scalar = local_interaction_scalar
         self.local_interaction_spin_orbit = local_interaction_spin_orbit
-        self.interactions = [
-            [
-                PartialWaveInteraction(
-                    self.local_interaction_scalar,
-                    self.local_interaction_spin_orbit,
-                    l_dot_s,
-                )
-                for l_dot_s in self.sys.l_dot_s[l]
-            ]
-            for l in self.sys.l
-        ]
+        self.l_dot_s = np.array(sys.couplings[1:])
 
         # preocmpute angular distributions in each partial wave
         self.angles = angles
@@ -117,13 +98,25 @@ class ElasticXSWorkspace:
         splus = np.zeros(self.sys.lmax, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax - 1, dtype=np.complex128)
 
+        # precompute  the interaction matrix
+        # TODO this only works for an l-independent interaction
+        im_scalar = self.solver.interaction_matrix(
+            channels[0],
+            local_interaction=self.local_interaction_scalar,
+            local_args=args_scalar
+        )
+        im_spin_orbit = self.solver.interaction_matrix(
+            channels[0],
+            local_interaction=self.local_interaction_spin_orbit,
+            local_args=args_spin_orbit
+        )
+
         # s-wave
         _, splus[0], _ = self.solver.solve(
             self.channels[0],
             self.asymptotics[0],
-            local_interaction=self.local_interaction_scalar,
-            local_args=args_scalar,
             free_matrix=self.free_matrices[0],
+            interaction_matrix=im_scalar,
             basis_boundary=self.basis_boundary[0],
         )
 
@@ -133,9 +126,8 @@ class ElasticXSWorkspace:
             _, splus[l], _ = self.solver.solve(
                 self.channels[l],
                 self.asymptotics[l],
-                local_interaction=self.interactions[l][0],
-                local_args=(args_scalar, args_spin_orbit),
                 free_matrix=self.free_matrices[l],
+                interaction_matrix = im_scalar + self.l_dot_s[l,0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary[l],
             )
 
@@ -143,9 +135,8 @@ class ElasticXSWorkspace:
             _, sminus[l], _ = self.solver.solve(
                 self.channels[l],
                 self.asymptotics[l],
-                local_interaction=self.interactions[l][0],
-                local_args=(args_scalar, args_spin_orbit),
                 free_matrix=self.free_matrices[l],
+                interaction_matrix = im_scalar + self.l_dot_s[l,0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary[l],
             )
 
