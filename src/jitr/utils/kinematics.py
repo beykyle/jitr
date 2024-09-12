@@ -105,10 +105,10 @@ def semi_relativistic_kinematics(
         Ecm (float) : center-of-mass frame energy in MeV
         k (float) : center-of-mass frame wavenumber in fm^-1
     """
-    m_t = mass_target - Q
+    m_t = mass_target
     m_p = mass_projectile
 
-    Ecm = m_t / (m_t + m_p) * Elab + Q
+    Ecm = m_t / (m_t + m_p) * Elab
     Ep = Ecm + m_p
 
     # relativisitic correction from A. Ingemarsson 1974, Eqs. 17 & 20
@@ -132,3 +132,12 @@ def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
     return mu, Ecm, k, eta
+
+
+@njit
+def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0, Q=0):
+    mu = mass_target * mass_projectile / (mass_target + mass_projectile)
+    Elab = (mass_target + mass_projectile) / mass_target * (Ecm - Q)
+    k = np.sqrt(2 * Ecm * mu) / HBARC
+    eta = (ALPHA * Zz) * mu / (HBARC * k)
+    return mu, Elab, k, eta

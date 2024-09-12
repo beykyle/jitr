@@ -26,40 +26,52 @@ class ElasticXSWorkspace:
     Workspace for elastic scattering observables for a parametric,
     local and l-independent interaction
     """
+
     def __init__(
         self,
         projectile: tuple,
         target: tuple,
         sys: ProjectileTargetSystem,
+        Ecm: np.float64,
+        k: np.float64,
+        mu: np.float64,
+        eta: np.float64,
         local_interaction_scalar,
         local_interaction_spin_orbit,
-        Elab: np.float64,
         solver: Solver,
-        smatrix_abs_tol: np.float64,
         angles: np.array,
+        smatrix_abs_tol: np.float64 = 1e-6,
     ):
-        assert np.diff(angles) > 0 and angles[0] >= 0.0 and angles[-1] <= np.pi
+        assert np.all(np.diff(angles) > 0)
+        assert angles[0] >= 0.0 and angles[-1] <= np.pi
 
         self.projectile = projectile
         self.target = target
         self.sys = sys
         self.solver = solver
-        self.free_matrices = self.solver.free_matrix(
-            sys.channel_radii, sys.l, coupled=False
-        )
-        self.basis_boundary = self.solver.precompute_boundaries(sys.channel_radii[0:1])
-        self.mu, self.Ecm, self.k, self.eta = kinematics.semi_relativistic_kinematics(
-            sys.mass_target,
-            sys.mass_projectile,
-            Elab,
-            sys.Zproj * sys.Ztarget,
-        )
-        self.channels = sys.uncoupled(self.Ecm, self.mu, self.k, self.eta)
-
-        self.sys.lmax = sys.lmax
+        self.mu = mu
+        self.Ecm = Ecm
+        self.k = k
+        self.eta = eta
         self.local_interaction_scalar = local_interaction_scalar
         self.local_interaction_spin_orbit = local_interaction_spin_orbit
-        self.l_dot_s = np.array(sys.couplings[1:])
+        self.smatrix_abs_tol = smatrix_abs_tol
+
+        # precompute things
+        self.free_matrices = self.solver.free_matrix(
+            sys.channel_radius, sys.l, coupled=False
+        )
+        self.basis_boundary = self.solver.precompute_boundaries(sys.channel_radius)
+
+        # get information for each channel
+        channels, asymptotics = sys.get_partial_wave_channels(
+            self.Ecm, self.mu, self.k, self.eta
+        )
+
+        # de couple into two independent systems per partial wave
+        self.channels = [ch.decouple() for ch in channels]
+        self.asymptotics = [asym.decouple() for asym in asymptotics]
+        self.l_dot_s = np.array( [np.diag(coupling) for coupling in  sys.couplings[1:]])
 
         # preocmpute angular distributions in each partial wave
         self.angles = angles
@@ -75,7 +87,7 @@ class ElasticXSWorkspace:
             self.k_c = constants.ALPHA * self.Zz * self.mu / constants.HBARC
             self.eta = self.k_c / self.k
             self.sigma_l = np.angle(gamma(1 + ls + 1j * self.eta))
-            sin2 = np.sin(self.angles / 2) ** 2
+            sin2 = np.sin(self.angles / 2.) ** 2
             self.f_c = (
                 -self.eta
                 / (2 * self.k * sin2)
@@ -91,62 +103,64 @@ class ElasticXSWorkspace:
             self.k_c = 0
             self.eta = 0
             self.sigma_l = np.angle(gamma(1 + ls + 1j * 0))
-            self.f_c = np.zeros_like
+            self.f_c = np.zeros_like(angles)
             self.rutherford = np.zeros_like(angles)
 
     def xs(self, args_scalar=None, args_spin_orbit=None):
-        splus = np.zeros(self.sys.lmax, dtype=np.complex128)
-        sminus = np.zeros(self.sys.lmax - 1, dtype=np.complex128)
+        splus = np.zeros(self.sys.lmax+1, dtype=np.complex128)
+        sminus = np.zeros(self.sys.lmax, dtype=np.complex128)
 
-        # precompute  the interaction matrix
-        # TODO this only works for an l-independent interaction
+        # precompute the interaction matrix
         im_scalar = self.solver.interaction_matrix(
-            channels[0],
+            self.channels[0][0],
             local_interaction=self.local_interaction_scalar,
-            local_args=args_scalar
+            local_args=args_scalar,
         )
         im_spin_orbit = self.solver.interaction_matrix(
-            channels[0],
+            self.channels[0][0],
             local_interaction=self.local_interaction_spin_orbit,
-            local_args=args_spin_orbit
+            local_args=args_spin_orbit,
         )
 
         # s-wave
         _, splus[0], _ = self.solver.solve(
-            self.channels[0],
-            self.asymptotics[0],
+            self.channels[0][0],
+            self.asymptotics[0][0],
             free_matrix=self.free_matrices[0],
             interaction_matrix=im_scalar,
-            basis_boundary=self.basis_boundary[0],
+            basis_boundary=self.basis_boundary,
         )
 
         # higher partial waves
-        for l in self.sys.l:
+        for l in self.sys.l[1:]:
+            ch = self.channels[l]
+            asym = self.asymptotics[l]
             # j = l + 1/2
             _, splus[l], _ = self.solver.solve(
-                self.channels[l],
-                self.asymptotics[l],
+                ch[0],
+                asym[0],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix = im_scalar + self.l_dot_s[l,0] * im_spin_orbit,
-                basis_boundary=self.basis_boundary[l],
+                interaction_matrix=im_scalar + self.l_dot_s[l-1, 0] * im_spin_orbit,
+                basis_boundary=self.basis_boundary,
             )
 
             # j = l - 1/2
-            _, sminus[l], _ = self.solver.solve(
-                self.channels[l],
-                self.asymptotics[l],
+            _, sminus[l-1], _ = self.solver.solve(
+                ch[1],
+                asym[1],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix = im_scalar + self.l_dot_s[l,0] * im_spin_orbit,
-                basis_boundary=self.basis_boundary[l],
+                interaction_matrix=im_scalar + self.l_dot_s[l-1, 1] * im_spin_orbit,
+                basis_boundary=self.basis_boundary,
             )
 
             if (1.0 - np.absolute(splus[l])) < self.smatrix_abs_tol and (
-                1.0 - np.absolute(sminus[l])
+                1.0 - np.absolute(sminus[l-1])
             ) < self.smatrix_abs_tol:
                 break
 
+        #return splus, sminus
         return ElasticXS(
-            elastic_xs(
+            *elastic_xs(
                 self.k,
                 self.angles,
                 splus,

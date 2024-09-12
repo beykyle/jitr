@@ -11,25 +11,21 @@ from pathlib import Path
 
 import json
 import numpy as np
-from numba import njit
 
 from ..utils.constants import MASS_PION
 from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
 
 
-@njit
 def Vv(E, v1, v2, v3, v4, Ef):
     r"""energy-dependent, volume-central strength - real term, Eq. (7)"""
     return v1 * (1 - v2 * (E - Ef) + v3 * (E - Ef) ** 2 - v4 * (E - Ef) ** 3)
 
 
-@njit
 def Wv(E, w1, w2, Ef):
     """energy-dependent, volume-central strength - imaginary term, Eq. (7)"""
     return w1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + w2**2)
 
 
-@njit
 def Wd(E, d1, d2, d3, Ef):
     """energy-dependent, surface-central strength - imaginary term (no real
     term), Eq. (7)
@@ -37,58 +33,26 @@ def Wd(E, d1, d2, d3, Ef):
     return d1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + d3**2) * np.exp(-d2 * (E - Ef))
 
 
-@njit
 def Vso(E, vso1, vso2, Ef):
     """energy-dependent, spin-orbit strength --- real term, Eq. (7)"""
     return vso1 * np.exp(-vso2 * (E - Ef))
 
 
-@njit
 def Wso(E, wso1, wso2, Ef):
     """energy-dependent, spin-orbit strength --- imaginary term, Eq. (7)"""
     return wso1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + wso2**2)
 
 
-@njit
 def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
     """energy dependent Coulomb correction term, Eq. 23"""
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-@njit
-def KD(r, E, v1, v2, v3, v4, w1, w2, d1, d2, d3, Ef, Rv, av, Rd, ad):
-    """Koning-Delaroche without the spin-orbit terms - Eq. (1)"""
-    return (
-        -Vv(E, v1, v2, v3, v4, Ef) * woods_saxon_safe(r, Rv, av)
-        - 1j * Wv(E, w1, w2, Ef) * woods_saxon_safe(r, Rv, av)
-        - 1j * (-4 * ad) * Wd(E, d1, d2, d3, Ef) * woods_saxon_prime_safe(r, Rd, ad)
-    )
-
-
-@njit
-def decompose_alpha(alpha):
-    r"""Splits the parameter-space vector into non-spin-orbit and spin-orbit
-    parameters.
-
-    Parameters:
-        alpha (ndarray): interaction parameters
-
-    Returns:
-        parameters (tuple): 2-tuple of non-spin-orbit (`parameters[0]`) and
-            spin-orbit parameters (`parameters[1]`)
-
-    """
-    vv, rv, av, wv, rwv, awv, wd, rd, ad, vso, rso, aso, wso, rwso, awso = alpha
-    return (vv, rv, av, wv, rwv, awv, wd, rd, ad), (vso, rso, aso, wso, rwso, awso)
-
-
-@njit
-def KD_simple(r, alpha):
+def KD_scalar(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     r"""simplified Koning-Delaroche without the spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
     """
-    vv, rv, av, wv, rwv, awv, wd, rd, ad = decompose_alpha(alpha)[0]
     return (
         -vv * woods_saxon_safe(r, rv, av)
         - 1j * wv * woods_saxon_safe(r, rwv, awv)
@@ -96,19 +60,14 @@ def KD_simple(r, alpha):
     )
 
 
-@njit
-def KD_simple_so(r, alpha, lds):
+def KD_spin_orbit(r, vso, rso, aso, wso, rwso, awso):
     r"""simplified Koning-Delaroche spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
-
-    lds: l • s = 1/2 * (j(j+1) - l(l+1) - s(s+1))
     """
-    vso, rso, aso, wso, rwso, awso = decompose_alpha(alpha)[1]
-    return lds * (
-        vso / MASS_PION**2 * thomas_safe(r, rso, aso)
-        + 1j * wso / MASS_PION**2 * thomas_safe(r, rwso, awso)
-    )
+    return vso / MASS_PION**2 * thomas_safe(
+        r, rso, aso
+    ) + 1j * wso / MASS_PION**2 * thomas_safe(r, rwso, awso)
 
 
 class KDGlobal:
@@ -267,7 +226,7 @@ class KDGlobal:
                 self.Ef_0 = -8.4075
                 self.Ef_A = 0.01378
 
-    def get_params(self, A, Z, mu, E_lab, k):
+    def get_params(self, A, Z, mu, Elab, k):
         """
         Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given A, Z,
         and COM-frame energy, returns params in form useable by EnergizedKoningDelaroche
@@ -288,7 +247,7 @@ class KDGlobal:
         v2 = self.v2_0 - self.v2_A * A * factor
         v3 = self.v3_0 - self.v3_A * A * factor
         v4 = self.v4_0
-        vv = Vv(E_lab, v1, v2, v3, v4, Ef)
+        vv = Vv(Elab, v1, v2, v3, v4, Ef)
 
         # real central form
         rv = self.rv_0 - self.rv_A * A ** (-1.0 / 3.0)
@@ -297,7 +256,7 @@ class KDGlobal:
         # imag volume depth
         w1 = self.w1_0 + self.w1_A * A
         w2 = self.w2_0 + self.w2_A * A
-        wv = Wv(E_lab, w1, w2, Ef)
+        wv = Wv(Elab, w1, w2, Ef)
 
         # imag volume form
         rwv = rv
@@ -307,7 +266,7 @@ class KDGlobal:
         d1 = self.d1_0 - self.d1_asymm * delta
         d2 = self.d2_0 + self.d2_A / (1 + np.exp((A - self.d2_A3) / self.d2_A2))
         d3 = self.d3_0
-        wd = Wd(E_lab, d1, d2, d3, Ef)
+        wd = Wd(Elab, d1, d2, d3, Ef)
 
         # imag surface form
         rd = self.rd_0 - self.rd_A * A ** (1.0 / 3.0)
@@ -316,7 +275,7 @@ class KDGlobal:
         # real spin orbit depth
         vso1 = self.Vso1_0 + self.Vso1_A * A
         vso2 = self.Vso2_0
-        vso = Vso(E_lab, vso1, vso2, Ef)
+        vso = Vso(Elab, vso1, vso2, Ef)
 
         # real spin orbit form
         rso = self.rso_0 - self.rso_A * A ** (-1.0 / 3.0)
@@ -325,7 +284,7 @@ class KDGlobal:
         # imag spin orbit form
         wso1 = self.Wso1_0
         wso2 = self.Wso2_0
-        wso = Wso(E_lab, wso1, wso2, Ef)
+        wso = Wso(Elab, wso1, wso2, Ef)
 
         # imag spin orbit form
         rwso = rso
@@ -344,28 +303,28 @@ class KDGlobal:
 
             # Coulomb correction
             Vcbar = 1.73 / rc0 * Z * A ** (-1.0 / 3.0)
-            Vc = delta_VC(E_lab, Vcbar, v1, v2, v3, v4, Ef)
+            Vc = delta_VC(Elab, Vcbar, v1, v2, v3, v4, Ef)
             vv += Vc
 
-        # 15 params total
-        params = np.array(
-            [
-                vv,
-                rv * A ** (1.0 / 3.0),
-                av,
-                wv,
-                rwv * A ** (1.0 / 3.0),
-                awv,
-                wd,
-                rd * A ** (1.0 / 3.0),
-                ad,
-                vso,
-                rso * A ** (1.0 / 3.0),
-                aso,
-                wso,
-                rwso * A ** (1.0 / 3.0),
-                awso,
-            ]
+        coulomb_params = (Z * self.projectile[1], R_C)
+        scalar_params = (
+            vv,
+            rv * A ** (1.0 / 3.0),
+            av,
+            wv,
+            rwv * A ** (1.0 / 3.0),
+            awv,
+            wd,
+            rd * A ** (1.0 / 3.0),
+            ad,
+        )
+        spin_orbit_params = (
+            vso,
+            rso * A ** (1.0 / 3.0),
+            aso,
+            wso,
+            rwso * A ** (1.0 / 3.0),
+            awso,
         )
 
-        return R_C, params
+        return coulomb_params, scalar_params, spin_orbit_params

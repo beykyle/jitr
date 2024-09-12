@@ -153,21 +153,13 @@ class ProjectileTargetSystem:
         asymptotics = []
         for l in range(0, self.lmax + 1):
             num_channels = self.couplings[l].shape[0]
-            if not isinstance(Ecm, np.ndarray):
-                Ecm = np.ones(num_channels) * Ecm
-            if not isinstance(mu, np.ndarray):
-                mu = np.ones(num_channels) * mu
-            if not isinstance(k, np.ndarray):
-                k = np.ones(num_channels) * k
-            if not isinstance(eta, np.ndarray):
-                eta = np.ones(num_channels) * eta
-
+            eta_array = uniform_array_from_scalar_or_array(eta, num_channels)
             channels.append(
                 Channels(
-                    Ecm,
-                    k,
-                    mu,
-                    eta,
+                    uniform_array_from_scalar_or_array(Ecm, num_channels),
+                    uniform_array_from_scalar_or_array(k, num_channels),
+                    uniform_array_from_scalar_or_array(mu, num_channels),
+                    eta_array,
                     self.channel_radius,
                     np.ones(num_channels) * l,
                     self.couplings[l],
@@ -178,28 +170,28 @@ class ProjectileTargetSystem:
                     Hp=np.array(
                         [
                             H_plus(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta
+                            for channel_eta in eta_array
                         ],
                         dtype=np.complex128,
                     ),
                     Hm=np.array(
                         [
                             H_minus(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta
+                            for channel_eta in eta_array
                         ],
                         dtype=np.complex128,
                     ),
                     Hpp=np.array(
                         [
                             H_plus_prime(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta
+                            for channel_eta in eta_array
                         ],
                         dtype=np.complex128,
                     ),
                     Hmp=np.array(
                         [
                             H_minus_prime(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta
+                            for channel_eta in eta_array
                         ],
                         dtype=np.complex128,
                     ),
@@ -207,3 +199,12 @@ class ProjectileTargetSystem:
             )
 
         return channels, asymptotics
+
+
+def uniform_array_from_scalar_or_array(scalar_or_array, size):
+    if isinstance(scalar_or_array, np.ndarray):
+        return scalar_or_array
+    elif isinstance(scalar_or_array, list):
+        return np.array(scalar_or_array)
+    else:
+        return np.ones(size) * scalar_or_array
