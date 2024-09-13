@@ -105,8 +105,8 @@ class ElasticXSWorkspace:
             self.rutherford = np.zeros_like(angles)
 
     def smatrix(self, args_scalar=None, args_spin_orbit=None):
-        splus = np.zeros(self.sys.lmax+1, dtype=np.complex128)
-        sminus = np.zeros(self.sys.lmax+1, dtype=np.complex128)
+        splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
+        sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
 
         # precompute the interaction matrix
         im_scalar = self.solver.interaction_matrix(
@@ -134,7 +134,7 @@ class ElasticXSWorkspace:
         for l in self.sys.l[1:]:
             ch = self.channels[l]
             asym = self.asymptotics[l]
-            lds = self.l_dot_s[l-1] # starts from 1 not 0
+            lds = self.l_dot_s[l - 1]  # starts from 1 not 0
             # j = l + 1/2
             _, splus[l], _ = self.solver.solve(
                 ch[0],
@@ -196,7 +196,7 @@ def elastic_xs(
     for l in range(Splus.shape[0]):
         # scattering amplitudes
         a += 1j * (
-            (2*l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
+            (2 * l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
             * P_l_theta[l, :]
             * np.exp(2j * sigma_l[l])
             / (2 * k)
@@ -207,14 +207,13 @@ def elastic_xs(
             * np.exp(2j * sigma_l[l])
             / (2 * k)
         )
-        xsrxn += (
-            (l + 1) * (1 - np.absolute(Splus[l])**2)
-            + l * (1 - np.absolute(Sminus[l])**2)
+        xsrxn += (l + 1) * (1 - np.absolute(Splus[l]) ** 2) + l * (
+            1 - np.absolute(Sminus[l]) ** 2
         )
         xst += (l + 1) * (1 - np.real(Splus[l])) + l * (1 - np.real(Sminus[l]))
 
-    dsdo = (np.absolute(a)**2 + np.absolute(b)**2) * 10
-    Ay = np.real( a * np.conj(b) + b * np.conj(a)) * 10 / dsdo
+    dsdo = (np.absolute(a) ** 2 + np.absolute(b) ** 2) * 10
+    Ay = np.real(a * np.conj(b) + b * np.conj(a)) * 10 / dsdo
     xsrxn *= 10 * np.pi / k**2
     xst *= 10 * 2 * np.pi / k**2
 
