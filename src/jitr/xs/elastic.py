@@ -71,7 +71,7 @@ class ElasticXSWorkspace:
         # de couple into two independent systems per partial wave
         self.channels = [ch.decouple() for ch in channels]
         self.asymptotics = [asym.decouple() for asym in asymptotics]
-        self.l_dot_s = np.array( [np.diag(coupling) for coupling in  sys.couplings[1:]])
+        self.l_dot_s = np.array([np.diag(coupling) for coupling in sys.couplings[1:]])
 
         # preocmpute angular distributions in each partial wave
         self.angles = angles
@@ -87,7 +87,7 @@ class ElasticXSWorkspace:
             self.k_c = constants.ALPHA * self.Zz * self.mu / constants.HBARC
             self.eta = self.k_c / self.k
             self.sigma_l = np.angle(gamma(1 + ls + 1j * self.eta))
-            sin2 = np.sin(self.angles / 2.) ** 2
+            sin2 = np.sin(self.angles / 2.0) ** 2
             self.f_c = (
                 -self.eta
                 / (2 * self.k * sin2)
@@ -149,6 +149,7 @@ class ElasticXSWorkspace:
             )
 
             # j = l - 1/2
+
             _, sminus[l], _ = self.solver.solve(
                 ch[1],
                 asym[1],
