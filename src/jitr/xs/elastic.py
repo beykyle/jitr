@@ -106,9 +106,9 @@ class ElasticXSWorkspace:
             self.f_c = np.zeros_like(angles)
             self.rutherford = np.zeros_like(angles)
 
-    def xs(self, args_scalar=None, args_spin_orbit=None):
+    def smatrix(self, args_scalar=None, args_spin_orbit=None):
         splus = np.zeros(self.sys.lmax+1, dtype=np.complex128)
-        sminus = np.zeros(self.sys.lmax, dtype=np.complex128)
+        sminus = np.zeros(self.sys.lmax+1, dtype=np.complex128)
 
         # precompute the interaction matrix
         im_scalar = self.solver.interaction_matrix(
@@ -131,34 +131,41 @@ class ElasticXSWorkspace:
             basis_boundary=self.basis_boundary,
         )
 
+
+        sminus[0] = splus[0]
+
         # higher partial waves
         for l in self.sys.l[1:]:
             ch = self.channels[l]
             asym = self.asymptotics[l]
+            lds = self.l_dot_s[l-1] # starts from 1 not 0
             # j = l + 1/2
             _, splus[l], _ = self.solver.solve(
                 ch[0],
                 asym[0],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar + self.l_dot_s[l-1, 0] * im_spin_orbit,
+                interaction_matrix=im_scalar + lds[0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
 
             # j = l - 1/2
-            _, sminus[l-1], _ = self.solver.solve(
+            _, sminus[l], _ = self.solver.solve(
                 ch[1],
                 asym[1],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar + self.l_dot_s[l-1, 1] * im_spin_orbit,
+                interaction_matrix=im_scalar + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
 
             if (1.0 - np.absolute(splus[l])) < self.smatrix_abs_tol and (
-                1.0 - np.absolute(sminus[l-1])
+                1.0 - np.absolute(sminus[l])
             ) < self.smatrix_abs_tol:
                 break
 
-        #return splus, sminus
+        return splus[:l], sminus[:l]
+
+    def xs(self, args_scalar=None, args_spin_orbit=None):
+        splus, sminus = self.smatrix(args_scalar, args_spin_orbit)
         return ElasticXS(
             *elastic_xs(
                 self.k,
@@ -186,13 +193,11 @@ def elastic_xs(
 ):
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
+    xsrxn = 0.0
+    xst = 0.0
 
-    # l = 0 only has j=1/2 contribution
-    a += (1 - Splus[0]) * P_l_theta[0, :] * np.exp(2j * sigma_l[0]) / (2j * k)
-    xsrxn = 1 - np.absolute(Splus[0])
-    xst = 1 - np.real(Splus[0])  # only valid for neutral projectiles
-
-    for l in range(1, Splus.shape[0]):
+    for l in range(Splus.shape[0]):
+        # scattering amplitudes
         a += (
             (2 * l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
             * P_l_theta[l, :]
