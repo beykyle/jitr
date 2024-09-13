@@ -128,7 +128,6 @@ class ElasticXSWorkspace:
             interaction_matrix=im_scalar,
             basis_boundary=self.basis_boundary,
         )
-        sminus[0] = 0
 
         # higher partial waves
         for l in self.sys.l[1:]:
