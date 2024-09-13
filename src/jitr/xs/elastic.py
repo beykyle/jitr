@@ -1,9 +1,9 @@
 from numba import njit
 from dataclasses import dataclass
-from scipy.special import eval_legendre, gamma
+from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
 
-from ..utils import eval_assoc_legendre, constants, kinematics
+from ..utils import constants, kinematics
 from ..reactions import ProjectileTargetSystem
 from ..rmatrix import Solver
 
@@ -77,9 +77,7 @@ class ElasticXSWorkspace:
         self.angles = angles
         ls = self.sys.l[:, np.newaxis]
         self.P_l_costheta = eval_legendre(ls, np.cos(self.angles))
-        self.P_1_l_costheta = np.array(
-            [eval_assoc_legendre(l, np.cos(self.angles)) for l in self.sys.l]
-        )
+        self.P_1_l_costheta = lpmv(1, ls, np.cos(self.angles))
 
         # precompute things related to Coulomb interaction
         self.Zz = self.projectile[1] * self.target[1]
@@ -216,8 +214,8 @@ def elastic_xs(
         )
         xst += (l + 1) * (1 - np.real(Splus[l])) + l * (1 - np.real(Sminus[l]))
 
-    dsdo = np.real(a * np.conj(a) + b * np.conj(b)) * 10
-    Ay = np.real(a * np.conj(b) + b * np.conj(a)) * 10 / dsdo
+    dsdo = (np.absolute(a)**2 + np.absolute(b)**2) * 10
+    Ay = 2 * np.real( a * np.conj(b)) * 10 / dsdo
     xsrxn *= 10 * np.pi / k**2
     xst *= 10 * 2 * np.pi / k**2
 

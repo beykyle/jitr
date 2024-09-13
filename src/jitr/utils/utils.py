@@ -12,15 +12,6 @@ from .free_solutions import (
 )
 
 
-def eval_assoc_legendre(n, x):
-    if n == 0:
-        return np.zeros(x.size)
-    else:
-        return -((1 - x**2) ** (1 / 2)) * derivative(
-            lambda z: eval_legendre(n, z), x, dx=1e-9
-        )
-
-
 @njit
 def complex_det(matrix: np.array):
     d = np.linalg.det(matrix @ np.conj(matrix).T)
