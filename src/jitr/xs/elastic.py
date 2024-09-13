@@ -128,9 +128,7 @@ class ElasticXSWorkspace:
             interaction_matrix=im_scalar,
             basis_boundary=self.basis_boundary,
         )
-
-
-        sminus[0] = splus[0]
+        sminus[0] = 0
 
         # higher partial waves
         for l in self.sys.l[1:]:
@@ -197,25 +195,26 @@ def elastic_xs(
 
     for l in range(Splus.shape[0]):
         # scattering amplitudes
-        a += (
-            (2 * l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
+        a += 1j * (
+            (2*l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
             * P_l_theta[l, :]
             * np.exp(2j * sigma_l[l])
-            / (2j * k)
+            / (2 * k)
         )
-        b += (
+        b += 1j * (
             (Sminus[l] - Splus[l])
             * P_1_l_theta[l, :]
             * np.exp(2j * sigma_l[l])
-            / (2j * k)
+            / (2 * k)
         )
-        xsrxn += (l + 1) * (1 - np.absolute(Splus[l])) + l * (
-            1 - np.absolute(Sminus[l])
+        xsrxn += (
+            (l + 1) * (1 - np.absolute(Splus[l])**2)
+            + l * (1 - np.absolute(Sminus[l])**2)
         )
         xst += (l + 1) * (1 - np.real(Splus[l])) + l * (1 - np.real(Sminus[l]))
 
     dsdo = (np.absolute(a)**2 + np.absolute(b)**2) * 10
-    Ay = 2 * np.real( a * np.conj(b)) * 10 / dsdo
+    Ay = np.real( a * np.conj(b) + b * np.conj(a)) * 10 / dsdo
     xsrxn *= 10 * np.pi / k**2
     xst *= 10 * 2 * np.pi / k**2
 
