@@ -23,8 +23,7 @@ class ElasticXS:
 
 class ElasticXSWorkspace:
     r"""
-    Workspace for elastic scattering observables for a parametric,
-    local and l-independent interaction
+    Workspace for elastic scattering observables for local interactions with spin-orbit coupling
     """
 
     def __init__(
