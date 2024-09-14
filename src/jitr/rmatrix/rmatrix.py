@@ -142,7 +142,6 @@ class Solver:
         weights=None,
         wavefunction=None,
     ):
-
         # calculate everything that hasn't been precomputed
         if free_matrix is None:
             free_matrix = self.free_matrix(
