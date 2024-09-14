@@ -1,4 +1,5 @@
 import numpy as np
+from dataclasses import astuple, dataclass
 
 from ..utils.free_solutions import (
     H_plus,
@@ -6,6 +7,17 @@ from ..utils.free_solutions import (
     H_plus_prime,
     H_minus_prime,
 )
+
+
+@dataclass
+class ChannelKinematics:
+    mu: np.float64
+    Ecm: np.float64
+    k: np.float64
+    eta: np.float64
+
+    def __iter__(self):
+        return iter(astuple(self))
 
 
 def scalar_couplings(l):
