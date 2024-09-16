@@ -69,10 +69,11 @@ def test_local():
 
     for i, Elab in enumerate(egrid):
         # calculate channel kinematics at this energy
-        mu, Ecm, k, eta = kinematics.classical_kinematics(
-            sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+        channels, asymptotics = sys.get_partial_wave_channels(
+            *kinematics.classical_kinematics(
+                sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+            )
         )
-        channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
 
         for l in sys.l:
             # Lagrange-Legendre R-Matrix solve for this partial wave

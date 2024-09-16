@@ -38,10 +38,10 @@ R0 = 6  # Woods-Saxon potential radius
 a0 = 1.2  # Woods-Saxon potential diffuseness
 params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
 
-mu, Ecm, k, eta = kinematics.classical_kinematics(
+channel_kinematics = kinematics.classical_kinematics(
     sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
 )
-channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+channels, asymptotics = sys.get_partial_wave_channels(*channel_kinematics)
 
 
 def interaction(r, *params):

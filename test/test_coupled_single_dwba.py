@@ -40,15 +40,18 @@ sys_2level = reactions.ProjectileTargetSystem(
     coupling=coupling_2level,
 )
 
-l = 0
 Elab = 42.1
-mu, Ecm, k, eta = classical_kinematics(
-    sys_2level.mass_target,
-    sys_2level.mass_projectile,
-    Elab,
-    sys_2level.Zproj * sys_2level.Ztarget,
+channels, asymptotics = sys_2level.get_partial_wave_channels(
+    *classical_kinematics(
+        sys_2level.mass_target,
+        sys_2level.mass_projectile,
+        Elab,
+        sys_2level.Zproj * sys_2level.Ztarget,
+    )
 )
-channels, asymptotics = sys_2level.get_partial_wave_channels(Ecm, mu, k, eta)
+
+# look at the s-wave
+l = 0
 
 # get coupled channels for partial wave l
 channels_coupled = channels[l]
