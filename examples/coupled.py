@@ -69,8 +69,8 @@ def coupled_channels_example():
     )
 
     kinem = kinematics.classical_kinematics(
-            sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-        )
+        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+    )
     kinem.Ecm -= sys.channel_levels
     channels, asymptotics = sys.get_partial_wave_channels(*kinem)
 
