@@ -52,7 +52,6 @@ def get_AME_binding_energy(A, Z):
     return None
 
 
-@njit
 def semiempirical_binding_energy(A, Z):
     r"""Calculates binding in MeV/c^2 given mass number, A, proton number, Z, by semi-empriical
     mass formula"""
@@ -137,7 +136,6 @@ def semi_relativistic_kinematics(
     return ChannelKinematics(Ecm, mu, k, eta)
 
 
-@njit
 def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Ecm = mass_target / (mass_target + mass_projectile) * Elab + Q
@@ -146,7 +144,6 @@ def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
     return ChannelKinematics(Ecm, mu, k, eta)
 
 
-@njit
 def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0, Q=0):
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Elab = (mass_target + mass_projectile) / mass_target * (Ecm - Q)
