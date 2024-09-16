@@ -232,7 +232,7 @@ class Workspace:
             _, snlj, xn, _ = self.solver.solve(
                 nch[ji],
                 nasym[ji],
-                free_matrix=self.free_matrices[li],
+                free_matrix=self.free_matrices[l],
                 interaction_matrix=im_scalar_n + lds * im_spin_orbit_n,
                 basis_boundary=self.basis_boundary,
                 wavefunction=True,
@@ -240,7 +240,7 @@ class Workspace:
             _, splj, xp, _ = self.solver.solve(
                 pch[ji],
                 pasym[ji],
-                free_matrix=self.free_matrices[li],
+                free_matrix=self.free_matrices[l],
                 interaction_matrix=im_scalar_p + lds * im_spin_orbit_p,
                 basis_boundary=self.basis_boundary,
                 wavefunction=True,
