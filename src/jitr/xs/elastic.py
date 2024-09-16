@@ -22,7 +22,7 @@ class ElasticXS:
     rxn: np.float64
 
 
-class ElasticXSWorkspace:
+class Workspace:
     r"""
     Workspace for elastic scattering observables for local interactions with spin-orbit coupling
     """

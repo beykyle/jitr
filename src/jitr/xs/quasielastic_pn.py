@@ -1,15 +1,19 @@
-from numba import njit
-from dataclasses import astuple, dataclass
-from scipy.special import eval_legendre, lpmv, gamma, sph_harm
+from scipy.special import sph_harm, gamma
 from sympy.physics.wigner import clebsch_gordan
 
 import numpy as np
 
-from ..utils import constants, kinematics
+from ..utils import constants
+from ..utils.kinematics import (
+    ChannelKinematics,
+    mass,
+    get_AME_binding_energy,
+    classical_kinematics,
+    classical_kinematics_cm,
+)
 from ..reactions import (
     spin_half_orbit_coupling,
     ProjectileTargetSystem,
-    ChannelKinematics,
 )
 from ..rmatrix import Solver
 
@@ -19,24 +23,22 @@ from ..rmatrix import Solver
 # review partial wave expansion - do we set the j_p=l_p-1/2 component?
 
 
-def quasielastic_pn_kinematics(
-    target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.foat64
-):
-    mass_target = kinematics.mass(*target)
-    mass_analog = kinematics.mass(*analog)
-    mn = kinematics.mass(1, 0)
-    mp = kinematics.mass(1, 1)
-    BE_target = kinematics.get_AME_binding_energy(*target)
-    BE_analog = kinematics.get_AME_binding_energy(*analog)
+def kinematics(target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64):
+    mass_target = mass(*target)
+    mass_analog = mass(*analog)
+    mn = mass(1, 0)
+    mp = mass(1, 1)
+    BE_target = get_AME_binding_energy(*target)
+    BE_analog = get_AME_binding_energy(*analog)
     Q = BE_analog - BE_target - Ex_IAS
     CDE = 1.33 * (target[1] + analog[1]) * 0.5 / target[0] ** (1.0 / 3.0)
-    kinematics_entrance = kinematics.classical_kinematics(mass_target, mp, Elab)
+    kinematics_entrance = classical_kinematics(mass_target, mp, Elab)
     Ecm_exit = kinematics_entrance.Ecm + Q
-    kinematics_exit = kinematics.classical_kinematics_cm(mass_analog, mn, Ecm_exit)
+    kinematics_exit = classical_kinematics_cm(mass_analog, mn, Ecm_exit)
     return kinematics_entrance, kinematics_exit, Q, CDE
 
 
-class QuasielasticPNSystem:
+class System:
     r"""
     Stores physics parameters of system. Calculates useful parameters for each partial wave.
     """
@@ -61,8 +63,8 @@ class QuasielasticPNSystem:
         self.analog = analog
         self.mass_target = mass_target
         self.mass_analog = mass_analog
-        self.mass_p = kinematics.mass(1, 1)
-        self.mass_n = kinematics.mass(1, 0)
+        self.mass_p = mass(1, 1)
+        self.mass_n = mass(1, 0)
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
 
         self.entrance = ProjectileTargetSystem(
@@ -86,14 +88,14 @@ class QuasielasticPNSystem:
         )
 
 
-class ChexPNWorkspace:
+class Workspace:
     r"""
     Workspace for (p,n) quasi-elastic scattering observables for local interactions
     """
 
     def __init__(
         self,
-        sys: QuasielasticPNSystem,
+        sys: System,
         kinematrics_entrance: ChannelKinematics,
         kinematrics_exit: ChannelKinematics,
         entrance_interaction_scalar,
@@ -249,7 +251,6 @@ class ChexPNWorkspace:
 
         # S-wave
         Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(l, 0)
-        Tpn[l, 1] = Tpn[0, 0]
 
         # higher partial waves
         for l in self.sys.l[1:]:
