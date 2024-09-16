@@ -1,7 +1,4 @@
 import numpy as np
-from numba import njit
-from scipy.misc import derivative
-from scipy.special import eval_legendre
 
 from .free_solutions import (
     CoulombAsymptotics,

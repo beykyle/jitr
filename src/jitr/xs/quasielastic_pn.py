@@ -20,7 +20,6 @@ from ..rmatrix import Solver
 # TODO
 # test using the coefficients not the wavefunctions for the dwba t-matrix
 # test doing DWBA T-matrix in s-space not r-space
-# review partial wave expansion - do we set the j_p=l_p-1/2 component?
 
 
 def kinematics(target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64):
@@ -250,7 +249,7 @@ class Workspace:
             return tlj, snlj, splj
 
         # S-wave
-        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(l, 0)
+        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(0, 0)
 
         # higher partial waves
         for l in self.sys.l[1:]:
