@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 
 from .free_solutions import (
     CoulombAsymptotics,
