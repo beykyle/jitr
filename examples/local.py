@@ -42,7 +42,7 @@ def local_interaction_example():
         Zproj=proton[1],
     )
 
-    mu, Ecm, k, eta = kinematics.classical_kinematics(
+    Ecm, mu, k, eta = kinematics.classical_kinematics(
         sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
     )
     channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
@@ -234,10 +234,11 @@ def rmse_RK_LM():
 
     for i, Elab in enumerate(egrid):
         # calculate channel kinematics at this energy
-        mu, Ecm, k, eta = kinematics.classical_kinematics(
-            sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+        channels, asymptotics = sys.get_partial_wave_channels(
+            *kinematics.classical_kinematics(
+                sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+            )
         )
-        channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
 
         # since our interaction is l-independent and we're using the same
         # set of parameters for each partial wave, we can actually pre-compute
@@ -295,6 +296,6 @@ def rmse_RK_LM():
 
 
 if __name__ == "__main__":
-    # channel_radius_dependence_test()
-    # local_interaction_example()
+    channel_radius_dependence_test()
+    local_interaction_example()
     rmse_RK_LM()

@@ -68,11 +68,11 @@ def coupled_channels_example():
         coupling=lambda l: coupling_matrix,
     )
 
-    mu, Ecm, k, eta = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-    Ecm -= sys.channel_levels  #
-    channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+    kinem = kinematics.classical_kinematics(
+            sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
+        )
+    kinem.Ecm -= sys.channel_levels
+    channels, asymptotics = sys.get_partial_wave_channels(*kinem)
 
     # initialize solver
     solver = rmatrix.Solver(40)
