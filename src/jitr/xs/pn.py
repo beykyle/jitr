@@ -13,6 +13,28 @@ from ..reactions import (
 )
 from ..rmatrix import Solver
 
+# TODO
+# test using the coefficients not the wavefunctions for the dwba t-matrix
+# test doing DWBA T-matrix in s-space not r-space
+# review partial wave expansion - do we set the j_p=l_p-1/2 component?
+
+
+def quasielastic_pn_kinematics(
+    target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.foat64
+):
+    mass_target = kinematics.mass(*target)
+    mass_analog = kinematics.mass(*analog)
+    mn = kinematics.mass(1, 0)
+    mp = kinematics.mass(1, 1)
+    BE_target = kinematics.get_AME_binding_energy(*target)
+    BE_analog = kinematics.get_AME_binding_energy(*analog)
+    Q = BE_analog - BE_target - Ex_IAS
+    CDE = 1.33 * (target[1] + analog[1]) * 0.5 / target[0] ** (1.0 / 3.0)
+    kinematics_entrance = kinematics.classical_kinematics(mass_target, mp, Elab)
+    Ecm_exit = kinematics_entrance.Ecm + Q
+    kinematics_exit = kinematics.classical_kinematics_cm(mass_analog, mn, Ecm_exit)
+    return kinematics_entrance, kinematics_exit, Q, CDE
+
 
 class QuasielasticPNSystem:
     r"""
@@ -25,12 +47,8 @@ class QuasielasticPNSystem:
         lmax: np.int64,
         target: tuple,
         analog: tuple,
-        Elab: np.float64,
-        Q_IAS: np.float64,
-        entrance_kinematics: ChannelKinematics,
-        exit_kinematics: ChannelKinematics,
-        mass_target: np.float64 = 0,
-        mass_analog: np.float64 = 0,
+        mass_target: np.float64,
+        mass_analog: np.float64,
     ):
         r"""
         @params
@@ -45,7 +63,6 @@ class QuasielasticPNSystem:
         self.mass_analog = mass_analog
         self.mass_p = kinematics.mass(1, 1)
         self.mass_n = kinematics.mass(1, 0)
-        self.Q_IAS = Q_IAS
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
 
         self.entrance = ProjectileTargetSystem(
@@ -85,15 +102,19 @@ class ChexPNWorkspace:
         exit_interaction_spin_orbit,
         solver: Solver,
         angles: np.array,
-        smatrix_abs_tol: np.float64 = 1e-6,
+        tmatrix_abs_tol: np.float64 = 1e-6,
     ):
         assert np.all(np.diff(angles) > 0)
         assert angles[0] >= 0.0 and angles[-1] <= np.pi
         self.sys = sys
+        A = self.sys.target[0]
+        Z = self.sys.target[1]
+        N = A - Z
+        self.isovector_factor = np.sqrt(np.fabs(N - Z)) / (N - Z - 1)
         self.kinematrics_entrance = kinematrics_entrance
         self.kinematrics_exit = kinematrics_exit
         self.solver = solver
-        self.smatrix_abs_tol = smatrix_abs_tol
+        self.tmatrix_abs_tol = tmatrix_abs_tol
 
         self.entrance_interaction_scalar = entrance_interaction_scalar
         self.entrance_interaction_spin_orbit = entrance_interaction_spin_orbit
@@ -132,14 +153,14 @@ class ChexPNWorkspace:
             / (4 * np.pi**2 * constants.HBARC**4 * (2 * 1.0 / 2 + 1))
         )
         self.geometric_factor = np.zeros(
-            (2, 2, self.sys.l_max, 2, self.angles.shape[0]), dtype=np.complex128
+            (2, 2, self.sys.lmax, 2, self.angles.shape[0]), dtype=np.complex128
         )
         self.sigma_c = np.angle(
             gamma(1 + self.sys.l + 1j * self.kinematrics_entranc.eta)
         )
         for im, mu in enumerate([-0.5, 0.5]):
             for imp, mu_pr in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.l_max):
+                for l in range(0, self.sys.lmax):
                     for ijp, jp in enumerate([l - 0.5, l + 0.5]):
                         if abs(mu - mu_pr) <= l and jp >= 0:
                             ylm = sph_harm(mu - mu_pr, l, 0, self.angles)
@@ -159,18 +180,84 @@ class ChexPNWorkspace:
                                 * ylm
                             )
 
-    def tmatrix(self, args_entrance=None, args_exit=None):
-        Tpn = np.zeros((2, l_max), dtype=np.complex128)
-        Sn = np.zeros((2, l_max), dtype=np.complex128)
-        Sp = np.zeros((2, l_max), dtype=np.complex128)
+    def tmatrix(
+        self,
+        args_entrance_scalar=None,
+        args_entrance_spin_orbit=None,
+        args_exit_scalar=None,
+        args_exit_spin_orbit=None,
+    ):
+        Tpn = np.zeros((2, self.sys.lmax), dtype=np.complex128)
+        Sn = np.zeros((2, self.sys.lmax), dtype=np.complex128)
+        Sp = np.zeros((2, self.sys.lmax), dtype=np.complex128)
 
         # precomute scalar and spin-obit interaction matrices for distorted wave solns
+        im_scalar_p = self.solver.interaction_matrix(
+            self.p_channels[0][0],
+            local_interaction=self.entrance_interaction_scalar,
+            local_args=args_entrance_scalar,
+        )
+        im_spin_orbit_p = self.solver.interaction_matrix(
+            self.p_channels[0][0],
+            local_interaction=self.entrance_interaction_spin_orbit,
+            local_args=args_entrance_spin_orbit,
+        )
+        im_scalar_n = self.solver.interaction_matrix(
+            self.n_channels[0][0],
+            local_interaction=self.exit_interaction_scalar,
+            local_args=args_exit_scalar,
+        )
+        im_spin_orbit_n = self.solver.interaction_matrix(
+            self.n_channels[0][0],
+            local_interaction=self.exit_interaction_spin_orbit,
+            local_args=args_exit_spin_orbit,
+        )
 
         # precompute isovector part by subtracting entrance and exit potentials
+        im_scalar_isovector = -(im_scalar_n - im_scalar_p) * self.isovector_factor
+        im_spin_orbit_isovector = (
+            -(im_spin_orbit_n - im_spin_orbit_p) * self.isovector_factor
+        )
+        w = self.solver.kernel.quadrature.weights
 
-        # for each partial wave
-        # get coefficients and smatrix elements
-        # get pn t matrix
+        def tmatrix_element(l, ji):
+            nch = self.n_channels[l]
+            pch = self.p_channels[l]
+            nasym = self.n_asymptotics[l]
+            pasym = self.p_asymptotics[l]
+            lds = self.l_dot_s[l - 1]  # starts from 1 not 0
+
+            _, snlj, xn, _ = self.solver.solve(
+                nch[ji],
+                nasym[ji],
+                free_matrix=self.free_matrices[li],
+                interaction_matrix=im_scalar_n + lds * im_spin_orbit_n,
+                basis_boundary=self.basis_boundary,
+                wavefunction=True,
+            )
+            _, splj, xp, _ = self.solver.solve(
+                pch[ji],
+                pasym[ji],
+                free_matrix=self.free_matrices[li],
+                interaction_matrix=im_scalar_p + lds * im_spin_orbit_p,
+                basis_boundary=self.basis_boundary,
+                wavefunction=True,
+            )
+            v1 = np.diag(im_scalar_isovector) + lds * np.diag(im_spin_orbit_isovector)
+            tlj = np.sum(xp * v1 * xn * w) * self.sys.channel_radius
+            return tlj, snlj, splj
+
+        # S-wave
+        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(l, 0)
+        Tpn[l, 1] = Tpn[0, 0]
+
+        # higher partial waves
+        for l in self.sys.l[1:]:
+            Tpn[l, 0], Sn[l, 0], Sp[l, 0] = tmatrix_element(l, 0)
+            Tpn[l, 1], Sn[l, 1], Sp[l, 1] = tmatrix_element(l, 1)
+
+            if Tpn[l, 1] < self.tmatrix_abs_tol and Tpn[l, 1] < self.tmatrix_abs_tol:
+                break
 
         return Tpn, Sn, Sp
 
@@ -179,7 +266,8 @@ class ChexPNWorkspace:
         Tpn = self.tmatrix(args_entrance, args_exit)
         for im, mu in enumerate([-0.5, 0.5]):
             for imp, mu_pr in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.l_max):
+                # sum over partial waves
+                for l in range(0, self.sys.lmax):
                     for ijp, jp in enumerate([l - 0.5, l + 0.5]):
                         if abs(mu - mu_pr) <= l and jp >= 0:
                             T[im, imp, :] += (

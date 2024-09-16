@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from numba import njit
+from dataclasses import astuple, dataclass
 
 from .constants import ALPHA, HBARC, MASS_N, MASS_P
 
@@ -10,6 +11,17 @@ __AME_DB__ = None
 __AME_PATH__ = (
     Path(__file__).parent.resolve() / Path("./../../data/mass_1.mas20.txt")
 ).resolve()
+
+
+@dataclass
+class ChannelKinematics:
+    Ecm: np.float64
+    mu: np.float64
+    k: np.float64
+    eta: np.float64
+
+    def __iter__(self):
+        return iter(astuple(self))
 
 
 def init_AME_db():
@@ -122,7 +134,7 @@ def semi_relativistic_kinematics(
     k_C = ALPHA * Zz * mu / HBARC
     eta = k_C / k
 
-    return mu, Ecm, k, eta
+    return ChannelKinematics(Ecm, mu, k, eta)
 
 
 @njit
@@ -131,7 +143,7 @@ def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
     Ecm = mass_target / (mass_target + mass_projectile) * Elab + Q
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
-    return mu, Ecm, k, eta
+    return ChannelKinematics(Ecm, mu, k, eta)
 
 
 @njit
@@ -140,4 +152,4 @@ def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0, Q=0):
     Elab = (mass_target + mass_projectile) / mass_target * (Ecm - Q)
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
-    return mu, Elab, k, eta
+    return Elab, ChannelKinematics(Ecm, mu, k, eta)

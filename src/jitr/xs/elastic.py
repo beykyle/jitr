@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
 
-from ..utils import constants, kinematics
+from ..utils import constants
+from ..utils.kinematics import ChannelKinematics
 from ..reactions import ProjectileTargetSystem
 from ..rmatrix import Solver
 
@@ -31,10 +32,7 @@ class ElasticXSWorkspace:
         projectile: tuple,
         target: tuple,
         sys: ProjectileTargetSystem,
-        Ecm: np.float64,
-        k: np.float64,
-        mu: np.float64,
-        eta: np.float64,
+        kinematics: ChannelKinematics,
         local_interaction_scalar,
         local_interaction_spin_orbit,
         solver: Solver,
@@ -48,10 +46,10 @@ class ElasticXSWorkspace:
         self.target = target
         self.sys = sys
         self.solver = solver
-        self.mu = mu
-        self.Ecm = Ecm
-        self.k = k
-        self.eta = eta
+        self.mu = kinematics.mu
+        self.Ecm = kinematics.Ecm
+        self.k = kinematics.k
+        self.eta = kinematics.eta
         self.local_interaction_scalar = local_interaction_scalar
         self.local_interaction_spin_orbit = local_interaction_spin_orbit
         self.smatrix_abs_tol = smatrix_abs_tol

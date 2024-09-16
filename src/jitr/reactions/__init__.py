@@ -3,7 +3,6 @@ from .system import (
     ProjectileTargetSystem,
     Asymptotics,
     Channels,
-    ChannelKinematics,
     spin_half_orbit_coupling,
     scalar_couplings,
 )
