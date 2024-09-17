@@ -132,7 +132,7 @@ class Kernel:
         Note: integral is performed in s space, with ds = k dr. To get value of
         integral over r space, result should be scaled by 1/k
         """
-        return np.sum(bra.conj() * self.matrix_local(f, a, args) * ket)
+        return np.sum(bra * self.matrix_local(f, a, args) * ket)
 
     def dwba_nonlocal(
         self,
@@ -156,7 +156,7 @@ class Kernel:
         # get operator in Lagrange coords as (nbasis x nbasis) matrix
         Vnm = self.matrix_nonlocal(f, a, is_symmetric=is_symmetric, args=args)
         # reduce
-        return bra.conj().T @ Vnm @ ket
+        return bra.T @ Vnm @ ket
 
     def matrix_local(self, f, a: np.float64, args=()):
         r"""
