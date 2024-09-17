@@ -155,15 +155,17 @@ class Workspace:
             / (4 * np.pi**2 * constants.HBARC**4 * (2 * 1.0 / 2 + 1))
         )
         self.geometric_factor = np.zeros(
-            (2, 2, self.sys.lmax+1, 2, self.angles.shape[0]), dtype=np.complex128
+            (2, 2, self.sys.lmax + 1, 2, self.angles.shape[0]), dtype=np.complex128
         )
         self.sigma_c = np.angle(
             gamma(1 + self.sys.l + 1j * self.kinematics_entrance.eta)
         )
         for im, mu in enumerate([-0.5, 0.5]):
             for imp, mu_pr in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax+1):
-                    for ijp, jp in enumerate([l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]):
+                for l in range(0, self.sys.lmax + 1):
+                    for ijp, jp in enumerate(
+                        [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
+                    ):
                         if abs(mu - mu_pr) <= l and jp >= 0:
                             ylm = sph_harm(mu - mu_pr, l, 0, self.angles)
                             cg0 = clebsch_gordan(l, 1 / 2, jp, mu - mu_pr, mu, mu_pr)
@@ -187,9 +189,9 @@ class Workspace:
         args_exit_scalar=None,
         args_exit_spin_orbit=None,
     ):
-        Tpn = np.zeros((self.sys.lmax+1, 2), dtype=np.complex128)
-        Sn = np.zeros((self.sys.lmax+1, 2), dtype=np.complex128)
-        Sp = np.zeros((self.sys.lmax+1, 2), dtype=np.complex128)
+        Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
+        Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
+        Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
 
         # precomute scalar and spin-obit interaction matrices for distorted wave solns
         im_scalar_p = self.solver.interaction_matrix(
@@ -246,7 +248,7 @@ class Workspace:
             v1 = np.diag(im_scalar_isovector) + lds[ji] * np.diag(
                 im_spin_orbit_isovector
             )
-            #TODO ensure xn, xp, and v1 are all evaluated on the same s=k_p r grid
+            # TODO ensure xn, xp, and v1 are all evaluated on the same s=k_p r grid
             # artificially set k_0 = k_p for neutron channel
             # divide by kp?
             # ensure agreement between entrance and exit channel s-matrices
