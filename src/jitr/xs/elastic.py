@@ -150,8 +150,8 @@ class Workspace:
                 basis_boundary=self.basis_boundary,
             )
 
-            if (1.0 - np.absolute(splus[l])) < self.smatrix_abs_tol and (
-                1.0 - np.absolute(sminus[l])
+            if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
+                np.absolute(1 - sminus[l])
             ) < self.smatrix_abs_tol:
                 break
 
