@@ -1,4 +1,5 @@
 from numba import njit
+import pickle
 from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
@@ -27,6 +28,27 @@ class Workspace:
     Workspace for elastic scattering observables for local interactions with spin-orbit coupling
     """
 
+    @classmethod
+    def load(obj, filename):
+        r"""Loads a previously trained emulator.
+
+        Parameters:
+            filename (string): name of file
+
+        Returns:
+            emulator (ScatteringAmplitudeEmulator): previously trainined `ScatteringAmplitudeEmulator`
+
+        """
+        with open(filename, "rb") as f:
+            ws = pickle.load(f)
+            ws.solver = Solver(ws.nbasis)
+        return ws
+
+    def save(self, filename):
+        self.solver = None
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+
     def __init__(
         self,
         projectile: tuple,
@@ -46,6 +68,7 @@ class Workspace:
         self.target = target
         self.sys = sys
         self.solver = solver
+        self.nbasis = solver.kernel.quadrature.nbasis
         self.mu = kinematics.mu
         self.Ecm = kinematics.Ecm
         self.k = kinematics.k
