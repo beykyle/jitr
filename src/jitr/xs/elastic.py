@@ -54,7 +54,6 @@ class Workspace:
         angles: np.array,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
-        assert np.all(np.diff(angles) > 0)
         assert angles[0] >= 0.0 and angles[-1] <= np.pi
 
         self.projectile = projectile
