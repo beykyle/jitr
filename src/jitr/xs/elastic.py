@@ -54,7 +54,6 @@ class Workspace:
         angles: np.array,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
-        assert angles[0] >= 0.0 and angles[-1] <= np.pi
 
         self.projectile = projectile
         self.target = target
@@ -180,7 +179,6 @@ class Workspace:
             rutherford = self.rutherford
             f_c = self.f_c
         else:
-            assert np.max(angles) <= np.pi and np.min(angles) >= 0
             P_l_costheta = eval_legendre(self.ls, np.cos(angles))
             P_1_l_costheta = lpmv(1, self.ls, np.cos(angles))
             sin2 = np.sin(angles / 2) ** 2
