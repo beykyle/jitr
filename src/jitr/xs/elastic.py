@@ -202,7 +202,7 @@ class Workspace:
         return ElasticXS(
             *elastic_xs(
                 self.k,
-                self.angles,
+                angles,
                 splus,
                 sminus,
                 P_l_costheta,
