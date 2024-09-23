@@ -17,10 +17,12 @@ class ElasticXS:
     reaction cross secton, all at a given energy
     """
 
-    dsdo: np.array
-    Ay: np.array
+    dsdo: np.ndarray
+    Ay: np.ndarray
     t: np.float64
     rxn: np.float64
+    rutherford: np.ndarray = None
+
 
 
 class Workspace:
@@ -171,7 +173,25 @@ class Workspace:
 
         return splus[:l], sminus[:l]
 
-    def xs(self, args_scalar=None, args_spin_orbit=None):
+    def xs(self, args_scalar=None, args_spin_orbit=None, angles=None):
+        if angles is None:
+            angles = self.angles
+            P_l_costheta = self.P_l_costheta
+            P_1_l_costheta = self.P_1_l_costheta
+            rutherford = self.rutherford
+            f_c = self.f_c
+        else:
+            assert np.max(angles) <= np.pi and np.min(angles) >= 0
+            P_l_costheta = eval_legendre(self.ls, np.cos(angles))
+            P_1_l_costheta = lpmv(1, self.ls, np.cos(angles))
+            sin2 = np.sin(angles / 2) ** 2
+            rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
+            f_c = (
+                -self.eta
+                / (2 * self.k * sin2)
+                * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
+            )
+
         splus, sminus = self.smatrix(args_scalar, args_spin_orbit)
         return ElasticXS(
             *elastic_xs(
@@ -179,11 +199,12 @@ class Workspace:
                 self.angles,
                 splus,
                 sminus,
-                self.P_l_costheta,
-                self.P_1_l_costheta,
-                self.f_c,
+                P_l_costheta,
+                P_1_l_costheta,
+                f_c,
                 self.sigma_l,
-            )
+            ),
+            rutherford
         )
 
 
