@@ -30,15 +30,6 @@ class Workspace:
 
     @classmethod
     def load(obj, filename):
-        r"""Loads a previously trained emulator.
-
-        Parameters:
-            filename (string): name of file
-
-        Returns:
-            emulator (ScatteringAmplitudeEmulator): previously trainined `ScatteringAmplitudeEmulator`
-
-        """
         with open(filename, "rb") as f:
             ws = pickle.load(f)
             ws.solver = Solver(ws.nbasis)
