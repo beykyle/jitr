@@ -24,7 +24,6 @@ class ElasticXS:
     rutherford: np.ndarray = None
 
 
-
 class Workspace:
     r"""
     Workspace for elastic scattering observables for local interactions with spin-orbit coupling
@@ -111,7 +110,13 @@ class Workspace:
             self.f_c = np.zeros_like(angles)
             self.rutherford = np.zeros_like(angles)
 
-    def smatrix(self, interaction_scalar, interaction_spin_orbit, args_scalar=None, args_spin_orbit=None):
+    def smatrix(
+        self,
+        interaction_scalar,
+        interaction_spin_orbit,
+        args_scalar=None,
+        args_spin_orbit=None,
+    ):
         splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
 
@@ -166,7 +171,14 @@ class Workspace:
 
         return splus[:l], sminus[:l]
 
-    def xs(self, interaction_scalar, interaction_spin_orbit, args_scalar=None, args_spin_orbit=None, angles=None):
+    def xs(
+        self,
+        interaction_scalar,
+        interaction_spin_orbit,
+        args_scalar=None,
+        args_spin_orbit=None,
+        angles=None,
+    ):
         if angles is None:
             angles = self.angles
             P_l_costheta = self.P_l_costheta
@@ -184,7 +196,9 @@ class Workspace:
                 * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
             )
 
-        splus, sminus = self.smatrix(interaction_scalar, interaction_spin_orbit, args_scalar, args_spin_orbit)
+        splus, sminus = self.smatrix(
+            interaction_scalar, interaction_spin_orbit, args_scalar, args_spin_orbit
+        )
         return ElasticXS(
             *elastic_xs(
                 self.k,
@@ -196,7 +210,7 @@ class Workspace:
                 f_c,
                 self.sigma_l,
             ),
-            rutherford
+            rutherford,
         )
 
 
