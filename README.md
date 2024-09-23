@@ -45,7 +45,9 @@ Feel free to fork and make a pull request if you have things to contribute. Ther
 
 ## examples and tutorials
 
-various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
+Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
+
+In particular, [`examples/notebooks/kduq_cross_section_uq_tutorial.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/kduq_cross_section_uq_tutorial.ipynb) demonstrates how to perform UQ for $(n,n)$ cross sections using [KDUQ](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.107.014602).
 
 ## BAND
 
