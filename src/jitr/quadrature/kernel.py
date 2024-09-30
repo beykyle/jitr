@@ -176,7 +176,8 @@ class Kernel:
         self,
         a: np.float64,
         l: np.array,
-        energy_ratio: np.ndarray,
+        E: np.ndarray,
+        mu: np.float64 ,
     ):
         r"""
         @returns:
@@ -185,6 +186,11 @@ class Kernel:
             each channel is an NbxNb block (Nb being the basis size), and
             there are NchxNch such blocks.
         @parameters:
+            a : dimensionless channel radius (r * k_0) with k_0 being the wavenumber in the
+             entrance channel
+            l : orbital angular momentum in each channel
+            E : energy in each channel
+            mu : reduced mass in each channel
         """
         Nb = self.quadrature.nbasis
         Nch = np.size(l)
@@ -192,7 +198,7 @@ class Kernel:
         F = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(Nch):
             Fij = (
-                self.quadrature.kinetic_matrix(a, l[i]) - self.overlap * energy_ratio[i]
+                self.quadrature.kinetic_matrix(a, l[i]) * mu[0] / mu[i] - self.overlap * E[i]/E[0]
             )
             F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
         return F

@@ -50,7 +50,7 @@ class Solver:
         return block(matrix, (i, j), (N, N))
 
     def free_matrix(
-        self, a: np.float64, l: np.array, energy_ratio: np.ndarray = None, coupled=True
+        self, a: np.float64, l: np.array, E: np.ndarray, mu : np.ndarray = None, coupled=True
     ):
         r"""
         precompute free matrix, which only depend on the channel orbital
@@ -67,10 +67,9 @@ class Solver:
                 number of basis elements, othereise returns the full
                 (Nch x Nb, Nch x Nb) matrix
         """
-        if energy_ratio is None:
-            energy_ratio = np.ones(l.size)
-
-        free_matrix = self.kernel.free_matrix(a, l, energy_ratio)
+        if mu is None:
+            mu = np.ones_like(E)
+        free_matrix = self.kernel.free_matrix(a, l, E, mu)
 
         if coupled:
             return free_matrix
@@ -147,7 +146,8 @@ class Solver:
             free_matrix = self.free_matrix(
                 channels.a,
                 channels.l,
-                channels.E / channels.E[0],
+                channels.E,
+                channels.mu,
                 coupled=True,
             )
         if basis_boundary is None:
