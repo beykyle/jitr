@@ -105,22 +105,27 @@ def test_coupled_vs_single():
     free = solver.free_matrix(
         channels_coupled.a,
         channels_coupled.l,
-        channels_coupled.E / channels_coupled.E[0],
+        channels_coupled.E,
     )
     interaction = solver.interaction_matrix(
-        channels_coupled, potential_2level, params_2level
+        channels_coupled.k[0],
+        channels_coupled.E[0],
+        channels_coupled.a,
+        channels_coupled.size,
+        potential_2level,
+        params_2level,
     )
 
     # test diaginal blocks
     free_0 = solver.free_matrix(
         channels_uncoupled[0].a,
         channels_uncoupled[0].l,
-        channels_uncoupled[0].E / channels_uncoupled[0].E[0],
+        channels_uncoupled[0].E,
     )
     free_1 = solver.free_matrix(
         channels_uncoupled[1].a,
         channels_uncoupled[1].l,
-        channels_uncoupled[1].E / channels_uncoupled[1].E[0],
+        channels_uncoupled[1].E,
     )
 
     np.testing.assert_almost_equal(
@@ -134,7 +139,12 @@ def test_coupled_vs_single():
 
     np.testing.assert_almost_equal(
         solver.interaction_matrix(
-            channels_uncoupled[0], potential_scalar, params_scalar
+            channels_uncoupled[0].k[0],
+            channels_uncoupled[0].E[0],
+            channels_uncoupled[0].a,
+            channels_uncoupled[0].size,
+            potential_scalar,
+            params_scalar,
         ),
         solver.get_channel_block(
             interaction,
@@ -144,7 +154,12 @@ def test_coupled_vs_single():
     )
     np.testing.assert_almost_equal(
         solver.interaction_matrix(
-            channels_uncoupled[1], potential_scalar, params_scalar
+            channels_uncoupled[1].k[0],
+            channels_uncoupled[1].E[0],
+            channels_uncoupled[1].a,
+            channels_uncoupled[1].size,
+            potential_scalar,
+            params_scalar,
         ),
         solver.get_channel_block(
             interaction,
@@ -165,7 +180,12 @@ def test_coupled_vs_single():
     # test full matrix
     A = (
         solver.interaction_matrix(
-            channels_uncoupled[0], potential_scalar, params_scalar
+            channels_uncoupled[0].k[0],
+            channels_uncoupled[0].E[0],
+            channels_uncoupled[0].a,
+            channels_uncoupled[0].size,
+            potential_scalar,
+            params_scalar,
         )
         + free_0
     )
