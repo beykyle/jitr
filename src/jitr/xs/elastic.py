@@ -121,17 +121,23 @@ class Workspace:
 
         # precompute the interaction matrix
         im_scalar = self.solver.interaction_matrix(
-            self.channels[0][0],
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
             local_interaction=interaction_scalar,
             local_args=args_scalar,
         )
         im_spin_orbit = self.solver.interaction_matrix(
-            self.channels[0][0],
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
             local_interaction=interaction_spin_orbit,
             local_args=args_spin_orbit,
         )
 
-        # s-wave
+        # s-wave, l = 0, j = 1/2
         _, splus[0], _ = self.solver.solve(
             self.channels[0][0],
             self.asymptotics[0][0],
