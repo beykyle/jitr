@@ -49,17 +49,81 @@ class Solver:
             j = i
         return block(matrix, (i, j), (N, N))
 
-    def free_matrix(
-        self, a: np.float64, l: np.array, E: np.ndarray, mu : np.ndarray = None, coupled=True
+
+    def kinetic_matrix(
+        self,
+        a: np.float64,
+        l: np.ndarray,
+        mu: np.float64 = None,
     ):
         r"""
-        precompute free matrix, which only depend on the channel orbital
+        @returns:
+            kinetic_matrix (np.ndarray): the full (Nb)x(Nb) kinetic energy matrix
+        @parameters:
+            a : dimensionless channel radius (r * k_0) with k_0 being the wavenumber in the
+                entrance channel
+            l : orbital angular momentum in each channel
+            mu : reduced mass in each channel. For problems with same partition in each channel,
+                can leave as none as the dimensionless reduced mass is 1.
+        """
+        if mu is None:
+            mu = np.ones(l.shape, dtype=np.float64)
+
+        Nb = self.kernel.quadrature.nbasis
+        Nch = np.size(l)
+        sz = Nb * Nch
+        F = np.zeros((sz, sz), dtype=np.complex128)
+        for i in range(Nch):
+            Fij = (
+                self.kernel.quadrature.kinetic_matrix(a, l[i]) * mu[0] / mu[i]
+            )
+            F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
+        return F
+
+
+    def energy_matrix(
+        self,
+        a: np.float64,
+        l: np.float64,
+        E: np.float64 = None,
+    ):
+        r"""
+        @returns:
+            energy_matrix (np.ndarray): the full (nchannels x nbasis)^2. Diaginal in channel space
+                but possibly not in Lagrange space. 1/E0 (Ei <f_n | f_m>)
+        @parameters:
+            a : dimensionless channel radius (r * k_0) with k_0 being the wavenumber in the
+                entrance channel
+            l : orbital angular momentum in each channel
+            E : energy in each channel. For single channel problems, can leave as None, as the
+                dimensionless energy is 1. Otherwise it is Ei/E0 for channel i with energy Ei
+        """
+        if E is None:
+            E = np.ones(l.shape, dtype=np.float64)
+
+        Nb = self.kernel.quadrature.nbasis
+        Nch = np.size(l)
+        sz = Nb * Nch
+        F = np.zeros((sz, sz), dtype=np.complex128)
+        for i in range(Nch):
+            F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += self.kernel.overlap * E[i]
+
+        return F / E[0]
+
+
+    def free_matrix(
+        self, a: np.float64, l: np.array, E: np.ndarray=None, mu : np.ndarray = None, coupled=True
+    ):
+        r"""
+        precompute free matrix (kinetic + energy), which only depend on the channel orbital
         angular momenta l and dimensionless channel radii a
         @parameters:
             a: dimensionless radii (e.g. a = k * r_max) for each channel
             l: orbital angular momentum quantum number for each channel
-            energy_ratio: ratio of energy in each channel to the energy in the
-                entrance channel
+            E : energy in each channel. For single channel problems, can leave as None, as the
+                dimensionless energy is 1.
+            mu : reduced mass in each channel. For problems with same partition in each channel,
+                can leave as none as the dimensionless reduced mass is 1.
             coupled: whether to return the full matrix or just the block
                 diagonal elements (elements off of the channel diagonal are all
                 0 for the free matrix). If False, returns a list of Nch (Nb,Nb)
@@ -67,9 +131,7 @@ class Solver:
                 number of basis elements, othereise returns the full
                 (Nch x Nb, Nch x Nb) matrix
         """
-        if mu is None:
-            mu = np.ones_like(E)
-        free_matrix = self.kernel.free_matrix(a, l, E, mu)
+        free_matrix = self.kinetic_matrix(a, l, mu) - self.energy_matrix(a,l,E)
 
         if coupled:
             return free_matrix
@@ -78,7 +140,10 @@ class Solver:
 
     def interaction_matrix(
         self,
-        channels: Channels,
+        k0 : np.float64,
+        E0 : np.float64,
+        a : np.float64,
+        nch: np.int32,
         local_interaction=None,
         local_args=None,
         nonlocal_interaction=None,
@@ -89,25 +154,34 @@ class Solver:
         each channel is an nxn block (n being the basis size), and there are
         NxN such blocks, for N channels. Uses dimensionless coords with s=k0 r
         and divided by E0, 0 denoting the entrance channel.
+        @parameters:
+            k0 (float): fixed wavenumber [fm^-1] with which to scale the coordinate r.
+                Typically this just the wavenumber in the 0th channel.
+            E0 (float): fixed energy [MeV] with which to scale the system. Typically this
+                just the energy in the 0th channel.
+            a (float): dimensionless channel radius
+            local_interaction (callable): the local potential, a function of r and *args
+            local_args (tuple): the args that get passed into local_interaction
+            nonlocal_interaction (callable): the nonlocal potential, a function of r, r',
+                and *args
+            nonlocal_args (tuple): the args that get passed into nonlocal_interaction
         """
         # allocate matrix to store full interaction in Lagrange basis
         nb = self.kernel.quadrature.nbasis
-        sz = nb * channels.size
+        sz = nb * nch
         V = np.zeros((sz, sz), dtype=np.complex128)
 
-        # scale to s = k_0 r, with k_0 the entrance channel wavenumber
-        E0 = channels.E[0]
-        k0 = channels.k[0]
-        channel_radius_r = channels.a / channels.k[0]
+        # scaling
+        channel_radius_r = a / k0
 
         if local_interaction is not None:
             # matrix_local just gives us the diagonal elements of each block ...
             Vl = self.kernel.matrix_local(
                 local_interaction, channel_radius_r, args=local_args
-            ).reshape(channels.size, channels.size, nb)
+            ).reshape(nch, nch, nb)
             # ... so we have to manually put them in the locations of the diagonals of each block
-            for i in range(channels.size):
-                for j in range(channels.size):
+            for i in range(nch):
+                for j in range(nch):
                     V[i * nb : (i + 1) * nb, j * nb : (j + 1) * nb] = np.diag(
                         Vl[i, j, ...]
                     )
@@ -119,7 +193,7 @@ class Solver:
                 self.kernel.matrix_nonlocal(
                     nonlocal_interaction, channel_radius_r, args=nonlocal_args
                 )
-                .reshape(channels.size, channels.size, nb, nb)
+                .reshape(nch, nch, nb, nb)
                 .swapaxes(1, 2)
                 .reshape(sz, sz, order="C")
                 / k0
@@ -157,7 +231,10 @@ class Solver:
             weights[0] = 1
         if interaction_matrix is None:
             interaction_matrix = self.interaction_matrix(
-                channels,
+                channels.k[0],
+                channels.E[0],
+                channels.a,
+                channels.size,
                 local_interaction,
                 local_args,
                 nonlocal_interaction,
