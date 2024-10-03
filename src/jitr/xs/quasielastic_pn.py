@@ -17,10 +17,6 @@ from ..reactions import (
 )
 from ..rmatrix import Solver
 
-# TODO
-# test using the coefficients not the wavefunctions for the dwba t-matrix
-# test doing DWBA T-matrix in s-space not r-space
-
 
 def kinematics(target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64):
     mass_target = mass(*target)
@@ -44,19 +40,21 @@ class System:
 
     def __init__(
         self,
-        channel_radius: np.float64,
+        channel_radius_fm: np.float64,
         lmax: np.int64,
         target: tuple,
         analog: tuple,
         mass_target: np.float64,
         mass_analog: np.float64,
+        kp: np.float64,
+        kn: np.float64,
     ):
         r"""
         @params
-            channel_radius (np.float64):  dimensionless channel radius k_0 * radius
+            channel_radius_fm (np.float64): channel radius in fm
         """
 
-        self.channel_radius = channel_radius
+        self.channel_radius_fm = channel_radius_fm
         self.lmax = lmax
         self.target = target
         self.analog = analog
@@ -67,7 +65,7 @@ class System:
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
 
         self.entrance = ProjectileTargetSystem(
-            channel_radius=self.channel_radius,
+            channel_radius=self.channel_radius_fm * kp,
             lmax=self.lmax,
             mass_target=self.mass_target,
             mass_projectile=self.mass_p,
@@ -77,7 +75,7 @@ class System:
         )
 
         self.exit = ProjectileTargetSystem(
-            channel_radius=self.channel_radius,
+            channel_radius=self.channel_radius_fm * kn,
             lmax=self.lmax,
             mass_target=self.mass_analog,
             mass_projectile=self.mass_n,
@@ -97,10 +95,6 @@ class Workspace:
         sys: System,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
-        entrance_interaction_scalar,
-        entrance_interaction_spin_orbit,
-        exit_interaction_scalar,
-        exit_interaction_spin_orbit,
         solver: Solver,
         angles: np.array,
         tmatrix_abs_tol: np.float64 = 1e-6,
@@ -118,24 +112,30 @@ class Workspace:
         self.solver = solver
         self.tmatrix_abs_tol = tmatrix_abs_tol
 
-        self.entrance_interaction_scalar = entrance_interaction_scalar
-        self.entrance_interaction_spin_orbit = entrance_interaction_spin_orbit
-        self.exit_interaction_scalar = exit_interaction_scalar
-        self.exit_interaction_spin_orbit = exit_interaction_spin_orbit
-
-        # precompute things
-        self.free_matrices = self.solver.free_matrix(
-            sys.channel_radius, sys.l, coupled=False
+        # precompute things for entrance channel
+        self.free_matrices_p = self.solver.free_matrix(
+            sys.entrance.channel_radius, sys.l, coupled=False
         )
-        self.basis_boundary = self.solver.precompute_boundaries(sys.channel_radius)
+        self.basis_boundary_p = self.solver.precompute_boundaries(
+            sys.entrance.channel_radius
+        )
 
-        # get information for each channel
+        # precompute things for exit channel
+        self.free_matrices_n = self.solver.free_matrix(
+            sys.exit.channel_radius, sys.l, coupled=False
+        )
+        self.basis_boundary_n = self.solver.precompute_boundaries(
+            sys.exit.channel_radius
+        )
+
+        # get partial wave information for entrance channel
         channels, asymptotics = sys.entrance.get_partial_wave_channels(
             *self.kinematics_entrance
         )
         self.p_channels = [ch.decouple() for ch in channels]
         self.p_asymptotics = [asym.decouple() for asym in asymptotics]
 
+        # get partial wave information for exit channel
         channels, asymptotics = sys.exit.get_partial_wave_channels(
             *self.kinematics_exit
         )
@@ -160,16 +160,16 @@ class Workspace:
         self.sigma_c = np.angle(
             gamma(1 + self.sys.l + 1j * self.kinematics_entrance.eta)
         )
-        for im, mu in enumerate([-0.5, 0.5]):
-            for imp, mu_pr in enumerate([-0.5, 0.5]):
+        for im, m in enumerate([-0.5, 0.5]):
+            for imp, mp in enumerate([-0.5, 0.5]):
                 for l in range(0, self.sys.lmax + 1):
                     for ijp, jp in enumerate(
                         [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
                     ):
-                        if abs(mu - mu_pr) <= l and jp >= 0:
-                            ylm = sph_harm(mu - mu_pr, l, 0, self.angles)
-                            cg0 = clebsch_gordan(l, 1 / 2, jp, mu - mu_pr, mu, mu_pr)
-                            cg1 = clebsch_gordan(l, 1 / 2, jp, 0, mu, mu)
+                        if abs(m - mp) <= l and jp >= 0:
+                            ylm = sph_harm(m - mp, l, 0, self.angles)
+                            cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, m, mp)
+                            cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
 
                             self.geometric_factor[im, imp, l, ijp, :] = (
                                 (4 * np.pi) ** (3.0 / 2.0)
@@ -184,111 +184,172 @@ class Workspace:
 
     def tmatrix(
         self,
-        args_entrance_scalar=None,
-        args_entrance_spin_orbit=None,
-        args_exit_scalar=None,
-        args_exit_spin_orbit=None,
+        U_p_coulomb=None,
+        U_p_scalar=None,
+        U_p_spin_orbit=None,
+        U_n_scalar=None,
+        U_n_spin_orbit=None,
+        args_p_coulomb=None,
+        args_p_scalar=None,
+        args_p_spin_orbit=None,
+        args_n_scalar=None,
+        args_n_spin_orbit=None,
     ):
         Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
 
-        # precomute scalar and spin-obit interaction matrices for distorted wave solns
+        # precomute scalar, spin-obit, and Coulomb interaction matrices
+        # for entrance channel distorted waves
         im_scalar_p = self.solver.interaction_matrix(
-            self.p_channels[0][0],
-            local_interaction=self.entrance_interaction_scalar,
-            local_args=args_entrance_scalar,
+            self.p_channels[0][0].k[0],
+            self.p_channels[0][0].E[0],
+            self.p_channels[0][0].a,
+            self.p_channels[0][0].size,
+            local_interaction=U_p_scalar,
+            local_args=args_p_scalar,
         )
         im_spin_orbit_p = self.solver.interaction_matrix(
-            self.p_channels[0][0],
-            local_interaction=self.entrance_interaction_spin_orbit,
-            local_args=args_entrance_spin_orbit,
+            self.p_channels[0][0].k[0],
+            self.p_channels[0][0].E[0],
+            self.p_channels[0][0].a,
+            self.p_channels[0][0].size,
+            local_interaction=U_p_spin_orbit,
+            local_args=args_p_spin_orbit,
         )
+        im_coulomb_p = self.solver.interaction_matrix(
+            self.p_channels[0][0].k[0],
+            self.p_channels[0][0].E[0],
+            self.p_channels[0][0].a,
+            self.p_channels[0][0].size,
+            local_interaction=U_p_coulomb,
+            local_args=args_p_coulomb,
+        )
+
+        # precomute scalar and spin-obit interaction matrices
+        # for exit channel distorted waves
         im_scalar_n = self.solver.interaction_matrix(
-            self.n_channels[0][0],
-            local_interaction=self.exit_interaction_scalar,
-            local_args=args_exit_scalar,
+            self.n_channels[0][0].k[0],
+            self.n_channels[0][0].E[0],
+            self.n_channels[0][0].a,
+            self.n_channels[0][0].size,
+            local_interaction=U_n_scalar,
+            local_args=args_n_scalar,
         )
         im_spin_orbit_n = self.solver.interaction_matrix(
-            self.n_channels[0][0],
-            local_interaction=self.exit_interaction_spin_orbit,
-            local_args=args_exit_spin_orbit,
+            self.n_channels[0][0].k[0],
+            self.n_channels[0][0].E[0],
+            self.n_channels[0][0].a,
+            self.n_channels[0][0].size,
+            local_interaction=U_n_spin_orbit,
+            local_args=args_n_spin_orbit,
         )
 
-        # precompute isovector part by subtracting entrance and exit potentials
-        im_scalar_isovector = -(im_scalar_n - im_scalar_p) * self.isovector_factor
-        im_spin_orbit_isovector = (
-            -(im_spin_orbit_n - im_spin_orbit_p) * self.isovector_factor
+        # evaluate the QE (p,n) transition matrix element on the quadrature
+        # in r-space
+        r_quadrature = (
+            self.solver.kernel.quadrature.abscissa * self.sys.channel_radius_fm
         )
-        w = self.solver.kernel.quadrature.weights
+        U1_scalar = (
+            -(
+                U_n_scalar(r_quadrature, *args_n_scalar)
+                - U_p_scalar(r_quadrature, *args_p_scalar)
+            )
+            * self.isovector_factor
+        )
+        U1_spin_orbit = (
+            -(
+                U_n_spin_orbit(r_quadrature, *args_n_spin_orbit)
+                - U_p_spin_orbit(r_quadrature, *args_p_spin_orbit)
+            )
+            * self.isovector_factor
+        )
 
-        def tmatrix_element(l, ji):
+        def tmatrix_element(l, ji, l_dot_s):
             nch = self.n_channels[l]
             pch = self.p_channels[l]
+            Fn = self.free_matrices_n[l]
+            Fp = self.free_matrices_p[l]
             nasym = self.n_asymptotics[l]
             pasym = self.p_asymptotics[l]
-            lds = self.l_dot_s[l - 1]  # starts from 1 not 0
 
             _, snlj, xn, un = self.solver.solve(
                 nch[ji],
                 nasym[ji],
-                free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar_n + lds[ji] * im_spin_orbit_n,
-                basis_boundary=self.basis_boundary,
+                free_matrix=Fn,
+                interaction_matrix=im_scalar_n + l_dot_s * im_spin_orbit_n,
+                basis_boundary=self.basis_boundary_n,
                 wavefunction=True,
             )
             _, splj, xp, up = self.solver.solve(
                 pch[ji],
                 pasym[ji],
-                free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar_p + lds[ji] * im_spin_orbit_p,
-                basis_boundary=self.basis_boundary,
+                free_matrix=Fp,
+                interaction_matrix=(
+                    im_scalar_p + im_coulomb_p + l_dot_s * im_spin_orbit_p
+                ),
+                basis_boundary=self.basis_boundary_p,
                 wavefunction=True,
             )
-            v1 = np.diag(im_scalar_isovector) + lds[ji] * np.diag(
-                im_spin_orbit_isovector
+
+            tlj = (
+                np.sum(xp * (U1_scalar + l_dot_s * U1_spin_orbit) * xn)
+                / self.sys.channel_radius_fm
+                / self.kinematics_entrance.k
+                / self.kinematics_exit.k
             )
-            # TODO ensure xn, xp, and v1 are all evaluated on the same s=k_p r grid
-            # artificially set k_0 = k_p for neutron channel
-            # divide by kp?
-            # ensure agreement between entrance and exit channel s-matrices
-            tlj = np.sum(xp * v1 * xn)
             return tlj, snlj, splj
 
         # S-wave
-        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(0, 0)
+        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(0, 0, 0)
 
         # higher partial waves
         for l in self.sys.l[1:]:
-            Tpn[l, 0], Sn[l, 0], Sp[l, 0] = tmatrix_element(l, 0)
-            Tpn[l, 1], Sn[l, 1], Sp[l, 1] = tmatrix_element(l, 1)
+            l_dot_s = self.l_dot_s[l-1]
+            Tpn[l, 0], Sn[l, 0], Sp[l, 0] = tmatrix_element(l, 0, l_dot_s[0])
+            Tpn[l, 1], Sn[l, 1], Sp[l, 1] = tmatrix_element(l, 1, l_dot_s[1])
 
-            if Tpn[l, 1] < self.tmatrix_abs_tol and Tpn[l, 1] < self.tmatrix_abs_tol:
+            if (
+                np.absolute(Tpn[l, 0]) < self.tmatrix_abs_tol
+                and np.absolute(Tpn[l, 1]) < self.tmatrix_abs_tol
+            ):
                 break
 
         return Tpn, Sn, Sp
 
     def xs(
         self,
-        args_entrance_scalar=None,
-        args_entrance_spin_orbit=None,
-        args_exit_scalar=None,
-        args_exit_spin_orbit=None,
+        U_p_coulomb=None,
+        U_p_scalar=None,
+        U_p_spin_orbit=None,
+        U_n_scalar=None,
+        U_n_spin_orbit=None,
+        args_p_coulomb=None,
+        args_p_scalar=None,
+        args_p_spin_orbit=None,
+        args_n_scalar=None,
+        args_n_spin_orbit=None,
     ):
-        Tmumup = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
-        Tlj = self.tmatrix(
-            args_entrance_scalar,
-            args_entrance_spin_orbit,
-            args_exit_scalar,
-            args_exit_spin_orbit,
+        Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
+        Tlj, Sn, Sp = self.tmatrix(
+            U_p_coulomb=U_p_coulomb,
+            U_p_scalar=U_p_scalar,
+            U_p_spin_orbit=U_p_spin_orbit,
+            U_n_scalar=U_n_scalar,
+            U_n_spin_orbit=U_n_spin_orbit,
+            args_p_coulomb=args_p_coulomb,
+            args_p_scalar=args_p_scalar,
+            args_p_spin_orbit=args_p_spin_orbit,
+            args_n_scalar=args_n_scalar,
+            args_n_spin_orbit=args_n_spin_orbit,
         )
         # TODO cast into a np.sum
-        for im, mu in enumerate([-0.5, 0.5]):
-            for imp, mu_pr in enumerate([-0.5, 0.5]):
+        for im, m in enumerate([-0.5, 0.5]):
+            for imp, mp in enumerate([-0.5, 0.5]):
                 for l in range(0, self.sys.lmax):
-                    for ijp, jp in enumerate([l - 0.5, l + 0.5]):
-                        if abs(mu - mu_pr) <= l and jp >= 0:
-                            Tmumup[im, imp, :] += (
+                    for ijp, jp in enumerate([l + 0.5, l - 0.5]):
+                        if abs(m - mp) <= l and jp >= 0:
+                            Tmmp[im, imp, :] += (
                                 self.geometric_factor[im, imp, l, ijp, :] * Tlj[l, ijp]
                             )
-        return self.xs_factor * 10 * np.sum(np.absolute(Tmumup) ** 2, axis=(0, 1))
+        return self.xs_factor * 10 * np.sum(np.absolute(Tmmp) ** 2, axis=(0, 1))
