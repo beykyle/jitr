@@ -90,6 +90,19 @@ class Workspace:
     Workspace for (p,n) quasi-elastic scattering observables for local interactions
     """
 
+    @classmethod
+    def load(obj, filename):
+        with open(filename, "rb") as f:
+            ws = pickle.load(f)
+            ws.solver = Solver(ws.nbasis)
+        return ws
+
+    def save(self, filename):
+        self.solver = None
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+
+
     def __init__(
         self,
         sys: System,
