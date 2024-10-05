@@ -1,8 +1,8 @@
 from numba import njit
-import pickle
 from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
+import pickle
 
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
