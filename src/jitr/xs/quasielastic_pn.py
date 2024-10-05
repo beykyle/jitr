@@ -109,6 +109,8 @@ class Workspace:
         sys: System,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
+        Elab_entrance: np.float64,
+        Elab_exit: np.float64,
         solver: Solver,
         angles: np.array,
         tmatrix_abs_tol: np.float64 = 1e-6,
@@ -123,7 +125,10 @@ class Workspace:
         self.isovector_factor = np.sqrt(np.fabs(N - Z)) / (N - Z - 1)
         self.kinematics_entrance = kinematics_entrance
         self.kinematics_exit = kinematics_exit
+        self.Elab_entrance = Elab_entrance
+        self.Elab_exit = Elab_exit
         self.solver = solver
+        self.nbasis = solver.kernel.quadrature.nbasis
         self.tmatrix_abs_tol = tmatrix_abs_tol
 
         # precompute things for entrance channel
