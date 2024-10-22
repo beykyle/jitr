@@ -3,6 +3,13 @@
 
 <img src="./assets/jitr_logo.png" alt="drawing" width="200" class="center"/>
 
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}
+
 # just-in-time R-Matrix (jitR)
 
 A fast calculable R-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
