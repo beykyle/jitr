@@ -1,9 +1,13 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
+![logo](https://github.com/beykyle/jitr/blob/main/assets/jitr_logo.png)
+
+
 # just-in-time R-Matrix (jitR)
 
 A fast calculable R-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
+
 
 ## quick start
 
