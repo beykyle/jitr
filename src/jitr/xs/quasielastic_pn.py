@@ -103,7 +103,6 @@ class Workspace:
         with open(filename, "wb") as f:
             pickle.dump(self, f)
 
-
     def __init__(
         self,
         sys: System,
@@ -324,7 +323,7 @@ class Workspace:
 
         # higher partial waves
         for l in self.sys.l[1:]:
-            l_dot_s = self.l_dot_s[l-1]
+            l_dot_s = self.l_dot_s[l - 1]
             Tpn[l, 0], Sn[l, 0], Sp[l, 0] = tmatrix_element(l, 0, l_dot_s[0])
             Tpn[l, 1], Sn[l, 1], Sp[l, 1] = tmatrix_element(l, 1, l_dot_s[1])
 
