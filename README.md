@@ -6,7 +6,7 @@
 </p>
 
 # just-in-time R-Matrix (jitR)
-A fast calculable R-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
+A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
 
 
 ## quick start
@@ -18,9 +18,17 @@ A fast calculable R-matrix solver for parametric reaction models, production rea
 The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
 
 ## description
-A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models.
+A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\boldsymbol{\theta})$ that is a function of some parameters $\boldsymbol{\theta}$. Just write it like so:
 
-Solves the radial Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh. Fairly fast due to using vectorized operations from [numpy](https://numpy.org/) and just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). 
+```python
+def V(r,*theta):
+  a,b,c,... = theta
+  # calculate and return potential at radial coordinate r as a function of parameters a,b,c,...
+```
+
+Then, you can pass it along with many samples of $\boldsymbol{\theta}$ into jitR to calculate many samples of the corresponding cross sections for your system and reaction of interest!
+
+Under the hood, jitR solves the radial Bloch-Shrödinger equation in the continuum using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitR is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitR relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
 
 The theory generally follows:
 - [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
