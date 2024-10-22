@@ -171,28 +171,3 @@ class Kernel:
             lagrange basis
         """
         return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
-
-    def free_matrix(
-        self,
-        a: np.float64,
-        l: np.array,
-        energy_ratio: np.ndarray,
-    ):
-        r"""
-        @returns:
-            free_matrix (np.ndarray): the full (NchxNb)x(NchxNb) free
-            Schrödinger equation 1/E_0 (H-E) in the Lagrange basis, where
-            each channel is an NbxNb block (Nb being the basis size), and
-            there are NchxNch such blocks.
-        @parameters:
-        """
-        Nb = self.quadrature.nbasis
-        Nch = np.size(l)
-        sz = Nb * Nch
-        F = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(Nch):
-            Fij = (
-                self.quadrature.kinetic_matrix(a, l[i]) - self.overlap * energy_ratio[i]
-            )
-            F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
-        return F
