@@ -2,7 +2,7 @@
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
 <p align="center">
-<img src="./assets/jitr_logo.png" alt="drawing" width="200" /> 
+<img src="./assets/jitr_logo.png" alt="drawing" width="300" /> 
 </p>
 
 # just-in-time R-Matrix (jitR)
