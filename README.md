@@ -1,9 +1,9 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
-# just-in-time R-Matrix (JITR)
+# just-in-time R-Matrix (jitR)
 
-A fast solver for parametric reaction models, production ready for calibration and uncertainty-quantification.
+A fast calculable R-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification.
 
 ## quick start
 
@@ -14,7 +14,7 @@ A fast solver for parametric reaction models, production ready for calibration a
 The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
 
 ## description
-A framework for handling parametric reaction models.
+A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models.
 
 Solves the radial Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh. Fairly fast due to using vectorized operations from [numpy](https://numpy.org/) and just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). 
 
