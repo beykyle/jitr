@@ -1,7 +1,7 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
-<img src="./assets/jitr_logo.png" alt="drawing" width="200"/>
+<img src="./assets/jitr_logo.png" alt="drawing" width="200" class="center"/>
 
 # just-in-time R-Matrix (jitR)
 
