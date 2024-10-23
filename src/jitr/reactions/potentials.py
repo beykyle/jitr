@@ -40,6 +40,31 @@ def woods_saxon_safe(r, R, a):
         return V
 
 
+def woods_saxon_volume_integral(R, a, A, V):
+    return 4 * np.pi / 3 * (V * R**3 / A) * (1 + (np.pi * a / R) ** 2)
+
+
+def woods_saxon_mean_square_radius(R, a, V):
+    return 3.0 / 5 * R**2 * (1 + 7.0 / 3 * (np.pi * a / R) ** 2)
+
+
+def woods_saxon_prime_volume_integral(R, a, A, V):
+    return (
+        4
+        * np.pi
+        / 3
+        * (V * R**3 / A)
+        * 12
+        * a
+        / R
+        * (1 + 1.0 / 3 * (np.pi * a / R) ** 2)
+    )
+
+
+def woods_saxon_mean_prime_square_radius(R, a, V):
+    return R**2 * (1 + 5.0 / 3 * (np.pi * a / R) ** 2)
+
+
 def woods_saxon_prime_safe(r, R, a):
     """derivative of the Woods-Saxon potential w.r.t. $r$
 
