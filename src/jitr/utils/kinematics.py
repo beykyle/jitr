@@ -92,11 +92,11 @@ def mass(A, Z, Eb=None):
 
 
 def neutron_separation_energy(A, Z):
-    return mass(A, Z) - mass(A - 1, Z) - mass(1,0)
+    return mass(A, Z) - mass(A - 1, Z) - mass(1, 0)
 
 
 def proton_separation_energy(A, Z):
-    return mass(A, Z) - mass(A - 1, Z - 1) - mass(1,1)
+    return mass(A, Z) - mass(A - 1, Z - 1) - mass(1, 1)
 
 
 def neutron_fermi_energy(A, Z):
@@ -106,7 +106,9 @@ def neutron_fermi_energy(A, Z):
 
 
 def proton_fermi_energy(A, Z):
-    return -0.5 * (proton_separation_energy(A, Z) + proton_separation_energy(A+1, Z + 1))
+    return -0.5 * (
+        proton_separation_energy(A, Z) + proton_separation_energy(A + 1, Z + 1)
+    )
 
 
 def semi_relativistic_kinematics(
