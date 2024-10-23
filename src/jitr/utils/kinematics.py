@@ -91,6 +91,24 @@ def mass(A, Z, Eb=None):
     return Z * MASS_P + N * MASS_N - Eb
 
 
+def neutron_separation_energy(A, Z):
+    return mass(A, Z) - mass(A - 1, Z) - mass(1,0)
+
+
+def proton_separation_energy(A, Z):
+    return mass(A, Z) - mass(A - 1, Z - 1) - mass(1,1)
+
+
+def neutron_fermi_energy(A, Z):
+    return -0.5 * (
+        neutron_separation_energy(A, Z) + neutron_separation_energy(A + 1, Z)
+    )
+
+
+def proton_fermi_energy(A, Z):
+    return -0.5 * (proton_separation_energy(A, Z) + proton_separation_energy(A, Z + 1))
+
+
 def semi_relativistic_kinematics(
     mass_target,
     mass_projectile,
