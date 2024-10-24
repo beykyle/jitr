@@ -40,29 +40,30 @@ def woods_saxon_safe(r, R, a):
         return V
 
 
-def woods_saxon_volume_integral(R, a, A, V):
+def woods_saxon_volume_integral(V, R, a):
     return 4 * np.pi / 3 * (V * R**3 / A) * (1 + (np.pi * a / R) ** 2)
 
 
-def woods_saxon_mean_square_radius(R, a, V):
+def woods_saxon_mean_square_radius(V, R, a):
     return 3.0 / 5 * R**2 * (1 + 7.0 / 3 * (np.pi * a / R) ** 2)
 
 
-def woods_saxon_prime_volume_integral(R, a, A, V):
+def woods_saxon_prime_volume_integral(V, R, a):
     return (
-        4
-        * np.pi
-        / 3
-        * (V * R**3 / A)
-        * 12
-        * a
-        / R
-        * (1 + 1.0 / 3 * (np.pi * a / R) ** 2)
+        (4 * np.pi / 3) * V * R**3 * 12 * a / R * (1 + 1.0 / 3 * (np.pi * a / R) ** 2)
     )
 
 
-def woods_saxon_mean_prime_square_radius(R, a, V):
+def woods_saxon_mean_prime_square_radius(V, R, a):
     return R**2 * (1 + 5.0 / 3 * (np.pi * a / R) ** 2)
+
+
+def thomas_volume_integral(V, R, a):
+    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
+
+
+def thomas_volume_integral(V, R, a):
+    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
 
 
 def woods_saxon_prime_safe(r, R, a):
