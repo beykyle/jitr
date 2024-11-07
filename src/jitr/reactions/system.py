@@ -1,5 +1,7 @@
 import numpy as np
 
+from ..utils.constants import HBARC
+
 from ..utils.free_solutions import (
     H_plus,
     H_minus,
@@ -8,23 +10,59 @@ from ..utils.free_solutions import (
 )
 
 
-def scalar_couplings(l):
-    r"""default case of uncoupled partial waves"""
-    return np.array([[1.0]])
+# TODO
+# combine channel and asymptotics into single class
+# in PTS allow for getting channels either coupled or decoupled
+# the coupling function should return an array of Channel objects, and a coupling matrix
+# add tests for spin-orbit coupling and Ay
 
 
-def spin_half_orbit_coupling(l):
-    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus with spin-obit coupling,
+def scalar_couplings(Jtot):
+    r"""single-channel scattering of two scalar particles, orbital angular momentum
+    l equals total angular momentum J
+
+    Parameters:
+        Jtot (float) : total angular momentum
+
+    Returns:
+        quantum numbers (np.ndarray): quantum numbers (l) in each channel
+        couplings (np.ndarray): 0 - there are only diagonal components in the
+            partial wave expansion here
+    """
+    return np.array([[Jtot]]), np.array([[0.0]])
+
+
+def spin_half_orbit_coupling(Jtot):
+    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus with spin-orbit coupling,
     there are maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
 
     Parameters:
-        l (int): angular momentum
+        Jtot (float) : total angular momentum
 
     Returns:
-        couplings (np.ndarray): expectation value of l dot s in each j channel
+        quantum numbers (np.ndarray): quantum numbers (l) in each channel
+        couplings (np.ndarray): coupling matrix (l dot s) between channels. This
+            is a 2x2 diagonal matrix in jl space, whih gets multiplied by the spin-orbit
+            term.
     """
-    js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
-    return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js])
+    assert Jtot >= 1 / 2
+    j21 = int(round(2 * Jtot - 1))
+    if j21 == 2:
+        # J = 1/2 -> l = 0, l dot s = 0
+        return np.array([[0]]), np.array([[0.0]])
+    else:
+        channels = np.array([[Jtot - 1 / 2], [Jtot + 1 / 2]])
+        couplings = np.diag([-Jtot - 3 / 2, Jtot + 1 / 2])
+        return channels, couplings
+
+
+def uncouple(channels, couplings):
+    # only use for diaginal coupling matrix
+    assert np.count_nonzero(couplings - np.diag(np.diagonal(couplings))) == a
+    assert couplings.shape == (channels.size, channels.size)
+    channels = [ch for ch in channels]
+    couplings = [couplings[i, i] for i in range(len(channels))]
+    return channels, couplings
 
 
 class Asymptotics:
@@ -62,20 +100,20 @@ class Channels:
     Stores information about a set of channels at a given partial wave
     """
 
-    def __init__(self, E, k, mu, eta, a, l, couplings):
-        self.num_channels = E.shape[0]
+    def __init__(self, E, k, mu, eta, a, l, quantum_numbers, couplings):
+        self.num_channels = quantum_numbers.shape[0]
+        self.quantum_numbers = quantum_numbers
+        self.couplings = couplings
         assert couplings.shape == (self.num_channels, self.num_channels)
-        assert k.shape[0] == self.num_channels
-        assert mu.shape[0] == self.num_channels
-        assert eta.shape[0] == self.num_channels
         self.E = E
         self.k = k
         self.mu = mu
         self.eta = eta
         self.a = a
         self.l = l
-        self.size = couplings.shape[0]
-        self.couplings = couplings
+
+        # classical channel velocity
+        self.v = HBARC * self.k / self.mu
 
     def decouple(self):
         r"""
