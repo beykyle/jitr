@@ -1,9 +1,13 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
-# just-in-time R-Matrix (JITR)
+<p align="center">
+<img src="./assets/jitr_logo.png" alt="drawing" width="300" /> 
+</p>
 
-A fast solver for parametric reaction models, production ready for calibration and uncertainty-quantification.
+# just-in-time R-Matrix (jitR)
+A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
+
 
 ## quick start
 
@@ -14,13 +18,22 @@ A fast solver for parametric reaction models, production ready for calibration a
 The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
 
 ## description
-A framework for handling parametric reaction models.
+A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\boldsymbol{\theta})$ that is a function of some parameters $\boldsymbol{\theta}$. Just write it like so:
 
-Solves the radial Bloch-Shrödinger equation in the continuum using the calculable R-Matrix method on a Lagrange-Legendre mesh. Fairly fast due to using vectorized operations from [numpy](https://numpy.org/) and just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/). 
+```python
+def V(r,*theta):
+  a,b,c,... = theta
+  # calculate and return potential at radial coordinate r as a function of parameters a,b,c,...
+```
+
+Then, you can pass it along with many samples of $\boldsymbol{\theta}$ into jitR to calculate many samples of the corresponding cross sections for your system and reaction of interest! The reaction observables jitR can calculate are represented as `Workspace` instances, and live in `src/jitr/xs/`.
+
+Under the hood, jitR solves the radial Bloch-Shrödinger equation in the continuum using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitR is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitR relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
 
 The theory generally follows:
-- Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219,
-- Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
+- [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
+- [Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219](https://www.sciencedirect.com/science/article/pii/S0010465515003951)
+- [Descouvemont P. and Baye D. (2010). The R-matrix theory. Rep. Prog. Phys. 73 036301](https://iopscience.iop.org/article/10.1088/0034-4885/73/3/036301/meta)
 
 with the primary difference being that this code uses the energy-scaled version of the Bloch-Shrödinger equation, with dimensionless domain, $s = k_0 r$, where $r$ is the radial coordinate and $k_0$ is the entrance channel wavenumber.
 
@@ -35,7 +48,7 @@ pip install -r ./jitr/requirements.txt
 pip install -e ./jitr
 ```
 
-then run the tests from the main project directory:
+then run the tests:
 
 ```
 pytest jitr
