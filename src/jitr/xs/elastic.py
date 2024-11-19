@@ -1,8 +1,8 @@
 from numba import njit
-import pickle
 from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
+import pickle
 
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
@@ -17,10 +17,11 @@ class ElasticXS:
     reaction cross secton, all at a given energy
     """
 
-    dsdo: np.array
-    Ay: np.array
+    dsdo: np.ndarray
+    Ay: np.ndarray
     t: np.float64
     rxn: np.float64
+    rutherford: np.ndarray = None
 
 
 class Workspace:
@@ -46,15 +47,10 @@ class Workspace:
         target: tuple,
         sys: ProjectileTargetSystem,
         kinematics: ChannelKinematics,
-        local_interaction_scalar,
-        local_interaction_spin_orbit,
         solver: Solver,
         angles: np.array,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
-        assert np.all(np.diff(angles) > 0)
-        assert angles[0] >= 0.0 and angles[-1] <= np.pi
-
         self.projectile = projectile
         self.target = target
         self.sys = sys
@@ -64,8 +60,6 @@ class Workspace:
         self.Ecm = kinematics.Ecm
         self.k = kinematics.k
         self.eta = kinematics.eta
-        self.local_interaction_scalar = local_interaction_scalar
-        self.local_interaction_spin_orbit = local_interaction_spin_orbit
         self.smatrix_abs_tol = smatrix_abs_tol
 
         # precompute things
@@ -115,23 +109,35 @@ class Workspace:
             self.f_c = np.zeros_like(angles)
             self.rutherford = np.zeros_like(angles)
 
-    def smatrix(self, args_scalar=None, args_spin_orbit=None):
+    def smatrix(
+        self,
+        interaction_scalar,
+        interaction_spin_orbit,
+        args_scalar=None,
+        args_spin_orbit=None,
+    ):
         splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
 
         # precompute the interaction matrix
         im_scalar = self.solver.interaction_matrix(
-            self.channels[0][0],
-            local_interaction=self.local_interaction_scalar,
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
+            local_interaction=interaction_scalar,
             local_args=args_scalar,
         )
         im_spin_orbit = self.solver.interaction_matrix(
-            self.channels[0][0],
-            local_interaction=self.local_interaction_spin_orbit,
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
+            local_interaction=interaction_spin_orbit,
             local_args=args_spin_orbit,
         )
 
-        # s-wave
+        # s-wave, l = 0, j = 1/2
         _, splus[0], _ = self.solver.solve(
             self.channels[0][0],
             self.asymptotics[0][0],
@@ -155,7 +161,6 @@ class Workspace:
             )
 
             # j = l - 1/2
-
             _, sminus[l], _ = self.solver.solve(
                 ch[1],
                 asym[1],
@@ -171,19 +176,46 @@ class Workspace:
 
         return splus[:l], sminus[:l]
 
-    def xs(self, args_scalar=None, args_spin_orbit=None):
-        splus, sminus = self.smatrix(args_scalar, args_spin_orbit)
+    def xs(
+        self,
+        interaction_scalar,
+        interaction_spin_orbit,
+        args_scalar=None,
+        args_spin_orbit=None,
+        angles=None,
+    ):
+        if angles is None:
+            angles = self.angles
+            P_l_costheta = self.P_l_costheta
+            P_1_l_costheta = self.P_1_l_costheta
+            rutherford = self.rutherford
+            f_c = self.f_c
+        else:
+            P_l_costheta = eval_legendre(self.sys.l[:, np.newaxis], np.cos(angles))
+            P_1_l_costheta = lpmv(1, self.sys.l[:, np.newaxis], np.cos(angles))
+            sin2 = np.sin(angles / 2) ** 2
+            rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
+            f_c = (
+                -self.eta
+                / (2 * self.k * sin2)
+                * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
+            )
+
+        splus, sminus = self.smatrix(
+            interaction_scalar, interaction_spin_orbit, args_scalar, args_spin_orbit
+        )
         return ElasticXS(
             *elastic_xs(
                 self.k,
-                self.angles,
+                angles,
                 splus,
                 sminus,
-                self.P_l_costheta,
-                self.P_1_l_costheta,
-                self.f_c,
+                P_l_costheta,
+                P_1_l_costheta,
+                f_c,
                 self.sigma_l,
-            )
+            ),
+            rutherford,
         )
 
 
