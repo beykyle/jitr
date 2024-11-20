@@ -1,7 +1,7 @@
 import numpy as np
-
+from fractions import Fraction
+from ..utils.angular_momentum import clebsch_gordan
 from ..utils.constants import HBARC
-
 from ..utils.free_solutions import (
     H_plus,
     H_minus,
@@ -15,6 +15,72 @@ from ..utils.free_solutions import (
 # in PTS allow for getting channels either coupled or decoupled
 # the coupling function should return an array of Channel objects, and a coupling matrix
 # add tests for spin-orbit coupling and Ay
+
+def build_channel_sets(lmax, s, level_spins, level_energies):
+    r"""
+    Returns:
+        coupled_channel_sets (dict): a dictionary of dictionaries. The outer key is Jtot,
+        and the inner key is Mtot, and the values are Channels2Body instances describing the
+        coupled channel system for a given (Jtot,Mtot) pair. For every Jtot key in the outer
+        dict, there are (2 Jtot +1) (Mtot, Channels2Body) key, value pairs in the corresponding
+        inner dict
+    """
+    Jmin = max(0, np.min(level_spins) - s)
+    Jmax = np.max(level_spins) + lmax + s
+    coupled_channel_sets = {}
+    for Jtot in np.arange(Jmin, Jmax, 1, dtype=Fraction):
+        coupled_channel_sets[Jtot] = {}
+        for Mtot in np.arange(-Jtot, Jtot,1):
+            coupled_channel_sets[Jtot][Mtot] = Channels2Body(Jtot, Mtot, s, level_spins, level_energies)
+
+    return coupled_channel_sets
+
+
+
+class Channels2Body:
+    r"""
+    Represents the quantum numbers in a 2-body scattering channel in which the projectile
+    is structureless and inert, but the target may be excited into energy eigenstates with
+    finite spin.
+
+    Attributes:
+        Jtot (Fraction): total angular momentum of the channel
+        Mtot (Fraction): total angular momentum projection of the channel
+        lmax (int): truncation in orbital angular momentum
+        s (Fraction): projectile spin
+        level_spins (Fraction): total angular momenta of target eigenstates
+        level_energies (float): energy eigenvalues of target
+    """
+
+    def __init__(self, Jtot, Mtot, lmax, s, level_spins, level_energies):
+        assert level_spins.shape == level_energies.shape
+        (self.n_levels,) = E.shape
+        # iterate over levels
+        self.I = []
+        self.E = []
+        self.l = []
+        self.j = []
+        self.s = []
+
+        #TODO condense this, store coupling coeffs and channel values
+        for En, In in zip(level_energies, level_spins):
+            assert Jtot >= In
+            # iterate over sum of projectile spin and orbital angular momentum
+            for j in np.arange(Jtot - In, Jtot + In):
+                # iterate over projection of level spin I
+                for mI in np.arange(-In, In, 1):
+                    mj = Mtot - mI
+                    cg1 = clebsch_gordan(j, mj, In, mI, Jtot, Mtot)
+
+                # iterate over orbital angular momentum
+                for l in np.arange( np.abs(j - s), j + s, 1):
+                    # and spin projection
+                    for mS in np.arange(-s, s, 1):
+                        ml = mj - mS
+                        cg2 = clebsch_gordan(l,ml,s,ms,j,mj)
+
+    def spin_orbit_coupling(self):
+        return (1 / 2) * (self.j * (self.j + 1) - self.l * (self.l + 1) - self.s * (self.s + 1))
 
 
 def scalar_couplings(Jtot):
