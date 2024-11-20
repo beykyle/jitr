@@ -244,7 +244,10 @@ def rmse_RK_LM():
         # set of parameters for each partial wave, we can actually pre-compute
         # the interaction part of the Lagrange-matrix
         im = solver.interaction_matrix(
-            channels[0],
+            channels[0].k[0],
+            channels[0].E[0],
+            channels[0].a,
+            channels[0].size,
             local_interaction=interaction,
             local_args=params,
         )
