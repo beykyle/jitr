@@ -11,35 +11,28 @@ import json
 import numpy as np
 from numba import njit
 
-from ..utils.constants
+from ..utils.constants import MASS_PION
 from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
 
-def WLH_so(r, alpha, lds):
-    r"""simplified Koning-Delaroche spin-orbit terms
 
-    Take Eq. (1) and remove the energy dependence of the coefficients.
-
-    lds: l • s = 1/2 * (j(j+1) - l(l+1) - s(s+1))
-    """
-    uso, rso, aso = decompose_alpha(alpha)[1]
-    return lds * (uso / MASS_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
+def WLH_so(r, uso, rso, aso):
+    r"""WLH spin-orbit terms"""
+    return (uso / MASS_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
 
 
-def WLH(r, alpha):
-    """WLH without the spin-orbit term - Eq. (2)."""
-
-    uv, rv, av, uw, rw, aw, ud, rd, ad = decompose_alpha(alpha)[0]
+def WLH(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
+    r"""WLH without the spin-orbit term """
     return (
-        -uv * woods_saxon(r, rv, av)
-        - 1j * uw * woods_saxon(r, rw, aw)
-        - 1j * (-4 * ad) * ud * woods_saxon_prime(r, rd, ad)
+        -uv * woods_saxon_safe(r, rv, av)
+        - 1j * uw * woods_saxon_safe(r, rw, aw)
+        - 1j * (-4 * ad) * ud * woods_saxon_prime_safe(r, rd, ad)
     )
 
 
 class WLHGlobal:
     r"""Global optical potential in WLH form."""
 
-    def __init__(self, projectile: Projectile, param_fpath: Path = None):
+    def __init__(self, projectile: tuple, param_fpath: Path = None):
         r"""
         Parameters:
             projectile : neutron or proton?
@@ -48,12 +41,12 @@ class WLHGlobal:
         """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
-                "../data/WLH_mean.json"
+                "./../../data/WLH_mean.json"
             )
 
-        if projectile == Projectile.neutron:
+        if projectile == (1, 0):
             tag = "_n"
-        elif projectile == Projectile.proton:
+        elif projectile == (1, 1):
             tag = "_p"
         else:
             raise RuntimeError(
@@ -172,7 +165,7 @@ class WLHGlobal:
         N = A - Z
         delta = (N - Z) / A
         factor = 1.0
-        if self.projectile == Projectile.neutron:
+        if self.projectile == (1, 0):
             factor = -1.0
 
         uv = (
@@ -180,7 +173,9 @@ class WLHGlobal:
             - self.uv1 * E_lab
             + self.uv2 * E_lab**2
             + self.uv3 * E_lab**3
-            + factor * (self.uv4 - self.uv5 * E_lab + self.uv6 * E_lab**2) * delta
+            + factor * (
+                self.uv4 - self.uv5 * E_lab + self.uv6 * E_lab**2
+            ) * delta
         )
         rv = (
             self.rv0
@@ -212,10 +207,12 @@ class WLHGlobal:
             + (self.aw3 - self.aw4 * E_lab) * delta
         )
 
-        if (self.projectile == Projectile.neutron and E_lab < 40) or (
-            self.projectile == Projectile.proton and E_lab < 20 and A > 100
+        if (self.projectile == (1, 0) and E_lab < 40) or (
+            self.projectile == (1, 1) and E_lab < 20 and A > 100
         ):
-            ud = self.ud0 - self.ud1 * E_lab - (self.ud3 - self.ud4 * E_lab) * delta
+            ud = self.ud0 - self.ud1 * E_lab - (
+                self.ud3 - self.ud4 * E_lab
+            ) * delta
         else:
             ud = 0
 
