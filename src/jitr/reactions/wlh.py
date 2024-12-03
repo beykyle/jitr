@@ -1,4 +1,3 @@
-
 """The Whitehead-Lim-Holt potential is a global mcroscopic optical potential for nuclear
 scattering.
 
@@ -21,7 +20,7 @@ def WLH_so(r, uso, rso, aso):
 
 
 def WLH(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
-    r"""WLH without the spin-orbit term """
+    r"""WLH without the spin-orbit term"""
     return (
         -uv * woods_saxon_safe(r, rv, av)
         - 1j * uw * woods_saxon_safe(r, rw, aw)
@@ -173,9 +172,7 @@ class WLHGlobal:
             - self.uv1 * E_lab
             + self.uv2 * E_lab**2
             + self.uv3 * E_lab**3
-            + factor * (
-                self.uv4 - self.uv5 * E_lab + self.uv6 * E_lab**2
-            ) * delta
+            + factor * (self.uv4 - self.uv5 * E_lab + self.uv6 * E_lab**2) * delta
         )
         rv = (
             self.rv0
@@ -210,9 +207,7 @@ class WLHGlobal:
         if (self.projectile == (1, 0) and E_lab < 40) or (
             self.projectile == (1, 1) and E_lab < 20 and A > 100
         ):
-            ud = self.ud0 - self.ud1 * E_lab - (
-                self.ud3 - self.ud4 * E_lab
-            ) * delta
+            ud = self.ud0 - self.ud1 * E_lab - (self.ud3 - self.ud4 * E_lab) * delta
         else:
             ud = 0
 
