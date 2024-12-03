@@ -150,7 +150,7 @@ class IntegralWorkspace:
             ) < self.smatrix_abs_tol:
                 break
 
-        return splus, sminus
+        return splus[:l], sminus[:l]
 
     def xs(
         self,
