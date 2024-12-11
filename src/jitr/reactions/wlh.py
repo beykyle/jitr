@@ -218,8 +218,10 @@ class WLHGlobal:
         rso = self.rso0 - self.rso1 * A ** (-1.0 / 3.0)
         aso = self.aso0 - self.aso1 * A
 
-        params = np.array(
-            [
+        # TODO is this right or should there be a Coulomb correction?
+        R_C = rv * A ** (1.0 / 3.0)
+        coulomb_params = (Z * self.projectile[1], R_C)
+        scalar_params = (
                 uv,
                 rv * A ** (1.0 / 3.0),
                 av,
@@ -229,10 +231,10 @@ class WLHGlobal:
                 ud,
                 rd * A ** (1.0 / 3.0),
                 ad,
+        )
+        spin_orbit_params = (
                 uso,
                 rso * A ** (1.0 / 3.0),
                 aso,
-            ]
         )
-        R_C = rv
-        return R_C, params
+        return coulomb_params, scalar_params, spin_orbit_params
