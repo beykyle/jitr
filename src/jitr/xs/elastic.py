@@ -164,13 +164,12 @@ class IntegralWorkspace:
         returns the angle-integrated total, elastic and reaction cross sections
         """
         splus, sminus = self.smatrix(
-            kinematics,
             interaction_scalar,
             interaction_spin_orbit,
             args_scalar,
             args_spin_orbit,
         )
-        return integral_elastic_xs(kinematics.k, splus, sminus, self.ls, self.sigma_l)
+        return integral_elastic_xs(self.k, splus, sminus, self.ls, self.sigma_l)
 
     def transmission_coefficients(
         self,
@@ -186,7 +185,6 @@ class IntegralWorkspace:
         partial waves
         """
         splus, sminus = self.smatrix(
-            kinematics,
             interaction_scalar,
             interaction_spin_orbit,
             args_scalar,
