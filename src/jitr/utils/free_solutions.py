@@ -1,7 +1,6 @@
 from numba import njit
 import scipy.special as sc
 from mpmath import coulombf, coulombg
-from scipy.misc import derivative
 import numpy as np
 
 
@@ -85,15 +84,29 @@ def H_minus(s, l, eta, asym=CoulombAsymptotics):
     return asym.G(s, l, eta) - 1j * asym.F(s, l, eta)
 
 
-def H_plus_prime(s, l, eta, dx=1e-6, asym=CoulombAsymptotics):
+def coulomb_func_deriv(func, s, l, eta):
     """
-    Derivative of the Hankel function (first kind) with respect to s.
+    Derivative of Coulomb functions F, G, and Coulomb Hankel functions H+ and H-
     """
-    return derivative(lambda z: H_plus(z, l, eta, asym), s, dx=dx)
+    # recurrance relations from https://dlmf.nist.gov/33.4
+    # dlmf Eq. 33.4.4
+    R = np.sqrt(1 +eta**2/(l+1)**2)
+    S = (l+1)/s + eta/(l+1)
+    Xl = func(s,l,eta)
+    Xlp = func(s,l+1,eta)
+    return S * Xl - R * Xlp
+
+
+def H_plus_prime(s, l, eta, asym=CoulombAsymptotics):
+    """
+    Derivative of the Hankel function (first kind) with respect to s
+    """
+    return coulomb_func_deriv(H_plus, s, l, eta)
+
 
 
 def H_minus_prime(s, l, eta, dx=1e-6, asym=CoulombAsymptotics):
     """
     Derivative of the Hankel function (second kind) with respect to s.
     """
-    return derivative(lambda z: H_minus(z, l, eta, asym), s, dx=dx)
+    return coulomb_func_deriv(H_minus, s, l, eta)
