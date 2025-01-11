@@ -12,7 +12,7 @@ from jitr.reactions.potentials import (
 from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 # target (A,Z)
-Ca48 = (28, 20)
+Ca48 = (48, 20)
 mass_Ca48 = 44657.26581995028  # MeV/c^2
 
 # projectile (A,z)
