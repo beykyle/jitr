@@ -91,12 +91,31 @@ def mass(A, Z, Eb=None):
     return Z * MASS_P + N * MASS_N - Eb
 
 
+def neutron_separation_energy(A, Z):
+    return mass(A - 1, Z) + mass(1, 0) - mass(A, Z)
+
+
+def proton_separation_energy(A, Z):
+    return mass(A - 1, Z - 1) + mass(1, 1) - mass(A, Z)
+
+
+def neutron_fermi_energy(A, Z):
+    return -0.5 * (
+        neutron_separation_energy(A, Z) + neutron_separation_energy(A + 1, Z)
+    )
+
+
+def proton_fermi_energy(A, Z):
+    return -0.5 * (
+        proton_separation_energy(A, Z) + proton_separation_energy(A + 1, Z + 1)
+    )
+
+
 def semi_relativistic_kinematics(
     mass_target,
     mass_projectile,
     Elab,
     Zz=0,
-    Q=0,
 ):
     r"""Calculates the CM frame kinetic energy and wavenumber for a projectile scattering on a
     target nuclide using the relatavistic approximation of Ingemarsson, 1974:
@@ -136,17 +155,17 @@ def semi_relativistic_kinematics(
     return ChannelKinematics(Ecm, mu, k, eta)
 
 
-def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0, Q=0):
+def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0):
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
-    Ecm = mass_target / (mass_target + mass_projectile) * Elab + Q
+    Ecm = mass_target / (mass_target + mass_projectile) * Elab
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
     return ChannelKinematics(Ecm, mu, k, eta)
 
 
-def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0, Q=0):
+def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0):
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
-    Elab = (mass_target + mass_projectile) / mass_target * (Ecm - Q)
+    Elab = (mass_target + mass_projectile) / mass_target * Ecm
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
     return Elab, ChannelKinematics(Ecm, mu, k, eta)
