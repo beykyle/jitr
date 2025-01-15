@@ -222,19 +222,19 @@ class WLHGlobal:
         R_C = rv * A ** (1.0 / 3.0)
         coulomb_params = (Z * self.projectile[1], R_C)
         scalar_params = (
-                uv,
-                rv * A ** (1.0 / 3.0),
-                av,
-                uw,
-                rw * A ** (1.0 / 3.0),
-                aw,
-                ud,
-                rd * A ** (1.0 / 3.0),
-                ad,
+            uv,
+            rv * A ** (1.0 / 3.0),
+            av,
+            uw,
+            rw * A ** (1.0 / 3.0),
+            aw,
+            ud,
+            rd * A ** (1.0 / 3.0),
+            ad,
         )
         spin_orbit_params = (
-                uso,
-                rso * A ** (1.0 / 3.0),
-                aso,
+            uso,
+            rso * A ** (1.0 / 3.0),
+            aso,
         )
         return coulomb_params, scalar_params, spin_orbit_params
