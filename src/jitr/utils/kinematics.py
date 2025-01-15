@@ -92,11 +92,11 @@ def mass(A, Z, Eb=None):
 
 
 def neutron_separation_energy(A, Z):
-    return mass(A, Z) - mass(A - 1, Z) - mass(1, 0)
+    return mass(A - 1, Z) + mass(1, 0) - mass(A, Z)
 
 
 def proton_separation_energy(A, Z):
-    return mass(A, Z) - mass(A - 1, Z - 1) - mass(1, 1)
+    return mass(A - 1, Z - 1) + mass(1, 1) - mass(A, Z)
 
 
 def neutron_fermi_energy(A, Z):
