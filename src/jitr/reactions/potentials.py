@@ -25,11 +25,7 @@ def woods_saxon_prime(r, *params):
 
 
 def woods_saxon_safe(r, R, a):
-    """Woods-Saxon potential
-
-    * avoids `exp` overflows
-
-    """
+    """Woods-Saxon potential. avoids `exp` overflows"""
     x = (r - R) / a
     if isinstance(x, float):
         return 1.0 / (1.0 + np.exp(x)) if x < MAX_ARG else 0
@@ -40,38 +36,8 @@ def woods_saxon_safe(r, R, a):
         return V
 
 
-def woods_saxon_volume_integral(V, R, a):
-    return 4 * np.pi / 3 * (V * R**3 / A) * (1 + (np.pi * a / R) ** 2)
-
-
-def woods_saxon_mean_square_radius(V, R, a):
-    return 3.0 / 5 * R**2 * (1 + 7.0 / 3 * (np.pi * a / R) ** 2)
-
-
-def woods_saxon_prime_volume_integral(V, R, a):
-    return (
-        (4 * np.pi / 3) * V * R**3 * 12 * a / R * (1 + 1.0 / 3 * (np.pi * a / R) ** 2)
-    )
-
-
-def woods_saxon_mean_prime_square_radius(V, R, a):
-    return R**2 * (1 + 5.0 / 3 * (np.pi * a / R) ** 2)
-
-
-def thomas_volume_integral(V, R, a):
-    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
-
-
-def thomas_volume_integral(V, R, a):
-    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
-
-
 def woods_saxon_prime_safe(r, R, a):
-    """derivative of the Woods-Saxon potential w.r.t. $r$
-
-    * avoids `exp` overflows
-
-    """
+    """derivative of the Woods-Saxon potential w.r.t. $r$ avoids `exp` overflows"""
     x = (r - R) / a
     if isinstance(x, float):
         return -1 / a * np.exp(x) / (1 + np.exp(x)) ** 2 if x < MAX_ARG else 0
@@ -83,10 +49,8 @@ def woods_saxon_prime_safe(r, R, a):
 
 
 def thomas_safe(r, R, a):
-    """1/r * derivative of the Woods-Saxon potential w.r.t. $r$
-
-    * avoids `exp` overflows, while correctly handeling 1/r term
-
+    """1/r * derivative of the Woods-Saxon potential w.r.t. $r$, avoids
+    `exp` overflows, while correctly handeling 1/r term
     """
     x = (r - R) / a
     y = 1.0 / r
@@ -104,16 +68,34 @@ def surface_peaked_gaussian_potential(r, *params):
     return (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
 
 
+def woods_saxon_volume_integral(V, R, a):
+    return 4 * np.pi / 3 * (V * R**3) * (1 + (np.pi * a / R) ** 2)
+
+
+def woods_saxon_mean_square_radius(V, R, a):
+    return 3.0 / 5 * R**2 * (1 + 7.0 / 3 * (np.pi * a / R) ** 2)
+
+
+def woods_saxon_prime_volume_integral(V, R, a):
+    return (
+        (4 * np.pi / 3) * V * R**3 * 12 * a / R * (1 + 1.0 / 3 * (np.pi * a / R) ** 2)
+    )
+
+
+def woods_saxon_prime_mean_square_radius(V, R, a):
+    return R**2 * (1 + 5.0 / 3 * (np.pi * a / R) ** 2)
+
+
+def thomas_volume_integral(V, R, a):
+    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
+
+
+def thomas_mean_square_radius(V, R, a):
+    return R**2 * (1 + 7.0 / 3.0 * (np.pi * a / R) ** 2)
+
+
 def coulomb_charged_sphere(r, zz, r_c):
     return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
-
-
-def yamaguchi_potential(r, rp, *params):
-    """
-    non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
-    """
-    W0, beta, ALPHA = params
-    return -W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
 
 
 def regular_inverse_r(r, r_c):
@@ -126,6 +108,14 @@ def regular_inverse_r(r, r_c):
         V[mask] = 1.0 / (2.0 * r_c) * (3.0 - (r[mask] / r_c) ** 2)
         V[not_mask] = 1.0 / r[not_mask]
         return V
+
+
+def yamaguchi_potential(r, rp, *params):
+    """
+    non-local potential with analytic s-wave phase shift; Eq. 6.14 in [Baye, 2015]
+    """
+    W0, beta, ALPHA = params
+    return -W0 * 2 * beta * (beta + ALPHA) ** 2 * np.exp(-beta * (r + rp))
 
 
 def yamaguchi_swave_delta(k, *params):
