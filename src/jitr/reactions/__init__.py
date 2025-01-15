@@ -9,3 +9,4 @@ from .system import (
 from .wavefunction import Wavefunctions
 from .potentials import *
 from .kduq import *
+from .wlh import *
