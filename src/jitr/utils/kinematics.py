@@ -36,7 +36,7 @@ def init_AME_db():
         ).resolve()
         assert __AME_PATH__.is_file()
     if __AME_DB__ is None:
-        __AME_DB__ = pd.read_csv(__AME_PATH__, sep="\s+")
+        __AME_DB__ = pd.read_csv(__AME_PATH__, sep=r"\s+")
 
 
 def get_AME_binding_energy(A, Z):
