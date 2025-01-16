@@ -349,6 +349,10 @@ def differential_elastic_xs(
     f_c: np.array = 0,
     sigma_l: np.array = 0,
 ):
+    r"""
+    Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003
+    """
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
     xsrxn = 0.0
