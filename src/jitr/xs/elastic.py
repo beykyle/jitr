@@ -264,7 +264,7 @@ class DifferentialWorkspace:
             self.rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
         else:
             self.f_c = np.zeros_like(angles)
-            self.rutherford = np.zeros_like(angles)
+            self.rutherford = None
 
     def xs(
         self,
@@ -283,13 +283,17 @@ class DifferentialWorkspace:
         else:
             P_l_costheta = eval_legendre(self.ls, np.cos(angles))
             P_1_l_costheta = lpmv(1, self.ls, np.cos(angles))
-            sin2 = np.sin(angles / 2) ** 2
-            rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
-            f_c = (
-                -self.eta
-                / (2 * self.k * sin2)
-                * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
-            )
+            if self.Zz > 0:
+                sin2 = np.sin(angles / 2) ** 2
+                rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
+                f_c = (
+                    -self.eta
+                    / (2 * self.k * sin2)
+                    * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
+                )
+            else:
+                rutherford = None
+                f_c = np.zeros_like(angles)
 
         splus, sminus = self.integral_workspace.smatrix(
             interaction_scalar, interaction_spin_orbit, args_scalar, args_spin_orbit
