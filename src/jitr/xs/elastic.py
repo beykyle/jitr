@@ -341,11 +341,11 @@ def integral_elastic_xs(
 def differential_elastic_xs(
     k: float,
     angles: np.array,
-    Splus: np.array,
-    Sminus: np.array,
+    splus: np.array,
+    sminus: np.array,
     ls: np.array,
-    P_l_theta: np.array,
-    P_1_l_theta: np.array,
+    P_l_costheta: np.array,
+    P_1_l_costheta: np.array,
     f_c: np.array = 0,
     sigma_l: np.array = 0,
 ):
@@ -354,27 +354,27 @@ def differential_elastic_xs(
     xsrxn = 0.0
     xst = 0.0
 
-    for l in range(Splus.shape[0]):
-        # scattering amplitudes
-        a += 1j * (
-            (2 * l + 1 - (l + 1) * Splus[l] - l * Sminus[l])
-            * P_l_theta[l, :]
+    for l in range(splus.shape[0]):
+        a += (
+            P_l_costheta[l, :]
             * np.exp(2j * sigma_l[l])
-            / (2 * k)
+            / (2j * k)
+            * ((l + 1) * (splus[l] - 1) + l * (sminus[l] - 1))
         )
-        b += 1j * (
-            (Sminus[l] - Splus[l])
-            * P_1_l_theta[l, :]
+        b += (
+            P_1_l_costheta[l, :]
             * np.exp(2j * sigma_l[l])
-            / (2 * k)
+            / (2j * k)
+            * (splus[l] - sminus[l])
         )
-        xsrxn += (l + 1) * (1 - np.absolute(Splus[l]) ** 2) + l * (
-            1 - np.absolute(Sminus[l]) ** 2
+
+        xsrxn += (l + 1) * (1 - np.absolute(splus[l]) ** 2) + l * (
+            1 - np.absolute(sminus[l]) ** 2
         )
-        xst += (l + 1) * (1 - np.real(Splus[l])) + l * (1 - np.real(Sminus[l]))
+        xst += (l + 1) * (1 - np.real(splus[l])) + l * (1 - np.real(sminus[l]))
 
     dsdo = (np.absolute(a) ** 2 + np.absolute(b) ** 2) * 10
-    Ay = np.real(a * np.conj(b) + b * np.conj(a)) * 10 / dsdo
+    Ay = np.imag(a.conj() * b) * 10 / dsdo
     xsrxn *= 10 * np.pi / k**2
     xst *= 10 * 2 * np.pi / k**2
 
