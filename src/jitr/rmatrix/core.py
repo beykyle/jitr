@@ -47,8 +47,8 @@ def solve_smatrix_with_inverse(
     R, Ainv = rmatrix_with_inverse(A, b, nchannels, nbasis, a)
 
     # Eqn 17 in Descouvemont, 2016
-    Zp = np.diag(Hp) - R * Hpp[:, np.newaxis] * a
-    Zm = np.diag(Hm) - R * Hmp[:, np.newaxis] * a
+    Zp = np.diag(Hp) - R @ np.diag(Hpp) * a
+    Zm = np.diag(Hm) - R @ np.diag(Hmp) * a
 
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
