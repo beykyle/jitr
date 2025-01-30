@@ -301,12 +301,13 @@ class KDGlobal:
         rwso = rso
         awso = aso
 
-        # Coulomb radius
-        rc0 = self.rc_0 + self.rc_A * A ** (-2.0 / 3.0) + self.rc_A2 * A ** (-5.0 / 3.0)
-        R_C = rc0 * A ** (1.0 / 3.0)
-
         # Coulomb correction
+        R_C = rv * A ** (1.0 / 3.0)
         if self.projectile == (1, 1):
+            # Coulomb radius
+            rc0 = self.rc_0 + self.rc_A * A ** (-2.0 / 3.0) + self.rc_A2 * A ** (-5.0 / 3.0)
+            R_C = rc0 * A ** (1.0 / 3.0)
+
             Vcbar = 1.73 / rc0 * Z * A ** (-1.0 / 3.0)
             Vc = delta_VC(Elab, Vcbar, v1, v2, v3, v4, Ef)
             vv += Vc
