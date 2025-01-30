@@ -118,7 +118,7 @@ class IntegralWorkspace:
             self.channels[0][0],
             self.asymptotics[0][0],
             free_matrix=self.free_matrices[0],
-           interaction_matrix=im_central,
+            interaction_matrix=im_central,
             basis_boundary=self.basis_boundary,
         )
 

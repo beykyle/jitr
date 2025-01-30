@@ -64,7 +64,6 @@ def generate_legendre_quadrature(nbasis: int):
     return x, w
 
 
-
 class LagrangeLaguerreQuadrature:
     r"""
     Lagrange Laguerre mesh for the Schrödinger equation following ch. 3.3 of
@@ -92,11 +91,13 @@ class LagrangeLaguerreQuadrature:
         if overlap is None:
             # Eq. 3.71 in Baye, 2015
             imj = np.arange(self.nbasis) - np.arange(self.nbasis)[:, np.newaxis]
-            self.overlap = (-1.) ** imj / np.sqrt(np.outer(abscissa, abscissa))
+            self.overlap = (-1.0) ** imj / np.sqrt(np.outer(abscissa, abscissa))
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
+    def kinetic_operator_element(
+        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
+    ):
         """
         @returns the (n,m)th matrix element for the kinetic energy operator at
         channel radius a = k*r with orbital angular momentum l
@@ -162,7 +163,9 @@ class LagrangeLegendreQuadrature:
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
+    def kinetic_operator_element(
+        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
+    ):
         """
         @returns the (n,m)th matrix element for the kinetic energy + Bloch
         operator at channel radius a = k*r with orbital angular momentum l
