@@ -13,7 +13,12 @@ import json
 import numpy as np
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe, coulomb_charged_sphere
+from .potentials import (
+    woods_saxon_safe,
+    woods_saxon_prime_safe,
+    thomas_safe,
+    coulomb_charged_sphere,
+)
 
 
 def Vv(E, v1, v2, v3, v4, Ef):
@@ -60,7 +65,7 @@ def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     )
 
 
-def KD_central_plus_coulomb(r, central_params, coulomb_params, ):
+def KD_central_plus_coulomb(r, central_params, coulomb_params):
     nucl = KD_central(r, *central_params)
     coul = coulomb_charged_sphere(r, *coulomb_params)
     return nucl + coul
@@ -297,17 +302,11 @@ class KDGlobal:
         awso = aso
 
         # Coulomb radius
-        R_C = 0
-        if self.projectile == (1, 1):
-            # Coulomb radius
-            rc0 = (
-                self.rc_0
-                + self.rc_A * A ** (-2.0 / 3.0)
-                + self.rc_A2 * A ** (-5.0 / 3.0)
-            )
-            R_C = rc0 * A ** (1.0 / 3.0)
+        rc0 = self.rc_0 + self.rc_A * A ** (-2.0 / 3.0) + self.rc_A2 * A ** (-5.0 / 3.0)
+        R_C = rc0 * A ** (1.0 / 3.0)
 
-            # Coulomb correction
+        # Coulomb correction
+        if self.projectile == (1, 1):
             Vcbar = 1.73 / rc0 * Z * A ** (-1.0 / 3.0)
             Vc = delta_VC(Elab, Vcbar, v1, v2, v3, v4, Ef)
             vv += Vc
