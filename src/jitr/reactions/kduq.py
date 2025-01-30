@@ -13,7 +13,7 @@ import json
 import numpy as np
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
+from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe, coulomb_charged_sphere
 
 
 def Vv(E, v1, v2, v3, v4, Ef):
@@ -58,6 +58,12 @@ def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
         - 1j * wv * woods_saxon_safe(r, rwv, awv)
         - 1j * (-4 * ad) * wd * woods_saxon_prime_safe(r, rd, ad)
     )
+
+
+def KD_central_plus_coulomb(r, central_params, coulomb_params, ):
+    nucl = KD_central(r, *central_params)
+    coul = coulomb_charged_sphere(r, *coulomb_params)
+    return nucl + coul
 
 
 def KD_spin_orbit(r, vso, rso, aso, wso, rwso, awso):
