@@ -92,11 +92,11 @@ class LagrangeLaguerreQuadrature:
         if overlap is None:
             # Eq. 3.71 in Baye, 2015
             imj = np.arange(self.nbasis) - np.arange(self.nbasis)[:, np.newaxis]
-            self.overlap += (-1) ** imj / np.sqrt(np.outer(abscissa, abscissa))
+            self.overlap = (-1.) ** imj / np.sqrt(np.outer(abscissa, abscissa))
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(self, n: int32, m: int32, a: float64, l: int32):
+    def kinetic_operator_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
         """
         @returns the (n,m)th matrix element for the kinetic energy operator at
         channel radius a = k*r with orbital angular momentum l
@@ -121,7 +121,7 @@ class LagrangeLaguerreQuadrature:
                 xn - xm
             ) ** 2 / a**2 - correction
 
-    def kinetic_matrix(self, a: float64, l: int32):
+    def kinetic_matrix(self, a: np.float64, l: np.int32):
         r"""
         @returns the kinetic operator matrix in the Lagrange Laguerre basis
         """
@@ -162,7 +162,7 @@ class LagrangeLegendreQuadrature:
         else:
             self.overlap = overlap
 
-    def kinetic_operator_element(self, n: int32, m: int32, a: float64, l: int32):
+    def kinetic_operator_element(self, n: np.int32, m: np.int32, a: np.float64, l: np.int32):
         """
         @returns the (n,m)th matrix element for the kinetic energy + Bloch
         operator at channel radius a = k*r with orbital angular momentum l
@@ -196,7 +196,7 @@ class LagrangeLegendreQuadrature:
                 / a**2
             )
 
-    def kinetic_matrix(self, a: float64, l: int32):
+    def kinetic_matrix(self, a: np.float64, l: np.int32):
         r"""
         @returns the kinetic operator matrix in the Lagrange Legendre basis
         """
