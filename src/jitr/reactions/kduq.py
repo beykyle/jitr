@@ -48,7 +48,7 @@ def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-def KD_scalar(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
+def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     r"""simplified Koning-Delaroche without the spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
@@ -307,7 +307,7 @@ class KDGlobal:
             vv += Vc
 
         coulomb_params = (Z * self.projectile[1], R_C)
-        scalar_params = (
+        central_params = (
             vv,
             rv * A ** (1.0 / 3.0),
             av,
@@ -327,4 +327,4 @@ class KDGlobal:
             awso,
         )
 
-        return coulomb_params, scalar_params, spin_orbit_params
+        return coulomb_params, central_params, spin_orbit_params

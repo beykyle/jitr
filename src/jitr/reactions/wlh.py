@@ -219,7 +219,7 @@ class WLHGlobal:
         # TODO is this right or should there be a Coulomb correction?
         R_C = rv * A ** (1.0 / 3.0)
         coulomb_params = (Z * self.projectile[1], R_C)
-        scalar_params = (
+        central_params = (
             uv,
             rv * A ** (1.0 / 3.0),
             av,
@@ -235,4 +235,4 @@ class WLHGlobal:
             rso * A ** (1.0 / 3.0),
             aso,
         )
-        return coulomb_params, scalar_params, spin_orbit_params
+        return coulomb_params, central_params, spin_orbit_params
