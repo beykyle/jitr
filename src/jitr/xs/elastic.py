@@ -83,9 +83,9 @@ class IntegralWorkspace:
 
     def smatrix(
         self,
-        interaction_scalar,
+        interaction_central,
         interaction_spin_orbit,
-        args_scalar=None,
+        args_central=None,
         args_spin_orbit=None,
     ):
         r"""
@@ -96,13 +96,13 @@ class IntegralWorkspace:
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
 
         # precompute the interaction matrix
-        im_scalar = self.solver.interaction_matrix(
+        im_central = self.solver.interaction_matrix(
             self.channels[0][0].k[0],
             self.channels[0][0].E[0],
             self.channels[0][0].a,
             self.channels[0][0].size,
-            local_interaction=interaction_scalar,
-            local_args=args_scalar,
+            local_interaction=interaction_central,
+            local_args=args_central,
         )
         im_spin_orbit = self.solver.interaction_matrix(
             self.channels[0][0].k[0],
@@ -118,7 +118,7 @@ class IntegralWorkspace:
             self.channels[0][0],
             self.asymptotics[0][0],
             free_matrix=self.free_matrices[0],
-            interaction_matrix=im_scalar,
+           interaction_matrix=im_central,
             basis_boundary=self.basis_boundary,
         )
 
@@ -132,7 +132,7 @@ class IntegralWorkspace:
                 ch[0],
                 asym[0],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar + lds[0] * im_spin_orbit,
+                interaction_matrix=im_central + lds[0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
 
@@ -141,7 +141,7 @@ class IntegralWorkspace:
                 ch[1],
                 asym[1],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix=im_scalar + lds[1] * im_spin_orbit,
+                interaction_matrix=im_central + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
 
@@ -154,9 +154,9 @@ class IntegralWorkspace:
 
     def xs(
         self,
-        interaction_scalar,
+        interaction_central,
         interaction_spin_orbit,
-        args_scalar=None,
+        args_central=None,
         args_spin_orbit=None,
         angles=None,
     ):
@@ -164,18 +164,18 @@ class IntegralWorkspace:
         returns the angle-integrated total, elastic and reaction cross sections
         """
         splus, sminus = self.smatrix(
-            interaction_scalar,
+            interaction_central,
             interaction_spin_orbit,
-            args_scalar,
+            args_central,
             args_spin_orbit,
         )
         return integral_elastic_xs(self.k, splus, sminus, self.ls, self.sigma_l)
 
     def transmission_coefficients(
         self,
-        interaction_scalar,
+        interaction_central,
         interaction_spin_orbit,
-        args_scalar=None,
+        args_central=None,
         args_spin_orbit=None,
         angles=None,
     ):
@@ -185,9 +185,9 @@ class IntegralWorkspace:
         partial waves
         """
         splus, sminus = self.smatrix(
-            interaction_scalar,
+            interaction_central,
             interaction_spin_orbit,
-            args_scalar,
+            args_central,
             args_spin_orbit,
         )
         return 1.0 - np.absolute(splus) ** 2, 1.0 - np.absolute(sminus) ** 2
@@ -268,9 +268,9 @@ class DifferentialWorkspace:
 
     def xs(
         self,
-        interaction_scalar,
+        interaction_central,
         interaction_spin_orbit,
-        args_scalar=None,
+        args_central=None,
         args_spin_orbit=None,
         angles=None,
     ):
@@ -296,7 +296,7 @@ class DifferentialWorkspace:
                 f_c = np.zeros_like(angles)
 
         splus, sminus = self.integral_workspace.smatrix(
-            interaction_scalar, interaction_spin_orbit, args_scalar, args_spin_orbit
+            interaction_central, interaction_spin_orbit, args_central, args_spin_orbit
         )
         return ElasticXS(
             *differential_elastic_xs(
