@@ -7,11 +7,9 @@ details. Equation references are with respect to (w.r.t.) this paper.
 
 from pathlib import Path
 import json
-import numpy as np
-from numba import njit
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
+from .potentials import woods_saxon_safe, woods_saxon_prime_safe
 
 
 def WLH_so(r, uso, rso, aso):

@@ -1,6 +1,4 @@
 import numpy as np
-from numba.experimental import jitclass
-from numba import int32, float64
 import scipy.special as sc
 
 
@@ -66,15 +64,7 @@ def generate_legendre_quadrature(nbasis: int):
     return x, w
 
 
-quadrature_dtype = [
-    ("nbasis", int32),
-    ("abscissa", float64[:]),
-    ("weights", float64[:]),
-    ("overlap", float64[:, :]),
-]
 
-
-@jitclass(quadrature_dtype)
 class LagrangeLaguerreQuadrature:
     r"""
     Lagrange Laguerre mesh for the Schrödinger equation following ch. 3.3 of
@@ -143,7 +133,6 @@ class LagrangeLaguerreQuadrature:
         return F
 
 
-@jitclass(quadrature_dtype)
 class LagrangeLegendreQuadrature:
     r"""
     Lagrange Legendre mesh for the Schrödinger equation following ch. 3.4 of
