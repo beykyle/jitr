@@ -74,10 +74,7 @@ def get_mass_db_row(A, Z):
 
 def get_mass_excess(A, Z, model="AME"):
     row = get_mass_db_row(A, Z)
-    if model == "BMA":
-        return float(row["BMA"].iloc[0]), float(row["Err_BMA"].iloc[0])
-    else:
-        return float(row[model].iloc[0]), 0
+    return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
 
 
 def mass(A, Z, **kwargs):
