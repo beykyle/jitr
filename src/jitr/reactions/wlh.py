@@ -161,8 +161,7 @@ class WLHGlobal:
 
     def get_params(self, A, Z, mu, E_lab, k):
         """
-        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given A, Z,
-        and COM-frame energy, returns params in form useable by EnergizedKoningDelaroche
+        Calculates WLH parameters for a given system
         """
 
         N = A - Z

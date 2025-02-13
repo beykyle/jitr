@@ -239,8 +239,7 @@ class KDGlobal:
 
     def get_params(self, A, Z, mu, Elab, k):
         """
-        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given A, Z,
-        and COM-frame energy, returns params in form useable by EnergizedKoningDelaroche
+        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given system
         """
 
         N = A - Z
