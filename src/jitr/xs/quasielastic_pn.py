@@ -19,14 +19,14 @@ from ..rmatrix import Solver
 
 
 def kinematics(
-    target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64, mass_kwargs=None
+    target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64, mass_kwargs={}
 ):
-    mass_target = mass(*target, **mass_kwargs)
-    mass_analog = mass(*analog, **mass_kwargs)
+    mass_target = mass(*target, **mass_kwargs)[0]  # TODO use uncertainties
+    mass_analog = mass(*analog, **mass_kwargs)[0]
     mn = constants.MASS_N
     mp = constants.MASS_P
-    BE_target = get_binding_energy(*target, **mass_kwargs)
-    BE_analog = get_AME_binding_energy(*analog, **mass_kwargs)
+    BE_target = get_binding_energy(*target, **mass_kwargs)[0]
+    BE_analog = get_binding_energy(*analog, **mass_kwargs)[0]
     Q = BE_analog - BE_target - Ex_IAS
     CDE = 1.33 * (target[1] + analog[1]) * 0.5 / target[0] ** (1.0 / 3.0)
     kinematics_entrance = classical_kinematics(mass_target, mp, Elab, Zz=target[1])

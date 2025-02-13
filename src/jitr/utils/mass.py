@@ -16,6 +16,7 @@ def init_mass_db():
     r"""
     Should be called once during import to load the AME mass table into memory
     """
+    global __MASS_MODELS__
     global __MASS_DIR__
     global __MASS_DB__
 
@@ -72,7 +73,7 @@ def get_mass_db_row(A, Z):
     return __MASS_DB__[(__MASS_DB__["A"] == A) & (__MASS_DB__["Z"] == Z)]
 
 
-def get_mass_excess(A, Z, model="AME"):
+def get_mass_excess(A, Z, model="ame2020"):
     row = get_mass_db_row(A, Z)
     return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
 
