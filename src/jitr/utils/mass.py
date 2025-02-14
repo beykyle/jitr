@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from .constants import MASS_N, MASS_P, AMU
+from .constants import MASS_N, MASS_P, MASS_E, AMU
 
 # mass table DB initialized at import
 __MASS_MODELS__ = []
@@ -69,21 +69,21 @@ def init_mass_db():
         __MASS_DB__ = mass_excess_table
 
 
-def get_mass_db_row(A, Z):
+def mass_db_row(A, Z):
     return __MASS_DB__[(__MASS_DB__["A"] == A) & (__MASS_DB__["Z"] == Z)]
 
 
-def get_mass_excess(A, Z, model="ame2020"):
-    row = get_mass_db_row(A, Z)
+def mass_excess(A, Z, model="ame2020"):
+    row = mass_db_row(A, Z)
     return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
 
 
 def mass(A, Z, **kwargs):
-    excess = get_mass_excess(A, Z, **kwargs)
-    return A * AMU + excess[0], excess[1]
+    excess = mass_excess(A, Z, **kwargs)
+    return A * AMU + excess[0] - Z * MASS_E, excess[1]
 
 
-def get_binding_energy(A, Z, **kwargs):
+def binding_energy(A, Z, **kwargs):
     m = mass(A, Z, **kwargs)
     return -m[0] + Z * MASS_P + (A - Z) * MASS_N, m[1]
 
