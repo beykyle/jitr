@@ -8,7 +8,7 @@ from jitr.reactions.potentials import (
     surface_peaked_gaussian_potential as spg,
     coulomb_charged_sphere as coul,
 )
-from jitr.utils import complex_det, kinematics
+from jitr.utils import complex_det, kinematics, mass, constants
 
 
 def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
@@ -39,12 +39,12 @@ def coupled_channels_example():
     levels = np.array([0, 2.3, 3.1])
 
     # target (A,Z)
-    Ca48 = (28, 20)
-    mass_Ca48 = kinematics.mass(*Ca48)
+    Ca48 = (48, 20)
+    mass_Ca48 = mass.mass(*Ca48)[0]
 
     # projectile (A,Z)
     proton = (1, 1)
-    mass_proton = kinematics.mass(*proton)
+    mass_proton = constants.MASS_P
 
     # the coupling is meant to be the purely geometric channel coupling and
     # sets the size of the coupled channel matrix in a partial wave

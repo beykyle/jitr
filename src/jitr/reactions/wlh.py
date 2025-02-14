@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe
+from .potentials import woods_saxon_safe, woods_saxon_prime_safe, coulomb_charged_sphere
 
 
 def WLH_so(r, uso, rso, aso):
@@ -17,13 +17,19 @@ def WLH_so(r, uso, rso, aso):
     return (uso / MASS_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
 
 
-def WLH(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
+def WLH_central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
     r"""WLH without the spin-orbit term"""
     return (
         -uv * woods_saxon_safe(r, rv, av)
         - 1j * uw * woods_saxon_safe(r, rw, aw)
         - 1j * (-4 * ad) * ud * woods_saxon_prime_safe(r, rd, ad)
     )
+
+
+def WLH_plus_coulomb(r, central_params, coulomb_params):
+    nucl = WLH_central(r, *central_params)
+    coul = coulomb_charged_sphere(r, *coulomb_params)
+    return nucl + coul
 
 
 class WLHGlobal:
@@ -155,8 +161,7 @@ class WLHGlobal:
 
     def get_params(self, A, Z, mu, E_lab, k):
         """
-        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given A, Z,
-        and COM-frame energy, returns params in form useable by EnergizedKoningDelaroche
+        Calculates WLH parameters for a given system
         """
 
         N = A - Z
@@ -216,10 +221,9 @@ class WLHGlobal:
         rso = self.rso0 - self.rso1 * A ** (-1.0 / 3.0)
         aso = self.aso0 - self.aso1 * A
 
-        # TODO is this right or should there be a Coulomb correction?
         R_C = rv * A ** (1.0 / 3.0)
         coulomb_params = (Z * self.projectile[1], R_C)
-        scalar_params = (
+        central_params = (
             uv,
             rv * A ** (1.0 / 3.0),
             av,
@@ -235,4 +239,4 @@ class WLHGlobal:
             rso * A ** (1.0 / 3.0),
             aso,
         )
-        return coulomb_params, scalar_params, spin_orbit_params
+        return coulomb_params, central_params, spin_orbit_params

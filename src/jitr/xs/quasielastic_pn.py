@@ -7,11 +7,10 @@ from sympy.physics.wigner import clebsch_gordan
 from ..utils import constants
 from ..utils.kinematics import (
     ChannelKinematics,
-    mass,
-    get_AME_binding_energy,
     classical_kinematics,
     classical_kinematics_cm,
 )
+from ..utils.mass import mass, get_binding_energy
 from ..reactions import (
     spin_half_orbit_coupling,
     ProjectileTargetSystem,
@@ -19,13 +18,15 @@ from ..reactions import (
 from ..rmatrix import Solver
 
 
-def kinematics(target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64):
-    mass_target = mass(*target)
-    mass_analog = mass(*analog)
-    mn = mass(1, 0)
-    mp = mass(1, 1)
-    BE_target = get_AME_binding_energy(*target)
-    BE_analog = get_AME_binding_energy(*analog)
+def kinematics(
+    target: tuple, analog: tuple, Elab: np.float64, Ex_IAS: np.float64, mass_kwargs={}
+):
+    mass_target = mass(*target, **mass_kwargs)[0]  # TODO use uncertainties
+    mass_analog = mass(*analog, **mass_kwargs)[0]
+    mn = constants.MASS_N
+    mp = constants.MASS_P
+    BE_target = get_binding_energy(*target, **mass_kwargs)[0]
+    BE_analog = get_binding_energy(*analog, **mass_kwargs)[0]
     Q = BE_analog - BE_target - Ex_IAS
     CDE = 1.33 * (target[1] + analog[1]) * 0.5 / target[0] ** (1.0 / 3.0)
     kinematics_entrance = classical_kinematics(mass_target, mp, Elab, Zz=target[1])

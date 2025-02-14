@@ -13,7 +13,12 @@ import json
 import numpy as np
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe, thomas_safe
+from .potentials import (
+    woods_saxon_safe,
+    woods_saxon_prime_safe,
+    thomas_safe,
+    coulomb_charged_sphere,
+)
 
 
 def Vv(E, v1, v2, v3, v4, Ef):
@@ -48,7 +53,7 @@ def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-def KD_scalar(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
+def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     r"""simplified Koning-Delaroche without the spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
@@ -58,6 +63,12 @@ def KD_scalar(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
         - 1j * wv * woods_saxon_safe(r, rwv, awv)
         - 1j * (-4 * ad) * wd * woods_saxon_prime_safe(r, rd, ad)
     )
+
+
+def KD_central_plus_coulomb(r, central_params, coulomb_params):
+    nucl = KD_central(r, *central_params)
+    coul = coulomb_charged_sphere(r, *coulomb_params)
+    return nucl + coul
 
 
 def KD_spin_orbit(r, vso, rso, aso, wso, rwso, awso):
@@ -228,8 +239,7 @@ class KDGlobal:
 
     def get_params(self, A, Z, mu, Elab, k):
         """
-        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given A, Z,
-        and COM-frame energy, returns params in form useable by EnergizedKoningDelaroche
+        Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given system
         """
 
         N = A - Z
@@ -290,8 +300,8 @@ class KDGlobal:
         rwso = rso
         awso = aso
 
-        # Coulomb radius
-        R_C = 0
+        # Coulomb correction
+        R_C = rv * A ** (1.0 / 3.0)
         if self.projectile == (1, 1):
             # Coulomb radius
             rc0 = (
@@ -301,13 +311,12 @@ class KDGlobal:
             )
             R_C = rc0 * A ** (1.0 / 3.0)
 
-            # Coulomb correction
             Vcbar = 1.73 / rc0 * Z * A ** (-1.0 / 3.0)
             Vc = delta_VC(Elab, Vcbar, v1, v2, v3, v4, Ef)
             vv += Vc
 
         coulomb_params = (Z * self.projectile[1], R_C)
-        scalar_params = (
+        central_params = (
             vv,
             rv * A ** (1.0 / 3.0),
             av,
@@ -327,4 +336,4 @@ class KDGlobal:
             awso,
         )
 
-        return coulomb_params, scalar_params, spin_orbit_params
+        return coulomb_params, central_params, spin_orbit_params

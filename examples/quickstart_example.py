@@ -1,7 +1,7 @@
 import numpy as np
 from jitr import reactions, rmatrix
 from jitr.reactions.potentials import woods_saxon_potential, coulomb_charged_sphere
-from jitr.utils import kinematics, delta
+from jitr.utils import kinematics, delta, mass, constants
 
 
 # define interaction
@@ -13,14 +13,14 @@ def interaction(r, V0, W0, R0, a0, Zz):
 
 # define system
 Elab = 35  # MeV
-Ca48 = (28, 20)
+Ca48 = (48, 20)
 proton = (1, 1)
 
 sys = reactions.ProjectileTargetSystem(
     channel_radius=5 * np.pi,
     lmax=10,
-    mass_target=kinematics.mass(*Ca48),
-    mass_projectile=kinematics.mass(*proton),
+    mass_target=mass.mass(*Ca48)[0],
+    mass_projectile=constants.MASS_P,
     Ztarget=Ca48[1],
     Zproj=proton[1],
 )
