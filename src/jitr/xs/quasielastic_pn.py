@@ -10,7 +10,7 @@ from ..utils.kinematics import (
     classical_kinematics,
     classical_kinematics_cm,
 )
-from ..utils.mass import mass, get_binding_energy
+from ..utils.mass import mass, binding_energy
 from ..reactions import (
     spin_half_orbit_coupling,
     ProjectileTargetSystem,
@@ -25,8 +25,8 @@ def kinematics(
     mass_analog = mass(*analog, **mass_kwargs)[0]
     mn = constants.MASS_N
     mp = constants.MASS_P
-    BE_target = get_binding_energy(*target, **mass_kwargs)[0]
-    BE_analog = get_binding_energy(*analog, **mass_kwargs)[0]
+    BE_target = binding_energy(*target, **mass_kwargs)[0]
+    BE_analog = binding_energy(*analog, **mass_kwargs)[0]
     Q = BE_analog - BE_target - Ex_IAS
     CDE = 1.33 * (target[1] + analog[1]) * 0.5 / target[0] ** (1.0 / 3.0)
     kinematics_entrance = classical_kinematics(mass_target, mp, Elab, Zz=target[1])
