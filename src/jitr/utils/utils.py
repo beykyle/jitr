@@ -69,3 +69,25 @@ def eval_scaled_interaction(s, interaction, ch, args):
 
 def eval_scaled_nonlocal_interaction(s, sp, interaction, ch, args):
     return interaction(s / ch.k, sp / ch.k, *args) / ch.E
+
+
+def interaction_range(A: int, rA: float = 1.2, r0: float = 0):
+    return r0 + rA * A ** (1 / 3)
+
+
+def suggested_dimensionless_channel_radius(interaction_range: float, k: float):
+    r"""
+    Returns: dimensionless channel radius (a [fm] * k [fm^-1]) for a given
+    interaction_range [fm] and wavenumber k [fm^-1], which yields one full
+    asymptotic wavelength beyond the range of the potential
+    """
+    return interaction_range * k + 2 * np.pi
+
+
+def suggested_basis_size(a: float, zeros_per_node: int = 5):
+    r"""
+    Returns: number of R-matrix basis functions given dimensionless
+    channel radius (a [fm] * k [fm^-1]), yielding a fixed number of integration
+    points per node
+    """
+    return zeros_per_node * int(np.ceil(a / np.pi))
