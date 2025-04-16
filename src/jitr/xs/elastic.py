@@ -21,7 +21,6 @@ class ElasticXS:
     Ay: np.ndarray
     t: np.float64
     rxn: np.float64
-    rutherford: np.ndarray = None
 
 
 class IntegralWorkspace:
@@ -309,9 +308,7 @@ class DifferentialWorkspace:
                 P_1_l_costheta,
                 f_c,
                 self.sigma_l,
-            ),
-            rutherford,
-        )
+            ))
 
 
 @njit
