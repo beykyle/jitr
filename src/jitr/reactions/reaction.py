@@ -104,21 +104,19 @@ class Nucleus(Particle):
         self.Z = Z
         self.mass_kwargs = mass_kwargs
 
-        if A > 0:
+        if A > 1:
             m0 = mass.mass(A, Z, **mass_kwargs)[0]
+        elif A == 1 and Z == 1:
+            m0 = constants.MASS_P
+        elif A == 1 and Z == 0:
+            m0 = constants.MASS_N
         else:
-            m0 = 0
+            raise ValueError(f"Cannot construct a nucleus with A={A} and Z={Z}")
+
         super().__init__(m0, Z)
 
-        if A > 1:
-            self.Efn = mass.neutron_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
-        else:
-            self.Efn = 0
-
-        if Z >= 1 and A > 1:
-            self.Efp = mass.proton_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
-        else:
-            self.Efp = 0
+        self.Efn = mass.neutron_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
+        self.Efp = mass.proton_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
 
     def __add__(self, other):
         """
