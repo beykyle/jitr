@@ -62,11 +62,11 @@ class Particle:
         pass
 
     @classmethod
-    def parse(cls, p):
+    def parse(cls, p, **kwargs):
         if p is None:
             return None
         elif isinstance(p, tuple):
-            return Nucleus(*p)
+            return Nucleus(*p, **kwargs)
         elif isinstance(p, Nucleus):
             return p
         elif isinstance(p, Gamma):
@@ -80,8 +80,8 @@ class Particle:
 
 class Nucleus(Particle):
     """
-    Represents a Nucleus with atomic mass number A and atomic number Z. Nucleons
-    can also be represented as a Nucleus.
+    Represents a Nucleus with atomic mass number A and atomic number Z.
+    Nucleons can also be represented as a Nucleus.
 
     Attributes:
         A (int): Atomic mass number.
@@ -90,7 +90,7 @@ class Nucleus(Particle):
         Efp (float): Proton Fermi energy.
     """
 
-    def __init__(self, A: int, Z: int, **mass_kwargs):
+    def __init__(self, A: int, Z: int, mass_kwargs={}):
         """
         Initializes a Nucleus instance.
 
@@ -102,6 +102,8 @@ class Nucleus(Particle):
 
         self.A = A
         self.Z = Z
+        self.mass_kwargs = mass_kwargs
+
         if A > 0:
             m0 = mass.mass(A, Z, **mass_kwargs)[0]
         else:
@@ -129,9 +131,13 @@ class Nucleus(Particle):
             Nucleus: New particle resulting from the addition.
         """
         if isinstance(other, Nucleus):
-            return Nucleus(self.A + other.A, self.Z + other.Z)
+            return Nucleus(
+                self.A + other.A, self.Z + other.Z, mass_kwargs=self.mass_kwargs
+            )
         elif isinstance(other, tuple):
-            return Nucleus(self.A + other[0], self.Z + other[1])
+            return Nucleus(
+                self.A + other[0], self.Z + other[1], mass_kwargs=self.mass_kwargs
+            )
         elif isinstance(other, Gamma):
             return self
         else:
@@ -148,9 +154,13 @@ class Nucleus(Particle):
             Nucleus: New particle resulting from the subtraction.
         """
         if isinstance(other, Nucleus):
-            return Nucleus(self.A - other.A, self.Z - other.Z)
+            return Nucleus(
+                self.A - other.A, self.Z - other.Z, mass_kwargs=self.mass_kwargs
+            )
         elif isinstance(other, tuple):
-            return Nucleus(self.A - other[0], self.Z - other[1])
+            return Nucleus(
+                self.A - other[0], self.Z - other[1], mass_kwargs=self.mass_kwargs
+            )
         elif isinstance(other, Gamma):
             return self
         else:
@@ -215,7 +225,7 @@ class Gamma(Particle):
         super().__init__(0, 0)
 
     def latex(self):
-        return r"$\gamma$"
+        return r"\gamma"
 
     def __repr__(self):
         return "gamma"
@@ -235,7 +245,7 @@ class Electron(Particle):
         super().__init__(constants.MASS_E, -1)
 
     def latex(self):
-        return r"$e^{-}$"
+        return r"e^{-}"
 
     def __repr__(self):
         return "e-"
@@ -255,7 +265,7 @@ class Positron(Particle):
         super().__init__(constants.MASS_E, +1)
 
     def latex(self):
-        return r"$e^{+}$"
+        return r"e^{+}"
 
     def __repr__(self):
         return "e+:"
@@ -287,7 +297,7 @@ class Reaction:
         product: Particle = None,
         residual: Particle = None,
         process: str = None,
-        **mass_kwargs,
+        mass_kwargs={},
     ):
         """Initializes a Reaction instance.
 
@@ -307,14 +317,14 @@ class Reaction:
             ValueError: If isospin is not conserved or if invalid product/
             residual types are provided.
         """
-        self.target = Particle.parse(target)
-        self.projectile = Particle.parse(projectile)
+        self.target = Particle.parse(target, mass_kwargs=mass_kwargs)
+        self.projectile = Particle.parse(projectile, mass_kwargs=mass_kwargs)
         self.compound_system = self.target + self.projectile
 
         if product is not None:
-            product = Particle.parse(product)
+            product = Particle.parse(product, mass_kwargs=mass_kwargs)
         if residual is not None:
-            residual = Particle.parse(residual)
+            residual = Particle.parse(residual, mass_kwargs=mass_kwargs)
 
         # parse the process string and ensuure the reactants are consistent
         residual_in_string = True
@@ -368,9 +378,10 @@ class Reaction:
                         + f"\nThere must be a residual provided"
                     )
                 self.product = None
-                self.residual = Particle.parse(residual)
+                self.residual = Particle.parse(residual, mass_kwargs=mass_kwargs)
                 self.Q = None
 
+            # form of reaction strings that includes process string rather than product
             self.reaction_string = (
                 f"{self.target}({self.projectile}," + f"{self.process.lower()})"
             )
@@ -391,16 +402,19 @@ class Reaction:
             # product or residual are provided
             self.product = product
             self.residual = residual
-
             if self.product is None:
                 self.product = self.compound_system - self.residual
             if self.residual is None:
                 self.residual = self.compound_system - self.product
 
+            # most general form for Q
             self.Q = (
                 self.projectile.m0 + self.target.m0 - self.residual.m0 - self.product.m0
             )
-            if all_nuclei(self.target, self.projectile, self.residual, self.product):
+            if these_things_are_all_nuclei(
+                self.target, self.projectile, self.residual, self.product
+            ):
+                # make sure total isospin is conserved
                 if (
                     self.target.A + self.projectile.A
                     != self.residual.A + self.product.A
@@ -410,6 +424,8 @@ class Reaction:
                 ):
                     raise ValueError("Isospin not conserved in this reaction.")
 
+            # form of reaction strings that explicitly identify all reactants;
+            # no process string
             self.reaction_string = (
                 f"{self.target}({self.projectile},{self.product}){self.residual}"
             )
@@ -421,46 +437,27 @@ class Reaction:
         # get separation energy threshold and Fermi energy of projectile in target
         self.Ef = 0
         self.threshold = 0
-        if all_nuclei(self.projectile, self.target):
-            self.threshold = cluster_separation_energy(self.projectile, self.target, **mass_kwargs)
+        self.compound_system_threshold = 0
+        if these_things_are_all_nuclei(self.projectile, self.target):
+            self.threshold = cluster_separation_energy(
+                self.target, self.projectile, **mass_kwargs
+            )
+            self.compound_system_threshold = cluster_separation_energy(
+                self.compound_system, self.projectile, **mass_kwargs
+            )
+            self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
 
-
-    def is_match(self, subentry, vocal=False):
-        """Checks if the reaction matches a given subentry.
-
-        Args:
-            subentry: The subentry to match against.
-            vocal (bool, optional): If True, provides verbose output. Defaults to False.
+    def __repr__(self):
+        """
+        Returns the symbolic representation of the Reaction.
 
         Returns:
-            bool: True if the reaction matches the subentry, False otherwise.
+            str: Symbolic representation.
         """
-        target = (subentry.reaction[0].targ.getA(), subentry.reaction[0].targ.getZ())
-        projectile = (
-            subentry.reaction[0].proj.getA(),
-            subentry.reaction[0].proj.getZ(),
-        )
+        return self.reaction_string
 
-        if target != self.target or projectile != self.projectile:
-            return False
-
-        product = subentry.reaction[0].products[0]
-        if isinstance(product, str):
-            if product != self.process:
-                return False
-        else:
-            product = (product.getA(), product.getZ())
-            if product != self.product:
-                return False
-
-        if subentry.reaction[0].residual is None:
-            return self.residual is None
-        else:
-            residual = (
-                subentry.reaction[0].residual.getA(),
-                subentry.reaction[0].residual.getZ(),
-            )
-            return residual == self.residual
+    def __str__(self):
+        return self.__repr__()
 
     def __eq__(self, other):
         """Checks equality with another Reaction instance.
@@ -507,7 +504,9 @@ class ElasticReaction(Reaction):
     """
 
     def __init__(self, target, projectile, **kwargs):
-        super().__init__(target, projectile, None, None, "el", **kwargs)
+        super().__init__(
+            target, projectile, product=None, residual=None, process="el", **kwargs
+        )
 
 
 class InelasticReaction(Reaction):
@@ -517,11 +516,13 @@ class InelasticReaction(Reaction):
     Params:
         target: The target nucleus.
         projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments for Reaction.
     """
 
     def __init__(self, target, projectile, **kwargs):
-        super().__init__(target, projectile, None, None, "inl", target, **kwargs)
+        super().__init__(
+            target, projectile, product=None, residual=None, process="inl", **kwargs
+        )
 
 
 class TotalReaction(Reaction):
@@ -531,11 +532,13 @@ class TotalReaction(Reaction):
     Params:
         target: The target nucleus.
         projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments for Reaction.
     """
 
     def __init__(self, target, projectile, **kwargs):
-        super().__init__(target, projectile, None, None, "tot", None, **kwargs)
+        super().__init__(
+            target, projectile, product=None, residual=None, process="tot", **kwargs
+        )
 
 
 class AbsorptionReaction(Reaction):
@@ -545,11 +548,13 @@ class AbsorptionReaction(Reaction):
     Params:
         target: The target nucleus.
         projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments for Reaction.
     """
 
     def __init__(self, target, projectile, **kwargs):
-        super().__init__(target, projectile, None, None, "abs", None, **kwargs)
+        super().__init__(
+            target, projectile, product=None, residual=None, process="abs", **kwargs
+        )
 
 
 class InclusiveReaction(Reaction):
@@ -560,11 +565,13 @@ class InclusiveReaction(Reaction):
         target: The target nucleus.
         projectile: The projectile nucleus.
         residual: The residual nucleus.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments for Reaction.
     """
 
     def __init__(self, target, projectile, residual, **kwargs):
-        super().__init__(target, projectile, None, None, "x", residual, **kwargs)
+        super().__init__(
+            target, projectile, product=None, residual=residual, process="x", **kwargs
+        )
 
 
 class GammaCaptureReaction(Reaction):
@@ -574,13 +581,14 @@ class GammaCaptureReaction(Reaction):
     Params:
         target: The target nucleus.
         projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments for Reaction.
     """
 
     def __init__(self, target, projectile, **kwargs):
         residual = target + projectile
-        product = Gamma()
-        super().__init__(target, projectile, residual, product, **kwargs)
+        super().__init__(
+            target, projectile, residual=residual, product=Gamma(), **kwargs
+        )
 
 
 def get_latex(A, Z, Ex=None):
@@ -603,13 +611,13 @@ def get_latex(A, Z, Ex=None):
     elif (A, Z) == (3, 1):
         return "t"
     elif (A, Z) == (4, 2):
-        return r"$\alpha$"
+        return r"\alpha"
     else:
         if Ex is None:
-            return f"$^{{{A}}}${str(periodictable.elements[Z])}"
+            return f"\,^{{{A}}} \\rm{{{periodictable.elements[Z]}}}"
         else:
             ex = f"({float(Ex):1.3f})"
-            return f"$^{{{A}}}${str(periodictable.elements[Z])}{ex}"
+            return f"\,^{{{A}}} \\rm{{{periodictable.elements[Z]}}}({ex})"
 
 
 def get_symbol(A, Z, Ex=None):
@@ -641,18 +649,21 @@ def get_symbol(A, Z, Ex=None):
             return f"{A}-{str(periodictable.elements[Z])}{ex}"
 
 
-def all_nuclei(a, b, c, d):
-    for n in [a, b, c, d]:
-        if not (n is None or isinstance(n, Nucleus)):
+def these_things_are_all_nuclei(*things_that_might_be_nuclei):
+    for thing in things_that_might_be_nuclei:
+        if not (thing is None or isinstance(thing, Nucleus)):
             return False
     return True
 
 
-def cluster_separation_energy(target: Nucleus, projectile: Nucleus, **mass_kwargs):
+def cluster_separation_energy(
+    target: Nucleus,
+    projectile: Nucleus,
+    **mass_kwargs,
+):
     mf = mass.mass(
         target.A - projectile.A,
         target.Z - projectile.Z,
         **mass_kwargs,
     )[0]
     return mf + projectile.m0 - target.m0
-

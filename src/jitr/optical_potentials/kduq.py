@@ -13,7 +13,7 @@ import json
 import numpy as np
 
 from ..utils.constants import MASS_PION
-from .potentials import (
+from .potential_forms import (
     woods_saxon_safe,
     woods_saxon_prime_safe,
     thomas_safe,

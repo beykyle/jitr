@@ -9,7 +9,11 @@ from pathlib import Path
 import json
 
 from ..utils.constants import MASS_PION
-from .potentials import woods_saxon_safe, woods_saxon_prime_safe, coulomb_charged_sphere
+from .potential_forms import (
+    woods_saxon_safe,
+    woods_saxon_prime_safe,
+    coulomb_charged_sphere,
+)
 
 
 def WLH_so(r, uso, rso, aso):
