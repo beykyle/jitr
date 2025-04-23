@@ -1,8 +1,10 @@
+import numpy as np
+
 from ..utils import mass, constants
+from ..utils.kinematics import ChannelKinematics, semi_relativistic_kinematics
 import periodictable
 
 
-# TODO add GS spin
 class Particle:
     """
     Represents a particle with rest mass and charge.
@@ -78,6 +80,7 @@ class Particle:
             return ValueError(f"Can't parse a particle from a {type(p)}")
 
 
+# TODO add GS spin and excited states from ENSDF
 class Nucleus(Particle):
     """
     Represents a Nucleus with atomic mass number A and atomic number Z.
@@ -271,7 +274,7 @@ class Positron(Particle):
 
 # TODO support multiple processes/products, e.g. (n,2NF) or (N,3N)
 class Reaction:
-    """Represents a nuclear reaction of the form A + a -> b + B.
+    """Represents a 2-body nuclear reaction of the form A + a -> b + B.
 
     Attributes:
         target (Particle): The target particle.
@@ -433,9 +436,9 @@ class Reaction:
             )
 
         # get separation energy threshold and Fermi energy of projectile in target
-        self.Ef = 0
-        self.threshold = 0
-        self.compound_system_threshold = 0
+        self.Ef = None
+        self.threshold = None
+        self.compound_system_threshold = None
         if these_things_are_all_nuclei(self.projectile, self.target):
             self.threshold = cluster_separation_energy(
                 self.target, self.projectile, **mass_kwargs
@@ -444,6 +447,79 @@ class Reaction:
                 self.compound_system, self.projectile, **mass_kwargs
             )
             self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
+
+    def kinematics(self, Elab: float) -> ChannelKinematics:
+        """
+        Entrance channel kinematics given projectile incident on target with
+        lab energy Elab in MeV.
+
+        Params:
+            Elab (float): The laboratory energy of the projectile.
+
+        Returns:
+            ChannelKinematics: the kinematics
+        """
+        return semi_relativistic_kinematics(
+            self.target.m0,
+            self.projectile.m0,
+            Elab,
+            Zz=self.target.Z * self.projectile.Z,
+        )
+
+    def kinematics_cm(self, Ecm: float) -> ChannelKinematics:
+        """
+        Entrance channel kinematics given a kinetic energy of Ecm in the
+        projectile-target center-of-mass frame.
+
+        Params:
+            Ecm (float): The kinetic energy in the center-of-mass frame.
+
+        Returns:
+            ChannelKinematics: the kinematics
+        """
+        Elab = (self.target.m0 + self.projectile.m0) / self.target.m0
+        result = semi_relativistic_kinematics(
+            self.target.m0,
+            self.projectile.m0,
+            Elab,
+            Zz=self.target.Z * self.projectile.Z,
+        )
+        assert np.isclose(Ecm, result.Ecm)
+        return result
+
+    def kinematics_exit(
+        self,
+        entrance: ChannelKinematics,
+        residual_excitation_energy: float = 0,
+        product_excitation_energy: float = 0,
+    ) -> ChannelKinematics:
+        """
+        Exit channel kinematics given entrance channel kinematics and
+            excitation energies.
+
+        Params:
+            entrance (ChannelKinematics): The entrance channel kinematics.
+            residual_excitation_energy (float): The excitation energy
+                of the residual nucleus.
+            product_excitation_energy (float): The excitation energy of the
+                product nucleus.
+
+        Returns:
+            ChannelKinematics: the kinematics in the exit channel
+        """
+        Ecm = (
+            entrance.Ecm
+            + self.Q
+            - residual_excitation_energy
+            - product_excitation_energy
+        )
+        Elab = (self.residual.m0 + self.product.m0) / self.residual.m0 * Ecm
+        return semi_relativistic_kinematics(
+            self.residual.m0 + residual_excitation_energy,
+            self.product.m0,
+            Elab,
+            Zz=self.residual.Z * self.product.Z,
+        )
 
     def __repr__(self):
         """
@@ -612,10 +688,10 @@ def get_latex(A, Z, Ex=None):
         return r"\alpha"
     else:
         if Ex is None:
-            return f"\,^{{{A}}} \\rm{{{periodictable.elements[Z]}}}"
+            return f"^{{{A}}} \\rm{{{periodictable.elements[Z]}}}"
         else:
             ex = f"({float(Ex):1.3f})"
-            return f"\,^{{{A}}} \\rm{{{periodictable.elements[Z]}}}({ex})"
+            return f"^{{{A}}} \\rm{{{periodictable.elements[Z]}}}({ex})"
 
 
 def get_symbol(A, Z, Ex=None):
