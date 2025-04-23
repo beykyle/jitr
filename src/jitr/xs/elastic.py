@@ -308,7 +308,8 @@ class DifferentialWorkspace:
                 P_1_l_costheta,
                 f_c,
                 self.sigma_l,
-            ))
+            )
+        )
 
 
 @njit
