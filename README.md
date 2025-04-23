@@ -6,7 +6,14 @@
 </p>
 
 # just-in-time R-Matrix (jitR)
-A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
+A nuclear reaction toolkit, production ready for calibration and uncertainty-quantification, featuring:
+
+- fast calculable $\mathcal{R}$-matrix solver for parametric reaction models
+- built in uncertainty-quantified optical potentials
+- built in nuclear data
+- plenty of examples demonstrating the propagation of uncertainties into reaction observables and model calibration
+
+Give your nuclear reaction UQ workflow a caffeine-kick with jitR!
 
 
 ## quick start
