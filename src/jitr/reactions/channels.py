@@ -1,100 +1,160 @@
-from ..utils.kinematics import ChannelKinematics
+from fractions import Fraction
 
 from . import reaction as rx
+from ..data.structure import Level, Parity, triangle_rule
+from ..utils.free_solutions import H_plus, H_minus, H_plus_prime, H_minus_prime
+from ..utils.angular_momentum import racah
 
 import numpy as np
 
-from fractions import Fraction
-from enum import Enum
-from dataclasses import dataclass
+
+def spin_orbit_coupling(ch: np.ndarray) -> np.ndarray:
+    """J = l dot Jp basis, returns diaginal elements of <l dot Jp>"""
+    Jp = ch["Jp"]
+    J = ch["J"]
+    l = ch["l"]
+    return np.array(J * (J + 1) - l * (l + 1) - Jp * (Jp + 1), dtype=float)
 
 
-# Workspaces call these functions and arrange channel QM's as need be
-    # e.g. elastic (Jt=0, Jp=1/2 with central and spin-orbit) would:
-        # find set of Jtot, pi values consistent with lmax
-        # for each Jtot, pi
-            # call build_system
-            # pass resulting channel qm np array into spin_orbit_coupling to store <l dot s>
-        # re-organize all channels in two np arrays (one for J=l-1/2 and one for J=l+1/2)
-        # for each l 0 to lmax:
-            # pre-compute Free-kinetic matrices for each of the two (l=J-1/2, l=J+1/2) channels
-            # (re-factor free matrix to use numpy arrays)
-
-        # then, when smatrix is called:
-            # iterate over partial wave as normal
-
-    # for true CC problem
-        # find set of Jtot, pi values consistent with lmax
-        # for each Jtot, pi
-            # call build_system
-            # pass resulting channel qm np array into CC coupling function
-
-        # for each l 0 to lmax:
-            # pre-compute Free-kinetic matrices for each of the two (l=J-1/2, l=J+1/2) channels
-
-        # then, when smatrix is called
-            # iterate over Jpi, solving each coupled system
+asymptotics_dtype = np.dtype(
+    [("Hm", complex)("Hp", complex)("Hpp", complex)("Hmp", complex)]
+)
 
 
-# for Nucleus, G.S. spin and parity should be ctor args that default to None,
-# and, if None, they grab values from ENSDF/RIPL
+def compute_channel_asymptotics(
+    ch: np.ndarray,
+    channel_radius_fm: float,
+    kinematics: np.ndarray,
+):
+    assert ch.ndim == 1
+    assert kinematics.ndim == 1
+    s = channel_radius_fm * kinematics["k"]
+    eta = kinematics["eta"]
 
-class Parity(Enum):
-    positive: True
-    negative: False
+    asymptotics = np.zeros((kinematics.size, ch.size), dtype=asymptotics_dtype)
+
+    for i, (k, eta) in enumerate(kinematics[["k", "eta"]]):
+        s = k * channel_radius_fm
+        for l in ch["l"]:
+            asymptotics[i, l] = (
+                H_plus(s, l, eta),
+                H_minus(s, l, eta),
+                H_plus_prime(s, l, eta),
+                H_minus_prime(s, l, eta),
+            )
+
+    return asymptotics
 
 
-@dataclass
-class Level:
-    E: float
-    I: Fraction
-    pi: Parity
+def sbasis_to_jbasis_conversion_matrix(
+    chs: np.ndarray, chj: np.ndarray, Jtot: Fraction
+):
+    assert chs.ndim == 1
+    assert chj.ndim == 1
+    assert chs.shape == chj.shape
+    assert chs.dtype == channel_sbasis_dtype
+    assert chj.dtype == channel_jbasis_dtype
+    prefactor = np.sqrt((2 * chs["s"] + 1) * (2 * chj["j"] + 1))
+    matrix = np.zeros((chs.size, chs.size), dtype=complex)
+    for m in range(chs.size):
+        for n in range(chj.size):
+            l, s, Ip, It = chs[["l", "s", "Ip", "It"]][m]
+            j = chj["j"][n]
+            matrix[m, n] = racah(l, Ip, Jtot, It, j, s)
+    return prefactor * matrix
 
 
-channel_dtype = np.dtype(
+channel_sbasis_dtype = np.dtype(
     [
+        ("l", int),
+        ("s", Fraction),
         ("Ip", Fraction),
-        ("It", Fraction),
-        ("J", Fraction),
         ("pi_p", Parity),
+        ("Ex_p", float),
+        ("It", Fraction),
         ("pi_t", Parity),
         ("Ex_t", float),
-        ("Ex_p", float),
+    ]
+)
+
+channel_jbasis_dtype = np.dtype(
+    [
         ("l", int),
+        ("j", Fraction),
+        ("Ip", Fraction),
+        ("pi_p", Parity),
+        ("Ex_p", float),
+        ("It", Fraction),
+        ("pi_t", Parity),
+        ("Ex_t", float),
     ]
 )
 
 
-def spin_orbit_coupling(ch: np.ndarray) -> np.ndarray:
-    """ J = l dot Jp basis, returns diaginal elements of <l dot Jp>  """
-    Jp = ch['Jp']
-    J = ch['J']
-    l = ch['l']
-    return (J*(J+1) - l*(l+1)) - Jp*(Jp +1)
-
-
-def build_channels_2body(
+def build_channels_2body_sbasis(
     Jtot: Fraction,
     pi: Parity,
-    channel_radius_fm: float,
-    kinematics: ChannelKinematics,
-    rxn: rx.Reaction,
-    levels_projectile: list[Level],
-    levels_target: list[Level],
+    level_p: Level,
+    level_t: Level,
 ):
     """
-    calculates channel quantum numbers
+    get channels coupling level_p in the projectile to level_t in the target
+    with total angular momentum and parity jtot, pi in the sbasis
+
     """
-    pass
 
-    # for each kinematic grid point
-    # taking into account all possible combinations of
-    # l, (Jp, pi_p), (Jt, pi_t) that can sum to Jtot, pi:
+    # Initialize an empty list to store channel data
+    channels = []
 
-    # for a set of N possible channels,  (N,)-shaped numpy arrays of channel_dtype holding
-        # channel l values
-        # channel asymptotic Coulomb wave functions and their derivatives
-        # channel Jp values
-        # channel Jt values
+    # Loop over eigenvalues of S = Ip + It = Jtot - L
+    for s in triangle_rule(level_p.I, level_t.I):
+        # loop over eigenvalues of L = Jtot - S
+        for l in triangle_rule(s, Jtot):
+            if level_t.pi * level_p.pi * (-1) ** l == pi:
+                # If J is valid and parities match, append the channel
+                channels.append((l, s, *level_p, *level_t))
 
-    # return this numpy array
+    return np.array(channels, dtype=channel_sbasis_dtype)
+
+
+def build_channels_2body_jbasis(
+    Jtot: Fraction,
+    pi: Parity,
+    level_p: Level,
+    level_t: Level,
+):
+    """
+    get channels coupling level_p in the projectile to level_t in the target
+    with total angular momentum and parity jtot, pi in the jbasis
+    """
+
+    # Initialize an empty list to store channel data
+    channels = []
+
+    for level_p in levels_projectile:
+        for level_t in levels_target:
+
+            # Loop over eigenvalues of J = Ip + L = Jtot - It
+            for j in triangle_rule(Jtot, level_t.I):
+                # loop over eigenvalues of L = J - Ip
+                for l in triangle_rule(j, level_p.I):
+                    if level_t.pi * level_p.pi * (-1) ** l == pi:
+                        # If J is valid and parities match, append the channel
+                        channels.append((l, j, *level_p, *level_t))
+
+    return np.array(channels, dtype=channel_jbasis_dtype)
+
+
+def build_all_channels(
+    Jtot: Fraction,
+    pi: Parity,
+    levels_p: list[Level],
+    levels_t: list[Level],
+    build_channels=build_channels_2body_jbasis,
+):
+    """ """
+    channels = []
+    for level_p in levels_p:
+        for level_t in levels_t:
+            channels.append(build_channels(Jtot, pi, level_p, level_t))
+    return np.vstack(channels)

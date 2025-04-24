@@ -1,41 +1,20 @@
-from dataclasses import astuple, dataclass
 import numpy as np
 from .constants import ALPHA, HBARC
 
 
-@dataclass
-class ChannelKinematics:
-    """
-    A class to represent the kinematics of a channel.
+kinematics_dtype = np.dtype(
+    [
+        ("Elab", float),
+        ("Ecm", float),
+        ("mu", float),
+        ("k", float),
+        ("eta", float),
+    ]
+)
 
-    Attributes
-    ----------
-    Elab : float
-        The energy in the laboratory frame.
-    Ecm : float
-        The energy in the center of mass frame.
-    mu : float
-        The reduced mass.
-    k : float
-        The wave number.
-    eta : float
-        The Sommerfeld parameter.
-    """
 
-    Elab: float
-    Ecm: float
-    mu: float
-    k: float
-    eta: float
-
-    def __iter__(self):
-        """
-        Returns
-        -------
-        iterator
-            An iterator over the attributes of the class.
-        """
-        return iter(astuple(self))
+def speed(k, mu):
+    return HBARC * k / mu
 
 
 def semi_relativistic_kinematics(mass_target, mass_projectile, Elab, Zz=0):
@@ -48,13 +27,17 @@ def semi_relativistic_kinematics(mass_target, mass_projectile, Elab, Zz=0):
     Parameters:
     mass_target (float): Mass of the target nuclide.
     mass_projectile (float): Mass of the projectile.
-    Elab (float): Laboratory frame energy.
+    Elab (scalar or array-like): Laboratory frame energy.
     Zz (int, optional): Charge product of the interacting particles.
         Default is 0.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+    (np.ndarray): the kinematics in a structured array of
+        dtype kinematics.kinematics_dtype
     """
+    # Ensure Elab is a numpy array
+    Elab = np.atleast_1d(Elab)
+
     m_t = mass_target
     m_p = mass_projectile
 
@@ -71,7 +54,7 @@ def semi_relativistic_kinematics(mass_target, mass_projectile, Elab, Zz=0):
     k_C = ALPHA * Zz * mu / HBARC
     eta = k_C / k
 
-    return ChannelKinematics(Elab, Ecm, mu, k, eta)
+    return np.array(list(zip(Elab, Ecm, mu, k, eta)), dtype=kinematics_dtype)
 
 
 def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0):
@@ -81,18 +64,22 @@ def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0):
     Parameters:
     mass_target (float): Mass of the target nuclide.
     mass_projectile (float): Mass of the projectile.
-    Elab (float): Laboratory frame energy.
+    Elab (scalar or array-like): Laboratory frame energy.
     Zz (int, optional): Charge product of the interacting particles.
         Default is 0.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+    (np.ndarray): the kinematics in a structured array of
+        dtype kinematics.kinematics_dtype
     """
+    # Ensure Elab is a numpy array
+    Elab = np.atleast_1d(Elab)
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Ecm = mass_target / (mass_target + mass_projectile) * Elab
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
-    return ChannelKinematics(Elab, Ecm, mu, k, eta)
+
+    return np.array(list(zip(Elab, Ecm, mu, k, eta)), dtype=kinematics_dtype)
 
 
 def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0):
@@ -103,15 +90,18 @@ def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0):
     Parameters:
     mass_target (float): Mass of the target nuclide.
     mass_projectile (float): Mass of the projectile.
-    Ecm (float): Center of mass frame energy.
+    Ecm (scalar or array-like): Center of mass frame energy.
     Zz (int, optional): Charge product of the interacting particles.
         Default is 0.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+    (np.ndarray): the kinematics in a structured array of
+        dtype kinematics.kinematics_dtype
     """
+    # Ensure Elab is a numpy array
+    Ecm = np.atleast_1d(Ecm)
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Elab = (mass_target + mass_projectile) / mass_target * Ecm
     k = np.sqrt(2 * Ecm * mu) / HBARC
     eta = (ALPHA * Zz) * mu / (HBARC * k)
-    return ChannelKinematics(Elab, Ecm, mu, k, eta)
+    return np.array(list(zip(Elab, Ecm, mu, k, eta)), dtype=kinematics_dtype)

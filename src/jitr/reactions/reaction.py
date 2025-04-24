@@ -81,6 +81,10 @@ class Particle:
 
 
 # TODO add GS spin and excited states from ENSDF
+# for Nucleus, G.S. spin and parity should be ctor args that default to None,
+# and, if None, they grab values from ENSDF/RIPL
+
+
 class Nucleus(Particle):
     """
     Represents a Nucleus with atomic mass number A and atomic number Z.
@@ -448,16 +452,17 @@ class Reaction:
             )
             self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
 
-    def kinematics(self, Elab: float) -> ChannelKinematics:
+    def kinematics(self, Elab) -> np.ndarray:
         """
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
 
         Params:
-            Elab (float): The laboratory energy of the projectile.
+            Elab: The laboratory energy of the projectile.
 
         Returns:
-            ChannelKinematics: the kinematics
+            (np.ndarray): the kinematics as a structured array of
+                dtype kinematics.kinematics_dtype
         """
         return semi_relativistic_kinematics(
             self.target.m0,
@@ -466,16 +471,17 @@ class Reaction:
             Zz=self.target.Z * self.projectile.Z,
         )
 
-    def kinematics_cm(self, Ecm: float) -> ChannelKinematics:
+    def kinematics_cm(self, Ecm) -> np.ndarray:
         """
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
 
         Params:
-            Ecm (float): The kinetic energy in the center-of-mass frame.
+            Ecm: The kinetic energy in the center-of-mass frame.
 
         Returns:
-            ChannelKinematics: the kinematics
+            (np.ndarray): the kinematics as a structured array of
+                dtype kinematics.kinematics_dtype
         """
         Elab = (self.target.m0 + self.projectile.m0) / self.target.m0
         result = semi_relativistic_kinematics(
@@ -489,26 +495,28 @@ class Reaction:
 
     def kinematics_exit(
         self,
-        entrance: ChannelKinematics,
+        entrance: np.ndarray,
         residual_excitation_energy: float = 0,
         product_excitation_energy: float = 0,
-    ) -> ChannelKinematics:
+    ) -> np.ndarray:
         """
         Exit channel kinematics given entrance channel kinematics and
             excitation energies.
 
         Params:
-            entrance (ChannelKinematics): The entrance channel kinematics.
+            entrance (np.ndarray): The entrance channel kinematics as a
+                structured array of dtype kinematics.kinematics_dtype
             residual_excitation_energy (float): The excitation energy
                 of the residual nucleus.
             product_excitation_energy (float): The excitation energy of the
                 product nucleus.
 
         Returns:
-            ChannelKinematics: the kinematics in the exit channel
+            (np.ndarray): the kinematics in the exit channel as a structured
+                array of dtype kinematics.kinematics_dtype
         """
         Ecm = (
-            entrance.Ecm
+            entrance["Ecm"]
             + self.Q
             - residual_excitation_energy
             - product_excitation_energy

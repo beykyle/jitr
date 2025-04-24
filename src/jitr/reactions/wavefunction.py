@@ -1,4 +1,5 @@
 import numpy as np
+from ..quadrature.kernel import Kernel
 from ..utils.free_solutions import (
     H_plus,
     H_minus,
@@ -16,24 +17,18 @@ class Wavefunctions:
 
     def __init__(
         self,
-        solver,
-        coeffs,
-        S,
-        uext_prime_boundary,
-        channels,
-        incoming_weights=None,
-        asym=CoulombAsymptotics,
+        channel_radius_fm: float,
+        S: np.ndarray,
+        coeffs: np.ndarray,
+        channels: np.ndarray,
+        kernel: Kernel,
+        incoming_channel_idx: int = 0,
     ):
-        self.solver = solver
-        self.coeffs = coeffs
+        self.channel_radius_fm = channel_radius_fm
         self.S = S
-        self.uext_prime_boundary = uext_prime_boundary
+        self.coeffs = coeffs
         self.channels = channels
-        if incoming_weights is None:
-            incoming_weights = np.zeros(channels.size, dtype=np.float64)
-            incoming_weights[0] = 1
-        self.incoming_weights = incoming_weights
-        self.asym = asym
+        self.incoming_channel_idx = 0
 
     def uext(self):
         r"""Returns a callable which evaluates the asymptotic form of
@@ -43,18 +38,19 @@ class Wavefunctions:
         """
 
         def uext_channel(i):
-            l = self.channels.l[i]
-            eta = self.channels.eta[i]
+            l = self.channels["l"][i]
+            eta = self.channels["eta"][i]
 
             def asym_func_in(s):
-                return self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
+                if i == self.incoming_channel_idx:
+                    return 0
+                else:
+                    return H_minus(s, l, eta)
 
             def asym_func_out(s):
                 return np.sum(
                     [
-                        self.incoming_weights[j]
-                        * self.S[i, j]
-                        * H_plus(s, l, eta, asym=self.asym)
+                        self.S[i, j] * H_plus(s, l, eta)
                         for j in range(len(self.channels))
                     ],
                     axis=0,
@@ -76,9 +72,11 @@ class Wavefunctions:
             return lambda s: np.sum(
                 [
                     self.coeffs[i, n]
-                    / self.channels.a
-                    * self.solver.kernel.f(n + 1, self.channels.a, s)
-                    for n in range(self.solver.kernel.quadrature.nbasis)
+                    / (self.channel_radius_fm * self.channels["k"][i])
+                    * self.kernel.f(
+                        n + 1, self.channel_radius_fm * self.channels["k"][i], s
+                    )
+                    for n in range(self.kernel.quadrature.nbasis)
                 ],
                 axis=0,
             )
