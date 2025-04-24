@@ -29,8 +29,9 @@ The release versions of the package are hosted at [pypi.org/project/jitr/](https
 Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
 
 In particular, check out:
-- [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
 - [`examples/notebooks/kduq_cross_section_uq_tutorial.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/kduq_cross_section_uq_tutorial.ipynb), which demonstrates how to perform UQ for $(n,n)$ cross sections using [KDUQ](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.107.014602).
+- [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
+- [`examples/notebooks/channels.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/channels.ipynb) which demonstrates the use of the `channels` submodule
 
 ## description
 A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\boldsymbol{\theta})$ that is a function of some parameters $\boldsymbol{\theta}$. Just write it like so:
