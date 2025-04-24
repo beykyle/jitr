@@ -1,10 +1,10 @@
 from fractions import Fraction
 
-from ..structure.structure import Level, Parity, triangle_rule
+from ..structure.structure import Level, Parity
 
 from ..utils.kinematics import kinematics_dtype
 from ..utils.free_solutions import H_plus, H_minus, H_plus_prime, H_minus_prime
-from ..utils.angular_momentum import racah
+from ..utils.angular_momentum import racah, triangle_rule
 
 import numpy as np
 
@@ -12,12 +12,12 @@ channel_sbasis_dtype = np.dtype(
     [
         ("l", int),  # Orbital angular momentum quantum number
         ("s", Fraction),  # Spin quantum number S = Ip + It
+        ("Ex_p", float),  # Excitation energy of the projectile
         ("Ip", Fraction),  # Projectile spin
         ("pi_p", Parity),  # Projectile parity
-        ("Ex_p", float),  # Excitation energy of the projectile
+        ("Ex_t", float),  # target excitation energy
         ("It", Fraction),  # target spin
         ("pi_t", Parity),  # target parity
-        ("Ex_t", float),  # target excitation energy
     ]
 )
 
@@ -25,12 +25,12 @@ channel_jbasis_dtype = np.dtype(
     [
         ("l", int),  # Orbital angular momentum quantum number
         ("j", Fraction),  # J = L + Ip
-        ("Ip", Fraction),  # projectile spin
-        ("pi_p", Parity),  # projectile parity
-        ("Ex_p", float),  # projectile excitation energy
+        ("Ex_p", float),  # Excitation energy of the projectile
+        ("Ip", Fraction),  # Projectile spin
+        ("pi_p", Parity),  # Projectile parity
+        ("Ex_t", float),  # target excitation energy
         ("It", Fraction),  # target spin
         ("pi_t", Parity),  # target parity
-        ("Ex_t", float),  # target excitation energy
     ]
 )
 
@@ -60,10 +60,10 @@ def spin_orbit_coupling(ch: np.ndarray) -> np.ndarray:
         raise ValueError(
             f"ch must have dtype=channel_jbasis_dtype, but has {ch.dtype} instead"
         )
-    Jp = ch["Jp"]
-    J = ch["J"]
+    Ip = ch["Ip"]
+    j = ch["j"]
     l = ch["l"]
-    return np.array(J * (J + 1) - l * (l + 1) - Jp * (Jp + 1), dtype=float)
+    return np.array(j * (j + 1) - l * (l + 1) - Ip * (Ip + 1), dtype=float)
 
 
 def compute_channel_asymptotics(

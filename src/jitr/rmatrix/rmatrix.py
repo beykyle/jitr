@@ -1,6 +1,5 @@
 import numpy as np
 
-from ..reactions.system import Channels, Asymptotics
 from ..utils import block
 from .core import (
     solution_coeffs_with_inverse,

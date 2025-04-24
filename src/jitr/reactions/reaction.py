@@ -1,7 +1,7 @@
 import numpy as np
 
 from ..utils import mass, constants
-from ..utils.kinematics import ChannelKinematics, semi_relativistic_kinematics
+from ..utils.kinematics import semi_relativistic_kinematics
 import periodictable
 
 
