@@ -4,5 +4,6 @@ from . import rmatrix
 from . import utils
 from . import xs
 from . import optical_potentials
+from . import structure
 from .data import data_dir
 from .__version__ import __version__

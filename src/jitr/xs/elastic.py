@@ -9,33 +9,6 @@ from ..utils.kinematics import ChannelKinematics
 from ..reactions import ProjectileTargetSystem
 from ..rmatrix import Solver
 
-# allow for kinematics energy grid
-# Workspaces call these functions and arrange channel QM's as need be
-# e.g. elastic (Jt=0, Jp=1/2 with central and spin-orbit) would:
-# find set of Jtot, pi values consistent with lmax
-# for each Jtot, pi
-# call build_system
-# pass resulting channel qm np array into spin_orbit_coupling to store <l dot s>
-# re-organize all channels in two np arrays (one for J=l-1/2 and one for J=l+1/2)
-# for each l 0 to lmax:
-# pre-compute Free-kinetic matrices for each of the two (l=J-1/2, l=J+1/2) channels
-# (re-factor free matrix to use numpy arrays)
-
-# then, when smatrix is called:
-# iterate over partial wave as normal
-
-# for true CC problem
-# find set of Jtot, pi values consistent with lmax
-# for each Jtot, pi
-# call build_system
-# pass resulting channel qm np array into CC coupling function
-
-# for each l 0 to lmax:
-# pre-compute Free-kinetic matrices for each of the two (l=J-1/2, l=J+1/2) channels
-
-# then, when smatrix is called
-# iterate over Jpi, solving each coupled system
-
 
 @dataclass
 class ElasticXS:

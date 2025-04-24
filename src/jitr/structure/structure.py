@@ -18,3 +18,6 @@ class Level:
     E: float
     I: Fraction
     pi: Parity
+
+    def __iter__(self):
+        return iter((self.E, self.I, self.pi))

@@ -11,31 +11,31 @@ from ..quadrature import Kernel
 
 class Solver:
     r"""
-    A Schrödinger equation solver using the R-matrix method on a Lagrange mesh
+    A coupled-channel Schrödinger equation solver using the calculable
+    R-matrix method on a Lagrange mesh
     """
 
     def __init__(
         self,
-        nbasis: np.int32,
+        nbasis: int,
         basis="Legendre",
         **args,
     ):
         r"""
         Constructs an R-matrix solver on a Lagrange mesh
-        @parameters:
+        Parameters:
             nbasis (int) : size of basis; e.g. number of quadrature points for
             integration
-            ecom (float) : center of mass frame scattering energy
             basis (str): what basis/mesh to use (see Ch. 3 of Baye, 2015)
         """
         self.kernel = Kernel(nbasis, basis)
 
-    def precompute_boundaries(self, a: np.float64):
+    def precompute_boundaries(self, a: float):
         r"""
-        precompute boundary values of Lagrange basis functions for a set of
-        channel radii a
-        @parameters:
-            a: dimensionless radii (e.g. a = k * r_max) for each channel
+        precompute boundary values of Lagrange basis functions for a
+        dimensionless channel radius a
+        Parameters:
+            a: dimensionless radius (e.g. a = k * r_max)
         """
         nbasis = self.kernel.quadrature.nbasis
         return np.array(
@@ -43,7 +43,7 @@ class Solver:
             dtype=np.complex128,
         )
 
-    def get_channel_block(self, matrix: np.ndarray, i: np.int32, j: np.int32 = None):
+    def get_channel_block(self, matrix: np.ndarray, i: int, j: int = None):
         N = self.kernel.quadrature.nbasis
         if j is None:
             j = i
@@ -51,39 +51,32 @@ class Solver:
 
     def kinetic_matrix(
         self,
-        a: np.float64,
+        a: float,
         l: np.ndarray,
-        mu: np.float64 = None,
     ):
         r"""
         @returns:
             kinetic_matrix (np.ndarray): the full (Nb)x(Nb) kinetic energy
             matrix
         @parameters:
-            a : dimensionless channel radius (r * k_0) with k_0 being the
+            a (float): dimensionless channel radius (r * k_0) with k_0 being the
                 wavenumber in the entrance channel
-            l : orbital angular momentum in each channel
-            mu : reduced mass in each channel. For problems with same
-                partition in each channel, can leave as none as the
-                dimensionless reduced mass is 1.
+            l (np.ndarray): orbital angular momentum in each channel
         """
-        if mu is None:
-            mu = np.ones(l.shape, dtype=np.float64)
-
         Nb = self.kernel.quadrature.nbasis
         Nch = np.size(l)
         sz = Nb * Nch
         F = np.zeros((sz, sz), dtype=np.complex128)
         for i in range(Nch):
-            Fij = self.kernel.quadrature.kinetic_matrix(a, l[i]) * mu[0] / mu[i]
+            Fij = self.kernel.quadrature.kinetic_matrix(a, l[i])
             F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
         return F
 
     def energy_matrix(
         self,
-        a: np.float64,
-        l: np.float64,
-        E: np.float64 = None,
+        a: float,
+        l: np.ndarray,
+        E: float = None,
     ):
         r"""
         @returns:
@@ -99,7 +92,7 @@ class Solver:
                 Otherwise it is Ei/E0 for channel i with energy Ei
         """
         if E is None:
-            E = np.ones(l.shape, dtype=np.float64)
+            E = np.ones(l.shape, dtype=float)
 
         Nb = self.kernel.quadrature.nbasis
         Nch = np.size(l)
@@ -114,10 +107,9 @@ class Solver:
 
     def free_matrix(
         self,
-        a: np.float64,
-        l: np.array,
+        a: float,
+        l: np.ndarray,
         E: np.ndarray = None,
-        mu: np.ndarray = None,
         coupled=True,
     ):
         r"""
@@ -138,7 +130,7 @@ class Solver:
                 number of basis elements, othereise returns the full
                 (Nch x Nb, Nch x Nb) matrix
         """
-        free_matrix = self.kinetic_matrix(a, l, mu) - self.energy_matrix(a, l, E)
+        free_matrix = self.kinetic_matrix(a, l) - self.energy_matrix(a, l, E)
 
         if coupled:
             return free_matrix
@@ -147,10 +139,10 @@ class Solver:
 
     def interaction_matrix(
         self,
-        k0: np.float64,
-        E0: np.float64,
-        a: np.float64,
-        nch: np.int32,
+        k0: float,
+        E0: float,
+        a: float,
+        nch: int,
         local_interaction=None,
         local_args=None,
         nonlocal_interaction=None,
@@ -187,35 +179,37 @@ class Solver:
 
         if local_interaction is not None:
             # matrix_local just gives us the diagonal elements of each block ...
-            Vl = self.kernel.matrix_local(
+            # Compute and reshape the local matrix
+            local_matrix = self.kernel.matrix_local(
                 local_interaction, channel_radius_r, args=local_args
-            ).reshape(nch, nch, nb)
-            # ... so we have to manually put them in the locations of the diagonals of each block
-            for i in range(nch):
-                for j in range(nch):
-                    V[i * nb : (i + 1) * nb, j * nb : (j + 1) * nb] = np.diag(
-                        Vl[i, j, ...]
-                    )
+            )
+            local_matrix = local_matrix.reshape(nch, nch, nb)
+
+            # Apply the identity scaling and swap axes directly
+            local_matrix = local_matrix[..., np.newaxis] * np.eye(nb)
+            local_matrix = local_matrix.swapaxes(1, 2).reshape(sz, sz, order="C")
+
+            V += local_matrix / E0
 
         if nonlocal_interaction is not None:
             # matrix_nonlocal gives us an (nchannels, nchannels, nbasis, nbasis) array
             # which we can just reshape into the the block matrix we want
-            V += (
-                self.kernel.matrix_nonlocal(
-                    nonlocal_interaction, channel_radius_r, args=nonlocal_args
-                )
-                .reshape(nch, nch, nb, nb)
-                .swapaxes(1, 2)
-                .reshape(sz, sz, order="C")
-                / k0
+            nonlocal_matrix = self.kernel.matrix_nonlocal(
+                nonlocal_interaction, channel_radius_r, args=nonlocal_args
             )
-        V /= E0
+
+            # reshape and transpose the matrix
+            nonlocal_matrix = nonlocal_matrix.reshape(nch, nch, nb, nb)
+            nonlocal_matrix = nonlocal_matrix.swapaxes(1, 2).reshape(sz, sz, order="C")
+
+            V += nonlocal_matrix / k0 / E0
         return V
 
     def solve(
         self,
-        channels: Channels,
-        asymptotics: Asymptotics,
+        a: float,
+        channels: np.ndarray,
+        asymptotics: np.ndarray,
         local_interaction=None,
         local_args=None,
         nonlocal_interaction=None,
@@ -229,7 +223,7 @@ class Solver:
         # calculate everything that hasn't been precomputed
         if free_matrix is None:
             free_matrix = self.free_matrix(
-                channels.a,
+                a,
                 channels.l,
                 channels.E,
                 channels.mu,
@@ -238,13 +232,13 @@ class Solver:
         if basis_boundary is None:
             basis_boundary = self.precompute_boundaries(channels.a)
         if weights is None:
-            weights = np.zeros(channels.size, dtype=np.float64)
+            weights = np.zeros(channels.size, dtype=float)
             weights[0] = 1
         if interaction_matrix is None:
             interaction_matrix = self.interaction_matrix(
-                channels.k[0],
-                channels.E[0],
-                channels.a,
+                channels["k"][0],
+                channels["Ecm"][0],
+                a,
                 channels.size,
                 local_interaction,
                 local_args,
@@ -265,7 +259,7 @@ class Solver:
         R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
             A,
             basis_boundary,
-            asymptotics.Hp,
+            asymptotics["Hp"],
             asymptotics.Hm,
             asymptotics.Hpp,
             asymptotics.Hmp,
