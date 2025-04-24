@@ -6,8 +6,23 @@ import numpy as np
 
 from fractions import Fraction
 from enum import Enum
-from collections.abc import Callable
 from dataclasses import dataclass
+
+
+# Workspaces call these functions and arrange channel QM's as need be
+    # e.g. elastic (Jt=0, Jp=1/2 with central and spin-orbit) would:
+        # find set of Jtot, pi values consistent with lmax
+        # for each Jtot, pi
+            # call build_system
+            # pass resulting channel qm np array into spin_orbit_coupling to store <l dot s>
+        # re-organize all channels in two np arrays (one for J=l-1/2 and one for J=l+1/2)
+        # for each l:
+            # pre-compute Free-kinetic matrices for each of the two (l=J-1/2, l=J+1/2) channels
+            # (re-factor free matrix to use numpy arrays)
+
+        # then, when smatrix is called:
+            # iterate over partial wave as normal
+
 
 
 class Parity(Enum):
@@ -36,15 +51,15 @@ channel_dtype = np.dtype(
 )
 
 
-def spin_orbit_coupling(chi: np.ndarray, chj: np.ndarray) -> np.ndarray:
-    """ l s basis, returns diagonal coupling matrix """
-    Jp = chi['Jp']
-    J = chi['J']
-    l = chi['l']
-    return np.diag( 0.5*(J*(J+1) - l*(l+1)) - Jp*(Jp +1) )
+def spin_orbit_coupling(ch: np.ndarray) -> np.ndarray:
+    """ J = l dot Jp basis, returns diaginal elements of <l dot Jp>  """
+    Jp = ch['Jp']
+    J = ch['J']
+    l = ch['l']
+    return (J*(J+1) - l*(l+1)) - Jp*(Jp +1)
 
 
-def build_system(
+def build_channels_2body(
     Jtot: Fraction,
     pi: Parity,
     channel_radius_fm: float,
@@ -52,10 +67,9 @@ def build_system(
     rxn: rx.Reaction,
     levels_projectile: list[Level],
     levels_target: list[Level],
-    coupling_function: Callable[[np.ndarray, np.ndarray], np.ndarray],
 ):
     """
-    calculates channel quantum numbers and couplings
+    calculates channel quantum numbers
     """
     pass
 
@@ -63,11 +77,10 @@ def build_system(
     # taking into account all possible combinations of
     # l, (Jp, pi_p), (Jt, pi_t) that can sum to Jtot, pi:
 
-    # for a set of N possible channels, set of (N,)-shaped numpy arrays for each of:
-    # channel l values
-    # channel asymptotic Coulomb wave functions and their derivatives
-    # channel Jp values
-    # channel Jt values
-    # evaluate coupling matrix by calling coupling_function
+    # for a set of N possible channels,  (N,)-shaped numpy arrays of channel_dtype holding
+        # channel l values
+        # channel asymptotic Coulomb wave functions and their derivatives
+        # channel Jp values
+        # channel Jt values
 
-    # return all of these numpy arrays
+    # return this numpy array
