@@ -6,5 +6,3 @@ from sympy.physics.wigner import clebsch_gordan
 
 from ..utils import constants
 from ..rmatrix import Solver
-
-

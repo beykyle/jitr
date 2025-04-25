@@ -4,7 +4,7 @@ from ..structure.structure import Level, Parity
 
 from ..utils.kinematics import kinematics_dtype
 from ..utils.free_solutions import H_plus, H_minus, H_plus_prime, H_minus_prime
-from ..utils.angular_momentum import racah, triangle_rule
+from ..utils.angular_momentum import RacahW, triangle_rule
 
 import numpy as np
 
@@ -125,7 +125,7 @@ def compute_channel_asymptotics(
 
 
 def sbasis_to_jbasis_conversion_matrix(
-    chs: np.ndarray, chj: np.ndarray, Jtot: Fraction
+    chs: np.ndarray, chj: np.ndarray, Ip: Fraction, It: Fraction, Jtot: Fraction
 ):
     """
     Converts a basis from s-basis to j-basis using Eq. 3.2.4 in
@@ -156,13 +156,15 @@ def sbasis_to_jbasis_conversion_matrix(
             "the same size, and have channel_jbasis_dtype and channel_sbasis_dtype "
             "as their respective dtypes"
         )
-    prefactor = np.sqrt((2 * chs["s"] + 1) * (2 * chj["j"] + 1))
+    s = chs["s"].astype(float)
+    j = chj["j"].astype(float)
+    prefactor = np.sqrt((2 * s + 1) * (2 * j + 1))
     matrix = np.zeros((chs.size, chs.size), dtype=complex)
     for m in range(chs.size):
         for n in range(chj.size):
-            l, s, Ip, It = chs[["l", "s", "Ip", "It"]][m]
+            l, s = chs[["l", "s"]][m]
             j = chj["j"][n]
-            matrix[m, n] = racah(l, Ip, Jtot, It, j, s)
+            matrix[m, n] = RacahW(l, Ip, Jtot, It, j, s)
     return prefactor * matrix
 
 
