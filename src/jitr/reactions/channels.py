@@ -125,11 +125,15 @@ def compute_channel_asymptotics(
 
 
 def sbasis_to_jbasis_conversion_matrix(
-    chs: np.ndarray, chj: np.ndarray, Ip: Fraction, It: Fraction, Jtot: Fraction
+    Jtot: Fraction, chs: np.ndarray, chj: np.ndarray,
 ):
     """
     Converts a basis from s-basis to j-basis using Eq. 3.2.4 in
     Thomson & Nunes, 2009
+
+    The two channel arrays, chs and chj must describe the same system,
+    e.g. all the fields corresponding the projectile and target
+    E, I, and pi must be the same.
 
     Parameters
     ----------
@@ -156,11 +160,13 @@ def sbasis_to_jbasis_conversion_matrix(
             "the same size, and have channel_jbasis_dtype and channel_sbasis_dtype "
             "as their respective dtypes"
         )
+    assert np.all(chj[["Ip", "It"]] == chs[["Ip", "It"]])
     s = chs["s"].astype(float)
     j = chj["j"].astype(float)
     prefactor = np.sqrt((2 * s + 1) * (2 * j + 1))
     matrix = np.zeros((chs.size, chs.size), dtype=complex)
     for m in range(chs.size):
+        Ip, It = chj[["Ip", "It"]][m]  # could use chj or chs here
         for n in range(chj.size):
             l, s = chs[["l", "s"]][m]
             j = chj["j"][n]
@@ -263,4 +269,4 @@ def build_all_channels(
     for level_p in levels_p:
         for level_t in levels_t:
             channels.append(build_channels(Jtot, pi, level_p, level_t))
-    return np.vstack(channels)
+    return np.hstack(channels)
