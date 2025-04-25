@@ -6,7 +6,7 @@ from jitr.reactions import (
     ProjectileTargetSystem,
     make_channel_data,
 )
-from jitr.reactions.potentials import (
+from jitr.optical_potentials.potential_forms import (
     woods_saxon_potential,
     coulomb_charged_sphere,
 )

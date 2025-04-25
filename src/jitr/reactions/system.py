@@ -139,6 +139,7 @@ class ProjectileTargetSystem:
 
     def get_partial_wave_channels(
         self,
+        Elab,
         Ecm,
         mu,
         k,
