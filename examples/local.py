@@ -5,7 +5,7 @@ from numba import njit
 
 from jitr import rmatrix
 from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
-from jitr.reactions.potentials import (
+from jitr.optical_potentials.potential_forms import (
     woods_saxon_potential,
     coulomb_charged_sphere,
 )
@@ -42,10 +42,10 @@ def local_interaction_example():
         Zproj=proton[1],
     )
 
-    Ecm, mu, k, eta = kinematics.classical_kinematics(
+    Elab, Ecm, mu, k, eta = kinematics.classical_kinematics(
         sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
     )
-    channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+    channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
 
     l = 0
     channel_data_rk = make_channel_data(channels[l])
@@ -145,7 +145,7 @@ def channel_radius_dependence_test():
         Ztarget=0,
         Zproj=0,
     )
-    mu, Ecm, k, eta = kinematics.classical_kinematics(
+    Elab, Ecm, mu, k, eta = kinematics.classical_kinematics(
         sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
     )
 
@@ -170,7 +170,7 @@ def channel_radius_dependence_test():
     l = 0
     for i, a in enumerate(a_grid):
         sys.channel_radius = a
-        channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+        channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
         R, S, _ = solver.solve(
             channels[l], asymptotics[l], woods_saxon_potential, params
         )

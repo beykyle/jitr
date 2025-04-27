@@ -1,6 +1,9 @@
 import numpy as np
 from jitr import reactions, rmatrix
-from jitr.reactions.potentials import woods_saxon_potential, coulomb_charged_sphere
+from jitr.optical_potentials.potential_forms import (
+    woods_saxon_potential,
+    coulomb_charged_sphere,
+)
 from jitr.utils import kinematics, delta, mass, constants
 
 
@@ -24,13 +27,13 @@ sys = reactions.ProjectileTargetSystem(
     Ztarget=Ca48[1],
     Zproj=proton[1],
 )
-Ecm, mu, k, eta = kinematics.classical_kinematics(
+Elab, Ecm, mu, k, eta = kinematics.classical_kinematics(
     sys.mass_target,
     sys.mass_projectile,
     Elab,
     sys.Ztarget * sys.Zproj,
 )
-channels, asymptotics = sys.get_partial_wave_channels(Ecm, mu, k, eta)
+channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
 
 # set up solver
 solver = rmatrix.Solver(nbasis=40)
