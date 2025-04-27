@@ -163,7 +163,7 @@ class WLHGlobal:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-    def get_params(self, A, Z, mu, E_lab, k):
+    def get_params(self, A, Z, E_lab):
         """
         Calculates WLH parameters for a given system
         """

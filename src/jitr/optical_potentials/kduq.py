@@ -237,7 +237,7 @@ class KDGlobal:
                 self.Ef_0 = -8.4075
                 self.Ef_A = 0.01378
 
-    def get_params(self, A, Z, mu, Elab, k):
+    def get_params(self, A, Z, Elab):
         """
         Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given system
         """
