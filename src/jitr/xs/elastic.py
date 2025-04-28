@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
 
-from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
 from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
 from ..rmatrix import Solver
@@ -38,7 +37,7 @@ class IntegralWorkspace:
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
         # ensure reaction is elastic
-        if reaction.process != "EL":
+        if reaction.process.lower() != "el":
             raise ValueError("Reaction must be elastic!")
 
         # parameters
@@ -229,7 +228,10 @@ class DifferentialWorkspace:
         self.P_1_l_costheta = lpmv(1, self.ls, np.cos(self.angles))
 
         # precompute things related to Coulomb interaction
-        self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
+        self.Zz = (
+            self.integral_workspace.reaction.projectile.Z
+            * self.integral_workspace.reaction.target.Z
+        )
         self.sigma_l = self.coulomb_phase_shift(self.ls)
         if self.Zz > 0:
             self.rutherford = self.rutherford(self.angles)
@@ -244,18 +246,25 @@ class DifferentialWorkspace:
         """
         check_angles(angles)
         sin2 = np.sin(angles / 2.0) ** 2
-        return 10 * self.kinematics.eta**2 / (4 * self.kinematics.k**2 * sin2**2)
+        return (
+            10
+            * self.integral_workspace.kinematics.eta**2
+            / (4 * self.integral_workspace.kinematics.k**2 * sin2**2)
+        )
 
     def coulomb_amplitude(self, angles: np.ndarray, sigma_0):
         sin2 = np.sin(angles / 2.0)
         return (
-            -self.kinematics.eta
-            / (2 * self.kinematics.k * sin2**2)
-            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2))
+            -self.integral_workspace.kinematics.eta
+            / (2 * self.integral_workspace.kinematics.k * sin2**2)
+            * np.exp(
+                2j * sigma_0
+                - 2j * self.integral_workspace.kinematics.eta * np.log(sin2)
+            )
         )
 
     def coulomb_phase_shift(self, ls):
-        return np.angle(gamma(1 + ls + 1j * self.kinematics.eta))
+        return np.angle(gamma(1 + ls + 1j * self.integral_workspace.kinematics.eta))
 
     def xs(
         self,
@@ -269,7 +278,7 @@ class DifferentialWorkspace:
         )
         return ElasticXS(
             *differential_elastic_xs(
-                self.k,
+                self.integral_workspace.kinematics.k,
                 self.angles,
                 splus,
                 sminus,

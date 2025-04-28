@@ -321,6 +321,7 @@ class Reaction:
         self.target = Particle.parse(target, mass_kwargs=mass_kwargs)
         self.projectile = Particle.parse(projectile, mass_kwargs=mass_kwargs)
         self.compound_system = self.target + self.projectile
+        self.process = process
 
         if product is not None:
             product = Particle.parse(product, mass_kwargs=mass_kwargs)
@@ -329,7 +330,7 @@ class Reaction:
 
         # parse the process string and ensuure the reactants are consistent
         residual_in_string = True
-        if process:
+        if process is not None:
             self.process = process.lower()
 
             if self.process in ["el", "inl", "sct"]:
@@ -477,7 +478,7 @@ class Reaction:
         Returns:
             ChannelKinematics: the kinematics
         """
-        Elab = (self.target.m0 + self.projectile.m0) / self.target.m0
+        Elab = Ecm * (self.target.m0 + self.projectile.m0) / self.target.m0
         result = semi_relativistic_kinematics(
             self.target.m0,
             self.projectile.m0,
@@ -485,6 +486,7 @@ class Reaction:
             Zz=self.target.Z * self.projectile.Z,
         )
         assert np.isclose(Ecm, result.Ecm)
+
         return result
 
     def kinematics_exit(

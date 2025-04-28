@@ -15,8 +15,7 @@ from ..rmatrix import Solver
 
 
 class System:
-    r"""
-    """
+    r""" """
 
     def __init__(
         self,
@@ -26,8 +25,7 @@ class System:
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
     ):
-        r"""
-        """
+        r""" """
 
         self.channel_radius_fm = channel_radius_fm
         self.lmax = lmax
@@ -71,7 +69,7 @@ class Workspace:
         tmatrix_abs_tol: float = 1e-6,
     ):
         # params
-        self.lmax = lmax,
+        self.lmax = (lmax,)
         self.channel_radius_fm = channel_radius_fm
         self.tmatrix_abs_tol = tmatrix_abs_tol
 
