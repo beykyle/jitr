@@ -166,7 +166,7 @@ class KDGlobal:
                 self.params["aso_0"] = data["KDRealSpinOrbit"]["a_0"]
 
                 # Coulomb
-                if self.params["projectile"] == (1, 1):
+                if self.projectile == (1, 1):
                     self.params["rc_0"] = data["KDCoulomb"]["r_C_0"]
                     self.params["rc_A"] = data["KDCoulomb"]["r_C_A"]
                     self.params["rc_A2"] = data["KDCoulomb"]["r_C_A2"]
