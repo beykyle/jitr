@@ -20,6 +20,21 @@ from .potential_forms import (
     thomas_safe,
     coulomb_charged_sphere,
 )
+from ..data import data_dir
+
+
+def get_samples_democratic(projectile: tuple):
+    return [
+        Global(projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json").params
+        for i in range(416)
+    ]
+
+
+def get_samples_federal(projectile: tuple):
+    return [
+        Global(projectile, data_dir / f"KDUQFederal/{i}/parameters.json").params
+        for i in range(416)
+    ]
 
 
 def Vv(E, v1, v2, v3, v4, Ef):
@@ -54,7 +69,7 @@ def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
+def central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     r"""simplified Koning-Delaroche without the spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
@@ -66,13 +81,13 @@ def KD_central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
     )
 
 
-def KD_central_plus_coulomb(r, central_params, coulomb_params):
-    nucl = KD_central(r, *central_params)
+def central_plus_coulomb(r, central_params, coulomb_params):
+    nucl = central(r, *central_params)
     coul = coulomb_charged_sphere(r, *coulomb_params)
     return nucl + coul
 
 
-def KD_spin_orbit(r, vso, rso, aso, wso, rwso, awso):
+def spin_orbit(r, vso, rso, aso, wso, rwso, awso):
     r"""simplified Koning-Delaroche spin-orbit terms
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
@@ -82,7 +97,7 @@ def KD_spin_orbit(r, vso, rso, aso, wso, rwso, awso):
     ) + 1j * wso / MASS_PION**2 * thomas_safe(r, rwso, awso)
 
 
-class KDGlobal:
+class Global:
     r"""Global Koning-Delaroche parameters"""
 
     def __init__(self, projectile: tuple, param_fpath: Path = None):
@@ -104,7 +119,7 @@ class KDGlobal:
             tag = "_p"
         else:
             raise RuntimeError(
-                "KDGlobal is defined only for neutron and proton projectiles"
+                "kduq.Global is defined only for neutron and proton projectiles"
             )
 
         self.projectile = projectile
@@ -233,32 +248,33 @@ class KDGlobal:
 
             # fermi energy
             if self.projectile == (1, 0):
-                self.Ef_0 = -11.2814
-                self.Ef_A = 0.02646
+                self.params["Ef_0"] = -11.2814
+                self.params["Ef_A"] = 0.02646
             else:
-                self.Ef_0 = -8.4075
-                self.Ef_A = 0.01378
+                self.params["Ef_0"] = -8.4075
+                self.params["Ef_A"] = 0.01378
 
     def get_params(self, A, Z, Elab):
-        # fermi energy
-        Ef = self.Ef_0 + self.Ef_A * A
-        return calculate_params(self.projectile, (A, Z), Elab, Ef, self.params)
+        return calculate_params(self.projectile, (A, Z), Elab, self.params)
 
 
 def calculate_params(
-    projectile: tuple, target: tuple, Elab: float, Ef: float, params: OrderedDict
+    projectile: tuple, target: tuple, Elab: float, params: OrderedDict
 ):
     """
     Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given
         system
     """
 
-    A, Z = tuple(target)
-    Ap, Zp = tuple(projectile)
+    A, Z = target
+    Ap, Zp = projectile
     assert Ap == 1 and (Zp == 1 or Zp == 0)
     asym_factor = (A - 2 * Z) / (A)
     factor = (-1) ** (Zp)
     asym_factor *= factor
+
+    # fermi energy
+    Ef = params["Ef_0"] + params["Ef_A"] * A
 
     # real central depth
     v1 = params["v1_0"] - params["v1_asymm"] * asym_factor - params["v1_A"] * A

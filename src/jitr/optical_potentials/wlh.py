@@ -9,6 +9,7 @@ from collections import OrderedDict
 from pathlib import Path
 import json
 
+from ..data import data_dir
 from ..utils.constants import MASS_PION
 from .potential_forms import (
     woods_saxon_safe,
@@ -17,12 +18,19 @@ from .potential_forms import (
 )
 
 
-def WLH_so(r, uso, rso, aso):
+def get_samples(projectile: tuple):
+    return [
+        Global(projectile, data_dir / f"WLHSamples/{i}/parameters.json").params
+        for i in range(1000)
+    ]
+
+
+def spin_orbit(r, uso, rso, aso):
     r"""WLH spin-orbit terms"""
     return (uso / MASS_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
 
 
-def WLH_central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
+def central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
     r"""WLH without the spin-orbit term"""
     return (
         -uv * woods_saxon_safe(r, rv, av)
@@ -31,13 +39,13 @@ def WLH_central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
     )
 
 
-def WLH_plus_coulomb(r, central_params, coulomb_params):
-    nucl = WLH_central(r, *central_params)
+def central_plus_coulomb(r, central_params, coulomb_params):
+    nucl = central(r, *central_params)
     coul = coulomb_charged_sphere(r, *coulomb_params)
     return nucl + coul
 
 
-class WLHGlobal:
+class Global:
     r"""Global optical potential in WLH form."""
 
     def __init__(self, projectile: tuple, param_fpath: Path = None):
@@ -58,7 +66,7 @@ class WLHGlobal:
             tag = "_p"
         else:
             raise RuntimeError(
-                "WLHGlobal is defined only for neutron and proton projectiles"
+                "wlh.Global is defined only for neutron and proton projectiles"
             )
 
         self.params = OrderedDict()
@@ -177,8 +185,8 @@ def calculate_params(
     Calculates WLH parameters for a given system
     """
 
-    A, Z = tuple(target)
-    Ap, Zp = tuple(projectile)
+    A, Z = target
+    Ap, Zp = projectile
     assert Ap == 1 and (Zp == 1 or Zp == 0)
     asym_factor = (A - 2 * Z) / (A)
     factor = (-1) ** (Zp)
