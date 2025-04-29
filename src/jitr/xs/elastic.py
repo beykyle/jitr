@@ -219,6 +219,8 @@ class DifferentialWorkspace:
 
         # system info
         self.integral_workspace = integral_workspace
+        self.reaction = self.integral_workspace.reaction
+        self.kinematics = self.integral_workspace.kinematics
 
         # precompute angular distributions in each partial wave
         check_angles(angles)
@@ -228,10 +230,7 @@ class DifferentialWorkspace:
         self.P_1_l_costheta = lpmv(1, self.ls, np.cos(self.angles))
 
         # precompute things related to Coulomb interaction
-        self.Zz = (
-            self.integral_workspace.reaction.projectile.Z
-            * self.integral_workspace.reaction.target.Z
-        )
+        self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
         self.sigma_l = self.coulomb_phase_shift(self.ls)
         if self.Zz > 0:
             self.rutherford = self.rutherford(self.angles)
@@ -246,25 +245,18 @@ class DifferentialWorkspace:
         """
         check_angles(angles)
         sin2 = np.sin(angles / 2.0) ** 2
-        return (
-            10
-            * self.integral_workspace.kinematics.eta**2
-            / (4 * self.integral_workspace.kinematics.k**2 * sin2**2)
-        )
+        return 10 * self.kinematics.eta**2 / (4 * self.kinematics.k**2 * sin2**2)
 
     def coulomb_amplitude(self, angles: np.ndarray, sigma_0):
         sin2 = np.sin(angles / 2.0)
         return (
-            -self.integral_workspace.kinematics.eta
-            / (2 * self.integral_workspace.kinematics.k * sin2**2)
-            * np.exp(
-                2j * sigma_0
-                - 2j * self.integral_workspace.kinematics.eta * np.log(sin2)
-            )
+            -self.kinematics.eta
+            / (2 * self.kinematics.k * sin2**2)
+            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2))
         )
 
     def coulomb_phase_shift(self, ls):
-        return np.angle(gamma(1 + ls + 1j * self.integral_workspace.kinematics.eta))
+        return np.angle(gamma(1 + ls + 1j * self.kinematics.eta))
 
     def xs(
         self,
@@ -278,7 +270,7 @@ class DifferentialWorkspace:
         )
         return ElasticXS(
             *differential_elastic_xs(
-                self.integral_workspace.kinematics.k,
+                self.kinematics.k,
                 self.angles,
                 splus,
                 sminus,
