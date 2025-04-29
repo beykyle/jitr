@@ -233,13 +233,13 @@ class DifferentialWorkspace:
         self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
         self.sigma_l = self.coulomb_phase_shift(self.ls)
         if self.Zz > 0:
-            self.rutherford = self.rutherford(self.angles)
+            self.rutherford = self.rutherford_xs(self.angles)
             self.f_c = self.coulomb_amplitude(self.angles, self.sigma_l[0])
         else:
             self.f_c = np.zeros_like(angles)
             self.rutherford = None
 
-    def rutherford(self, angles: np.ndarray):
+    def rutherford_xs(self, angles: np.ndarray):
         """
         Rutherford xs in mb/Sr for a providd angular grid in radians
         """
@@ -290,6 +290,10 @@ def integral_elastic_xs(
     Sminus: np.array,
     ls: np.array,
 ):
+    r"""
+    Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb/SR
+    """
     xsrxn = 0.0
     xst = 0.0
 
@@ -319,7 +323,7 @@ def differential_elastic_xs(
 ):
     r"""
     Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
-    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb/SR
     """
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
