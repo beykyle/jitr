@@ -560,14 +560,6 @@ class Reaction:
             other.process,
         )
 
-    def __hash__(self):
-        """Returns the hash of the Reaction instance.
-
-        Returns:
-            int: The hash value.
-        """
-        return hash((self.target, self.projectile, self.product, self.residual))
-
 
 class ElasticReaction(Reaction):
     """

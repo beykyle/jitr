@@ -362,5 +362,5 @@ def check_angles(angles: np.ndarray):
         raise ValueError("angles must be a 1D array")
     if angles[0] < 0 or angles[-1] > np.pi:
         raise ValueError("angles must a grid in radians on [0,pi)")
-    if not np.all(angles[1:] - angles[:-1] > 0):
-        raise ValueError("angles must be monotonically increasing")
+    #if not np.all(angles[1:] - angles[:-1] > 0):
+    #    raise ValueError("angles must be monotonically increasing")
