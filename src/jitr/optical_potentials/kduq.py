@@ -376,8 +376,8 @@ def calculate_diff_xs(
     )
 
     return workspace.xs(
-        central,
+        central_plus_coulomb,
         spin_orbit,
-        central_params,
+        (central_params, coulomb_params),
         spin_orbit_params,
     )
