@@ -21,6 +21,7 @@ from .potential_forms import (
     coulomb_charged_sphere,
 )
 from ..data import data_dir
+from ..xs.elastic import DifferentialWorkspace
 
 
 def get_samples_democratic(projectile: tuple):
@@ -363,3 +364,20 @@ def calculate_params(
     )
 
     return coulomb_params, central_params, spin_orbit_params
+
+
+def calculate_diff_xs(
+    workspace: DifferentialWorkspace,
+    params: OrderedDict,
+):
+    rxn = workspace.reaction
+    coulomb_params, central_params, spin_orbit_params = calculate_params(
+        rxn.projectile, rxn.target, workspace.kinematics.Elab, params
+    )
+
+    return workspace.xs(
+        central,
+        spin_orbit,
+        central_params,
+        spin_orbit_params,
+    )
