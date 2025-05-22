@@ -69,7 +69,7 @@ class Workspace:
         tmatrix_abs_tol: float = 1e-6,
     ):
         # params
-        self.lmax = (lmax,)
+        self.lmax = lmax
         self.channel_radius_fm = channel_radius_fm
         self.tmatrix_abs_tol = tmatrix_abs_tol
 
@@ -171,29 +171,29 @@ class Workspace:
     def tmatrix(
         self,
         U_p_coulomb=None,
-        U_p_scalar=None,
+        U_p_central=None,
         U_p_spin_orbit=None,
-        U_n_scalar=None,
+        U_n_central=None,
         U_n_spin_orbit=None,
         args_p_coulomb=None,
-        args_p_scalar=None,
+        args_p_central=None,
         args_p_spin_orbit=None,
-        args_n_scalar=None,
+        args_n_central=None,
         args_n_spin_orbit=None,
     ):
         Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
 
-        # precomute scalar, spin-obit, and Coulomb interaction matrices
+        # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
-        im_scalar_p = self.solver.interaction_matrix(
+        im_central_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_scalar,
-            local_args=args_p_scalar,
+            local_interaction=U_p_central,
+            local_args=args_p_central,
         )
         im_spin_orbit_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
@@ -212,15 +212,15 @@ class Workspace:
             local_args=args_p_coulomb,
         )
 
-        # precomute scalar and spin-obit interaction matrices
+        # precomute central and spin-obit interaction matrices
         # for exit channel distorted waves
-        im_scalar_n = self.solver.interaction_matrix(
+        im_central_n = self.solver.interaction_matrix(
             self.n_channels[0][0].k[0],
             self.n_channels[0][0].E[0],
             self.n_channels[0][0].a,
             self.n_channels[0][0].size,
-            local_interaction=U_n_scalar,
-            local_args=args_n_scalar,
+            local_interaction=U_n_central,
+            local_args=args_n_central,
         )
         im_spin_orbit_n = self.solver.interaction_matrix(
             self.n_channels[0][0].k[0],
@@ -236,10 +236,10 @@ class Workspace:
         r_quadrature = (
             self.solver.kernel.quadrature.abscissa * self.sys.channel_radius_fm
         )
-        U1_scalar = (
+        U1_central = (
             -(
-                U_n_scalar(r_quadrature, *args_n_scalar)
-                - U_p_scalar(r_quadrature, *args_p_scalar)
+                U_n_central(r_quadrature, *args_n_central)
+                - U_p_central(r_quadrature, *args_p_central)
             )
             * self.isovector_factor
         )
@@ -263,7 +263,7 @@ class Workspace:
                 nch[ji],
                 nasym[ji],
                 free_matrix=Fn,
-                interaction_matrix=im_scalar_n + l_dot_s * im_spin_orbit_n,
+                interaction_matrix=im_central_n + l_dot_s * im_spin_orbit_n,
                 basis_boundary=self.basis_boundary_n,
                 wavefunction=True,
             )
@@ -272,14 +272,14 @@ class Workspace:
                 pasym[ji],
                 free_matrix=Fp,
                 interaction_matrix=(
-                    im_scalar_p + im_coulomb_p + l_dot_s * im_spin_orbit_p
+                    im_central_p + im_coulomb_p + l_dot_s * im_spin_orbit_p
                 ),
                 basis_boundary=self.basis_boundary_p,
                 wavefunction=True,
             )
 
             tlj = (
-                np.sum(xp * (U1_scalar + l_dot_s * U1_spin_orbit) * xn)
+                np.sum(xp * (U1_central + l_dot_s * U1_spin_orbit) * xn)
                 / self.sys.channel_radius_fm
                 / self.kinematics_entrance.k
                 / self.kinematics_exit.k
@@ -306,27 +306,27 @@ class Workspace:
     def xs(
         self,
         U_p_coulomb=None,
-        U_p_scalar=None,
+        U_p_central=None,
         U_p_spin_orbit=None,
-        U_n_scalar=None,
+        U_n_central=None,
         U_n_spin_orbit=None,
         args_p_coulomb=None,
-        args_p_scalar=None,
+        args_p_central=None,
         args_p_spin_orbit=None,
-        args_n_scalar=None,
+        args_n_central=None,
         args_n_spin_orbit=None,
     ):
         Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
         Tlj, Sn, Sp = self.tmatrix(
             U_p_coulomb=U_p_coulomb,
-            U_p_scalar=U_p_scalar,
+            U_p_central=U_p_central,
             U_p_spin_orbit=U_p_spin_orbit,
-            U_n_scalar=U_n_scalar,
+            U_n_central=U_n_central,
             U_n_spin_orbit=U_n_spin_orbit,
             args_p_coulomb=args_p_coulomb,
-            args_p_scalar=args_p_scalar,
+            args_p_central=args_p_central,
             args_p_spin_orbit=args_p_spin_orbit,
-            args_n_scalar=args_n_scalar,
+            args_n_central=args_n_central,
             args_n_spin_orbit=args_n_spin_orbit,
         )
         # TODO cast into a np.sum
