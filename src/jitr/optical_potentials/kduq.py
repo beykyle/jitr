@@ -263,8 +263,37 @@ def calculate_params(
     projectile: tuple, target: tuple, Elab: float, params: OrderedDict
 ):
     """
-    Calculates Koning-Delaroche global neutron-nucleus OMP parameters for given
-        system
+    Calculate Koning-Delaroche global neutron-nucleus optical potential
+    parameters for a given system.
+
+    Parameters:
+    ----------
+    projectile : tuple
+        A tuple representing the projectile, with format (Ap, Zp),
+        where Ap is the mass number and Zp is the atomic number.
+
+    target : tuple
+        A tuple representing the target, with format (A, Z),
+        where A is the mass number and Z is the atomic number.
+
+    Elab : float
+        The laboratory energy of the projectile in MeV.
+
+    params : OrderedDict
+        An OrderedDict containing the parameter values for the OMP calculation.
+
+    Returns:
+    -------
+    tuple
+        A tuple containing the following:
+        - coulomb_params: tuple
+            A tuple with Coulomb parameters (Z * Zp, R_C).
+        - central_params: tuple
+            A tuple with central potential parameters
+            (vv, rv * A**(1/3), av, wv, rwv * A**(1/3), awv, wd, rd * A**(1/3), ad)
+        - spin_orbit_params: tuple
+            A tuple with spin-orbit potential parameters
+            (vso, rso * A**(1/3), aso, wso, rwso * A**(1/3), awso).
     """
 
     A, Z = target
