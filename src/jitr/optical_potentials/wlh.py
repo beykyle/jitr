@@ -10,7 +10,7 @@ from pathlib import Path
 import json
 
 from ..data import data_dir
-from ..utils.constants import MASS_PION
+from ..utils.constants import WAVENUMBER_PION
 from .potential_forms import (
     woods_saxon_safe,
     woods_saxon_prime_safe,
@@ -28,7 +28,7 @@ def get_samples(projectile: tuple):
 
 def spin_orbit(r, uso, rso, aso):
     r"""WLH spin-orbit terms"""
-    return (uso / MASS_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
+    return (uso / WAVENUMBER_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
 
 
 def central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):

@@ -13,7 +13,7 @@ from collections import OrderedDict
 import json
 import numpy as np
 
-from ..utils.constants import MASS_PION
+from ..utils.constants import WAVENUMBER_PION
 from .potential_forms import (
     woods_saxon_safe,
     woods_saxon_prime_safe,
@@ -93,9 +93,10 @@ def spin_orbit(r, vso, rso, aso, wso, rwso, awso):
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
     """
-    return vso / MASS_PION**2 * thomas_safe(
+    # extra factor of 2 comes from use of l dot s rather than l dot sigma
+    return 2 * vso / WAVENUMBER_PION**2 * thomas_safe(
         r, rso, aso
-    ) + 1j * wso / MASS_PION**2 * thomas_safe(r, rwso, awso)
+    ) + 2j * wso / WAVENUMBER_PION**2 * thomas_safe(r, rwso, awso)
 
 
 class Global:
