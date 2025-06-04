@@ -19,6 +19,56 @@ from .potential_forms import (
 from ..xs.elastic import DifferentialWorkspace
 
 
+PARAMS = [
+    "uv0",
+    "uv1",
+    "uv2",
+    "uv3",
+    "uv4",
+    "uv5",
+    "uv6",
+    "rv0",
+    "rv1",
+    "rv2",
+    "rv3",
+    "av0",
+    "av1",
+    "av2",
+    "av3",
+    "av4",
+    "uw0",
+    "uw1",
+    "uw2",
+    "uw3",
+    "uw4",
+    "rw0",
+    "rw1",
+    "rw2",
+    "rw3",
+    "rw4",
+    "rw5",
+    "aw0",
+    "aw1",
+    "aw2",
+    "aw3",
+    "aw4",
+    "ud0",
+    "ud1",
+    "ud3",
+    "ud4",
+    "rd0",
+    "rd1",
+    "rd2",
+    "ad0",
+    "uso0",
+    "uso1",
+    "rso0",
+    "rso1",
+    "aso0",
+    "aso1",
+]
+
+
 def get_samples(projectile: tuple):
     return [
         Global(projectile, data_dir / f"WLHSamples/{i}/parameters.json").params
@@ -173,6 +223,8 @@ class Global:
                 self.params["aso1"] = data["WLHRealSpinOrbit_a1" + tag]
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
+
+            assert set(self.params) == set(PARAMS)
 
     def get_params(self, A, Z, Elab):
         # fermi energy

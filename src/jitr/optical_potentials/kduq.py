@@ -23,6 +23,53 @@ from .potential_forms import (
 from ..data import data_dir
 from ..xs.elastic import DifferentialWorkspace
 
+# determines the ordering of parameters
+PARAMS_N = [
+    "v1_0",
+    "v1_asymm",
+    "v1_A",
+    "v2_0",
+    "v2_A",
+    "v3_0",
+    "v3_A",
+    "v4_0",
+    "rv_0",
+    "rv_A",
+    "av_0",
+    "av_A",
+    "w1_0",
+    "w1_A",
+    "w2_0",
+    "w2_A",
+    "d1_0",
+    "d1_asymm",
+    "d2_0",
+    "d2_A",
+    "d2_A2",
+    "d2_A3",
+    "d3_0",
+    "rd_0",
+    "rd_A",
+    "ad_0",
+    "ad_A",
+    "Vso1_0",
+    "Vso1_A",
+    "Vso2_0",
+    "Wso1_0",
+    "Wso2_0",
+    "rso_0",
+    "rso_A",
+    "aso_0",
+    "Ef_0",
+    "Ef_A",
+]
+
+PARAMS_P = PARAMS_N + [
+    "rc_0",
+    "rc_A",
+    "rc_A2",
+]
+
 
 def get_samples_democratic(projectile: tuple):
     return [
@@ -252,9 +299,13 @@ class Global:
             if self.projectile == (1, 0):
                 self.params["Ef_0"] = -11.2814
                 self.params["Ef_A"] = 0.02646
+
+                assert set(self.params.keys()) == set(PARAMS_N)
             else:
                 self.params["Ef_0"] = -8.4075
                 self.params["Ef_A"] = 0.01378
+
+                assert set(self.params.keys()) == set(PARAMS_P)
 
     def get_params(self, A, Z, Elab):
         return calculate_params(self.projectile, (A, Z), Elab, self.params)
