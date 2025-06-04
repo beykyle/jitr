@@ -18,7 +18,7 @@ A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, pr
 The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
 
 ## description
-A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\boldsymbol{\theta})$ that is a function of some parameters $\boldsymbol{\theta}$. Just write it like so:
+A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\theta)$ that is a function of some parameters $\theta$. Just write it like so:
 
 ```python
 def V(r,*theta):
@@ -26,7 +26,7 @@ def V(r,*theta):
   # calculate and return potential at radial coordinate r as a function of parameters a,b,c,...
 ```
 
-Then, you can pass it along with many samples of $\boldsymbol{\theta}$ into jitR to calculate many samples of the corresponding cross sections for your system and reaction of interest! The reaction observables jitR can calculate are represented as `Workspace` instances, and live in `src/jitr/xs/`.
+Then, you can pass it along with many samples of $\theta$ into jitR to calculate many samples of the corresponding cross sections for your system and reaction of interest! The reaction observables jitR can calculate are represented as `Workspace` instances, and live in `src/jitr/xs/`.
 
 Under the hood, jitR solves the radial Bloch-Shrödinger equation in the continuum using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitR is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitR relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
 
