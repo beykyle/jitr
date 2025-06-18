@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
-from typing import Callable, Tuple, Dict
+from typing import Callable, Tuple, Dict, Sequence
 from jax import Array
 import numpy as np
+from functools import partial
 
 
 
@@ -59,8 +60,8 @@ class R_matrix_solver_with_warmup:
                  nbasis: int,
                  a: float,
                  hbar_2mu: float):
-        self.keys = keys
-        self.quantum_num_dic = quantum_num_dic
+        self.keys = jnp.asarray(keys, dtype=jnp.int32)
+        self.quantum_num_dic = {k: jnp.array(v, dtype=jnp.complex64) for k, v in quantum_num_dic.items()}
         self.nbasis = nbasis
         self.a = a
         self.hbar_2mu = hbar_2mu
@@ -225,41 +226,69 @@ class S_matrix_solver_with_warmup:
 
 
 
-@jax.jit
-def update_local_diagonal_interaction(diag_vals: jnp.ndarray, nchannels: int) -> jnp.ndarray:
+
+
+def make_diagonal_kernel(nchannels: int):
+    #@partial(jax.jit, static_argnums=1)  # `nchannels` must be static
+    def update_local_diagonal_interaction(diag_vals: jnp.ndarray, nchannels: int) -> jnp.ndarray:
+        """
+        @parameters:
+           diag_vals: an array of diagonal values of shape (nbasis,)
+           nchannels: the number of channels (int)
+        Returns a (nchannels*N, nchannels*N) matrix with the same diag(diag_vals) in each diagonal block.
+      """
+        block = jnp.diag(diag_vals.astype(jnp.complex64))                       # (nbasis, nbasis)
+        eye = jnp.eye(nchannels, dtype=jnp.complex64)                          # (nchannels, nchannels)
+        mat = jnp.kron(eye, block)                        # (nchannels*nbasis, nchannels*nbasis)
+        return mat
+
+    return jax.jit(jax.vmap(partial(update_local_diagonal_interaction, nchannels=nchannels), in_axes=0))
+
+def batched_local_diagonal(keys: Sequence[int]):
+    f"""
+    @parameters:
+         keys: an array of integers corresponding to the nchannels of each batch
+     @returns:
+        local_diagonal_kernels: a dictionary of fused kernel functions (vmap) with fixed nchannels
+        and nbasis, where the operation is a batched along the first axis. Such that the input
+        to the stored function is an array of diagonal values of shape diag_values= (batch_size, nbasis) 
+        and an array of scale_matrix = (batch_size, nchannels, nchannels)
     """
-    Returns a (nchannels*N, nchannels*N) matrix with the same diag(diag_vals) in each diagonal block.
-    """
-    N = diag_vals.shape[0]
-    block = jnp.diag(diag_vals)                       # (N, N)
-    eye = jnp.eye(nchannels)                          # (B, B)
-    mat = jnp.kron(eye, block)                        # (B*N, B*N)
-    return mat
-
-#batch it over the first dimension, you just need to pass a batched array of diagonal values!
-batched_insert_diag = jax.jit(
-    jax.vmap(update_local_diagonal_interaction, in_axes=(0, None))
-)
+    local_diagonal_kernels = {}
+    for nch in keys:
+        local_diagonal_kernels[int(nch)] = make_diagonal_kernel(int(nch))
+    return local_diagonal_kernels
 
 
 
-@jax.jit
-def update_local_coupling_interaction(diag_vals: jnp.ndarray,
-                                      scale_matrix: jnp.ndarray) -> jnp.ndarray:
-    """
-    Returns a (B*N, B*N) matrix where each (i, j) block = scale_matrix[i,j] * diag(diag_vals)
-    
-    diag_vals: (N,)
-    scale_matrix: (B, B)
-    """
-    N = diag_vals.shape[0]
-    B = scale_matrix.shape[0]
+def make_coupling_kernel(nchannels: int, nbasis: int):
+    def update_local_coupling_interaction(diag_vals: jnp.ndarray,
+                                          scale_matrix: jnp.ndarray) -> jnp.ndarray:
+        """
+        Returns a (nchannels*nbasis, nchannels*nbasis) matrix where each (i, j) block = scale_matrix[i,j] * diag(diag_vals)
+        """
+        block = jnp.diag(diag_vals.astype(jnp.complex64))  # (nbasis, nbasis)
+        scaled_blocks = scale_matrix[:, None, :, None] * block[None, :, None, :]  # (nch, nb, nch, nb)
+        return scaled_blocks.reshape(nchannels * nbasis, nchannels * nbasis)
 
-    block = jnp.diag(diag_vals)  # (N, N)
-    scaled_blocks = scale_matrix[:, None, :, None] * block[None, :, None, :]  # (B, N, B, N)
+    # Vectorize over batch dim 0 for both inputs
+    return jax.jit(jax.vmap(update_local_coupling_interaction, in_axes=(0, 0)))
 
-    return scaled_blocks.reshape(B * N, B * N)
 
-batched_insert_couplings = jax.jit(
-    jax.vmap(update_local_coupling_interaction, in_axes=(0, 0))
-)
+def batched_local_couplings(keys: Sequence[int], nbasis: int) -> Dict[int, callable]:
+    f"""
+      @parameters:
+          keys: an array of integers corresponding to the nchannels of each batch
+          nbasis: the fixed number of lagrange basis functions
+      @returns:
+          local_coupling_kernels: a dictionary of fused kernel functions (vmap) with fixed nchannels
+          and nbasis, where the operation is a batched along the first axis. Such that the input
+          to the stored function is an array of diagonal values of shape diag_values= (batch_size, nbasis) 
+          and an array of scale_matrix = (batch_size, nchannels, nchannels)
+      """
+    local_coupling_kernels = {}
+    for nch in keys:
+        local_coupling_kernels[int(nch)] = make_coupling_kernel(int(nch), nbasis)
+    return local_coupling_kernels
+
+
