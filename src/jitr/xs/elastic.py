@@ -11,8 +11,11 @@ from ..rmatrix import Solver
 @dataclass
 class ElasticXS:
     r"""
-    Holds differential cross section, analyzing power, total cross section and
-    reaction cross secton, all at a given energy
+    Contains:
+    -   differential cross section [mb/Sr]
+    -   analyzing power [dimensionless]
+    -   total cross section [mb]
+    -   reaction cross secton [mb]
     """
 
     dsdo: np.ndarray
@@ -157,7 +160,7 @@ class IntegralWorkspace:
         angles=None,
     ):
         r"""
-        returns the angle-integrated total, elastic and reaction cross sections
+        returns the angle-integrated total, elastic and reaction cross sections in mb
         """
         splus, sminus = self.smatrix(
             interaction_central,
@@ -265,6 +268,13 @@ class DifferentialWorkspace:
         args_central=None,
         args_spin_orbit=None,
     ):
+        """
+        Returns a dataclass with the following attributes:
+        -   differential cross section [mb/Sr]
+        -   analyzing power [dimensionless]
+        -   total cross section [mb]
+        -   reaction cross secton [mb]
+        """
         splus, sminus = self.integral_workspace.smatrix(
             interaction_central, interaction_spin_orbit, args_central, args_spin_orbit
         )
@@ -292,7 +302,7 @@ def integral_elastic_xs(
 ):
     r"""
     Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
-    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb/SR
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb
     """
     xsrxn = 0.0
     xst = 0.0
