@@ -5,6 +5,9 @@ from jax import Array
 import numpy as np
 from jax import device_put
 from typing import Callable
+from jax import jit, vmap, lax
+# from jax import config
+# config.update("jax_enable_x64", True)
 
 
 
@@ -86,8 +89,8 @@ class Core_Solver:
     
         
 
-    @partial(jax.jit, static_argnames=())  # no static args in this case
-    def solver(self, appended_block_arr: np.ndarray) -> Array:
+    @partial(jax.jit, static_argnames=['self', 'fn_core', 'fn_interaction'])
+    def solver(self, appended_block_arr: np.ndarray, fn_core: Callable, fn_interaction: Callable) -> Array:
 
         """
         Computes the S-matrix for a given appended block array.
@@ -101,12 +104,14 @@ class Core_Solver:
         """
 
         #send to device
-        app_block_jax = device_put(np.array(appended_block_arr, dtype=np.complex64), device=self.device)  # (nbatch, nbasis, nbasis)
+        app_block_jax = device_put(appended_block_arr, device=self.device)  # (nbatch, nbasis, nbasis)
 
         A_batch = self.free_matrix_batch + Core_Solver.generate_coupling_interaction(
-            self.appended_couplings_batched, app_block_jax, self.fn_interaction)
+            appended_couplings_jax = self.appended_couplings_batched, 
+            appended_block_jax = app_block_jax, 
+            precomp_fill_fn = fn_interaction)
         
-        S_batch = self.fn_core(A_batch, self.b, self.Hp_batch, self.Hpp_batch, self.Hm_batch, self.Hmp_batch)
+        S_batch = fn_core(A_batch, self.b, self.Hp_batch, self.Hpp_batch, self.Hm_batch, self.Hmp_batch)
         
         
         return S_batch  # (nbatch, nchannels, nchannels)
@@ -114,7 +119,7 @@ class Core_Solver:
     
     
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnames=['precomp_fill_fn'])
     def generate_coupling_interaction(appended_couplings_jax: Array,
                                     appended_block_jax: Array,
                                     precomp_fill_fn: Callable) -> Array:
@@ -147,7 +152,7 @@ class Core_Solver:
 
     
     @staticmethod
-    @jax.jit
+    @partial(jit, static_argnames=["nchannels", "nbasis"])
     def smatrix_fn(A_batch: Array,
                 b : Array,
                 Hp : Array,
@@ -182,16 +187,19 @@ class Core_Solver:
 
         C_batch = jnp.linalg.inv(A_batch)
         C_blocks = C_batch.reshape(C_batch.shape[0], nchannels, nbasis, nchannels, nbasis)
-        C_blocks = jnp.transpose(C_blocks, (0, 1, 3, 2, 4))  # (B, i, j, m, n)
-
-        R_batch = hbar_2mu * a * jnp.einsum('m,bijnm,n -> bij', b, C_blocks, b)
+        #C_blocks = jnp.transpose(C_blocks, (0, 1, 3, 2, 4))  # (B, i, j, m, n)
+        #R_batch = hbar_2mu * a * jnp.einsum('m,bijnm,n -> bij', b, C_blocks, b)
+        
+        R_batch = hbar_2mu * a * jnp.einsum('m,binjm,n -> bij', b, C_blocks, b)
 
         Zp = Hp - a * jnp.einsum('bij,bjk->bik', R_batch, Hpp)
         Zm = Hm - a * jnp.einsum('bij,bjk->bik', R_batch, Hmp)  
+        
 
         S_batch = jnp.linalg.solve(Zp, Zm)
 
-        return S_batch
+        return  S_batch
+
 
 
     @staticmethod

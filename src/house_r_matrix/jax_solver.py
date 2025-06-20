@@ -4,6 +4,7 @@ from typing import Callable, Tuple, Dict, Sequence
 from jax import Array
 import numpy as np
 from functools import partial
+from jax import con
 
 
 
@@ -102,7 +103,6 @@ class R_matrix_solver_with_warmup:
     
 
 
-
 @jax.jit
 def smatrix_fn(A_batch: Array,
                b : Array,
@@ -173,8 +173,8 @@ class S_matrix_solver_with_warmup:
                  nbasis: int,
                  a: float,
                  hbar_2mu: float):
-        self.keys = keys
-        self.quantum_num_dic = quantum_num_dic
+        self.keys = jnp.asarray(keys, dtype=jnp.int32)
+        self.quantum_num_dic = {k: jnp.array(v, dtype=jnp.complex64) for k, v in quantum_num_dic.items()}
         self.nbasis = nbasis
         self.a = a
         self.hbar_2mu = hbar_2mu

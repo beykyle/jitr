@@ -111,7 +111,8 @@ class CC_Couplings:
     
     # energy independent
     def couplings_per_shape(self, Q, homogeneous_matrix_arr):
-        V = np.zeros_like(homogeneous_matrix_arr, dtype=np.complex128)
+        batch_size, nch, nch, _ = homogeneous_matrix_arr.shape
+        V = np.zeros((batch_size, nch, nch), dtype=np.complex128)
         for k, matrix in enumerate(homogeneous_matrix_arr):
             for i in range(len(matrix)):
                 for j in range(len(matrix)):

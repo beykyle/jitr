@@ -93,21 +93,21 @@ class Kernel:
         else:
             return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
 
-    def free_matrix(
-        self,
-        a: np.array,
-        l: np.array,
-    ):
-        r"""
-        @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E (H-E)
-        in the Lagrange basis, where each channel is an NbxNb block (Nb
-        being the basis size), and there are NchxNch such blocks.
-        """
-        Nb = self.quadrature.nbasis
-        Nch = np.size(a)
-        sz = Nb * Nch
-        F = np.zeros((sz, sz), dtype=np.complex128)
-        for i in range(Nch):
-            Fij = self.quadrature.kinetic_matrix(a[i], l[i]) - self.overlap
-            F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
-        return F
+    # def free_matrix(
+    #     self,
+    #     a: np.array,
+    #     l: np.array,
+    # ):
+    #     r"""
+    #     @returns the full (NchxNb)x(NchxNb) free Schrödinger equation 1/E (H-E)
+    #     in the Lagrange basis, where each channel is an NbxNb block (Nb
+    #     being the basis size), and there are NchxNch such blocks.
+    #     """
+    #     Nb = self.quadrature.nbasis
+    #     Nch = np.size(a)
+    #     sz = Nb * Nch
+    #     F = np.zeros((sz, sz), dtype=np.complex128)
+    #     for i in range(Nch):
+    #         Fij = self.quadrature.kinetic_matrix(a[i], l[i]) - self.overlap
+    #         F[(i * Nb) : (i + 1) * Nb, (i * Nb) : (i + 1) * Nb] += Fij
+    #     return F

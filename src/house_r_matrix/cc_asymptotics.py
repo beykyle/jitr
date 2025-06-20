@@ -89,12 +89,12 @@ class CC_Asymptotics:
 
         Hp, Hpp, Hm, Hmp = [], [], [], []
 
-        for E_block, l_block in zip(homogeneous_l_arr, homogeneous_k_arr):
-            Hp, Hpp, Hm, Hmp = compute_block(E_block, l_block)
-            Hp.append(np.diag(Hp))
-            Hpp.append(np.diag(Hpp))
-            Hm.append(np.diag(Hm))
-            Hmp.append(np.diag(Hmp))
+        for l_block, k_block in zip(homogeneous_l_arr, homogeneous_k_arr):
+            Hp_i, Hpp_i, Hm_i, Hmp_i = compute_block(l_block, k_block)
+            Hp.append(np.diag(Hp_i))
+            Hpp.append(np.diag(Hpp_i))
+            Hm.append(np.diag(Hm_i))
+            Hmp.append(np.diag(Hmp_i))
 
 
         return np.array(Hp), np.array(Hpp), np.array(Hm), np.array(Hmp)

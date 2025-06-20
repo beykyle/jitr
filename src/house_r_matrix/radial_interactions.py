@@ -2,6 +2,7 @@
 import jax.numpy as jnp
 import jax.numpy as jnp
 from jax import jit, vmap
+from jax import Array
 
 
 MAX_ARG = jnp.log(1 / 1e-16)  # ~36.8
@@ -47,14 +48,21 @@ def woods_saxon_potential(r, V0, R, a):
     return - V0 * woods_saxon_safe(r, R, a)
 
 @jit
-def woods_saxon_prime(r, V0, R, a):
+def woods_saxon_prime(r : Array, 
+                      V0 : float, 
+                      R : float, 
+                      a :float):
     """
     Derivative V'(r) = V0 * f'(r)
     """
     return V0 * woods_saxon_prime_safe(r, R, a)
 
 @jit
-def woods_saxon_deformed_interaction(r, delta_lambda, V0, R, a):
+def woods_saxon_deformed_interaction(r : Array, 
+                                     delta_lambda : float, 
+                                     V0 : float, 
+                                     R : float, 
+                                     a : float):
     """
     First-order deformed Woods-Saxon interaction:
     V_def(r) = V0 * δλ / sqrt(4π) * f'(r)
