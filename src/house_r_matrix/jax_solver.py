@@ -4,7 +4,7 @@ from typing import Callable, Tuple, Dict, Sequence
 from jax import Array
 import numpy as np
 from functools import partial
-from jax import con
+ 
 
 
 

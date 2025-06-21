@@ -6,8 +6,8 @@ import numpy as np
 from jax import device_put
 from typing import Callable
 from jax import jit, vmap, lax
-# from jax import config
-# config.update("jax_enable_x64", True)
+#from jax import config
+#config.update("jax_enable_x64", True)
 
 
 
@@ -129,7 +129,7 @@ class Core_Solver:
         precomp_fill_fn: helper function to generate the r-matrices vmapped over axis 0 (batch)
         """
         # vmap over B (outer batch), rely on precomp_fill_fn to handle inner batch
-        per_block_V = jax.vmap(precomp_fill_fn)(appended_block_jax, appended_couplings_jax)  # (B, m*n, m*n)
+        per_block_V = jax.vmap(precomp_fill_fn, in_axes=(0, 0))(appended_block_jax, appended_couplings_jax)  # (B, m*n, m*n)
 
         # Sum over B
         V_total = jnp.sum(per_block_V, axis=0)
@@ -188,9 +188,9 @@ class Core_Solver:
         C_batch = jnp.linalg.inv(A_batch)
         C_blocks = C_batch.reshape(C_batch.shape[0], nchannels, nbasis, nchannels, nbasis)
         #C_blocks = jnp.transpose(C_blocks, (0, 1, 3, 2, 4))  # (B, i, j, m, n)
-        #R_batch = hbar_2mu * a * jnp.einsum('m,bijnm,n -> bij', b, C_blocks, b)
+        #R_batch = (hbar_2mu / a) * jnp.einsum('m,bijnm,n -> bij', b, C_blocks, b)
         
-        R_batch = hbar_2mu * a * jnp.einsum('m,binjm,n -> bij', b, C_blocks, b)
+        R_batch = (hbar_2mu / a)  * jnp.einsum('m,binjm,n -> bij', b, C_blocks, b)
 
         Zp = Hp - a * jnp.einsum('bij,bjk->bik', R_batch, Hpp)
         Zm = Hm - a * jnp.einsum('bij,bjk->bik', R_batch, Hmp)  

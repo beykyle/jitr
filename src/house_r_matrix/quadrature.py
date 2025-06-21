@@ -79,17 +79,17 @@ class LagrangeLegendreQuadrature:
         N = self.nbasis
 
         if n == m:
-            # Eq. 3.128 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = (
+            # Eq. 3.128 in [Baye, 2015]
+            centrifugal = (l * (l + 1) / (a * xn) ** 2)
+            radial =  (
                 ((4 * N**2 + 4 * N + 3) * xn * (1 - xn) - 6 * xn + 1)
                 / (3 * xn**2 * (1 - xn) ** 2)
                 / a**2
             )
             return radial + centrifugal
         else:
-            # Eq. 3.129 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            return (
+            # Eq. 3.129 in [Baye, 2015]
+            return  (
                 (-1.0) ** (n + m)
                 * (
                     (N**2 + N + 1.0)
@@ -99,7 +99,7 @@ class LagrangeLegendreQuadrature:
                 )
                 / np.sqrt(xn * xm * (1.0 - xn) * (1.0 - xm))
                 / a**2
-            )
+            ) 
 
     def kinetic_matrix(self, a: float, l: int):
         r"""
