@@ -1,13 +1,16 @@
 """The Whitehead-Lim-Holt potential is a global mcroscopic nucleon-nucleus
 optical potential
 
-See the [paper](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
+See the [Whitehead, et al., 2021]
+(https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
 for details. Equation references are with respect to (w.r.t.) this paper.
 """
 
 from collections import OrderedDict
 from pathlib import Path
 import json
+
+import numpy as np
 
 from ..data import data_dir
 from ..utils.constants import WAVENUMBER_PION
@@ -19,61 +22,17 @@ from .potential_forms import (
 from ..xs.elastic import DifferentialWorkspace
 
 
-PARAMS = [
-    "uv0",
-    "uv1",
-    "uv2",
-    "uv3",
-    "uv4",
-    "uv5",
-    "uv6",
-    "rv0",
-    "rv1",
-    "rv2",
-    "rv3",
-    "av0",
-    "av1",
-    "av2",
-    "av3",
-    "av4",
-    "uw0",
-    "uw1",
-    "uw2",
-    "uw3",
-    "uw4",
-    "rw0",
-    "rw1",
-    "rw2",
-    "rw3",
-    "rw4",
-    "rw5",
-    "aw0",
-    "aw1",
-    "aw2",
-    "aw3",
-    "aw4",
-    "ud0",
-    "ud1",
-    "ud3",
-    "ud4",
-    "rd0",
-    "rd1",
-    "rd2",
-    "ad0",
-    "uso0",
-    "uso1",
-    "rso0",
-    "rso1",
-    "aso0",
-    "aso1",
-]
-
-
 def get_samples(projectile: tuple):
-    return [
-        Global(projectile, data_dir / f"WLHSamples/{i}/parameters.json").params
-        for i in range(1000)
-    ]
+    return np.array(
+        [
+            list(
+                Global(
+                    projectile, data_dir / f"WLHSamples/{i}/parameters.json"
+                ).params.values()
+            )
+            for i in range(1000)
+        ]
+    )
 
 
 def spin_orbit(r, uso, rso, aso):
@@ -228,14 +187,77 @@ class Global:
 
     def get_params(self, A, Z, Elab):
         # fermi energy
-        return calculate_params(self.projectile, (A, Z), Elab, self.params)
+        return calculate_params(
+            self.projectile, (A, Z), Elab, *list(self.params.values())
+        )
 
 
 def calculate_params(
-    projectile: tuple, target: tuple, Elab: float, params: OrderedDict
+    projectile: tuple,
+    target: tuple,
+    Elab: float,
+    uv0: float,
+    uv1: float,
+    uv2: float,
+    uv3: float,
+    uv4: float,
+    uv5: float,
+    uv6: float,
+    rv0: float,
+    rv1: float,
+    rv2: float,
+    rv3: float,
+    av0: float,
+    av1: float,
+    av2: float,
+    av3: float,
+    av4: float,
+    uw0: float,
+    uw1: float,
+    uw2: float,
+    uw3: float,
+    uw4: float,
+    rw0: float,
+    rw1: float,
+    rw2: float,
+    rw3: float,
+    rw4: float,
+    rw5: float,
+    aw0: float,
+    aw1: float,
+    aw2: float,
+    aw3: float,
+    aw4: float,
+    ud0: float,
+    ud1: float,
+    ud3: float,
+    ud4: float,
+    rd0: float,
+    rd1: float,
+    rd2: float,
+    ad0: float,
+    uso0: float,
+    uso1: float,
+    rso0: float,
+    rso1: float,
+    aso0: float,
+    aso1: float,
 ):
     """
     Calculates WLH parameters for a given system
+
+    Parameters:
+        projectile : tuple
+            (A, Z) of the projectile
+        target : tuple
+            (A, Z) of the target
+        Elab : float
+            Laboratory energy in MeV
+        uv0, uv1, ..., aso1 : float
+            Parameters of the WLH potential. See
+            [Whitehead et al., 2021]
+            (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
+            for details.
     """
 
     A, Z = target
@@ -245,62 +267,37 @@ def calculate_params(
     factor = (-1) ** (Zp)
 
     uv = (
-        params["uv0"]
-        - params["uv1"] * Elab
-        + params["uv2"] * Elab**2
-        + params["uv3"] * Elab**3
-        + factor
-        * (params["uv4"] - params["uv5"] * Elab + params["uv6"] * Elab**2)
-        * asym_factor
+        uv0,
+        -uv1,
+        *Elab + uv2,
+        *Elab**2 + uv3,
+        *Elab**3 + factor * (uv4, -uv5, *Elab + uv6, *Elab**2) * asym_factor,
     )
-    rv = (
-        params["rv0"]
-        - params["rv1"] * A ** (-1.0 / 3)
-        - params["rv2"] * Elab
-        + params["rv3"] * Elab**2
-    )
+    rv = (rv0, -rv1, *A ** (-1.0 / 3) - rv2, *Elab + rv3, *Elab**2)
     av = (
-        params["av0"]
-        - factor * params["av1"] * Elab
-        - params["av2"] * Elab**2
-        - (params["av3"] - params["av4"] * asym_factor) * asym_factor
+        av0,
+        -factor * av1,
+        *Elab - av2,
+        *Elab**2 - (av3, -av4, *asym_factor) * asym_factor,
     )
 
-    uw = (
-        params["uw0"]
-        + params["uw1"] * Elab
-        - params["uw2"] * Elab**2
-        + (factor * params["uw3"] - params["uw4"] * Elab) * asym_factor
-    )
-    rw = (
-        params["rw0"]
-        + (params["rw1"] + params["rw2"] * A)
-        / (params["rw3"] + A + params["rw4"] * Elab)
-        + params["rw5"] * Elab**2
-    )
-    aw = (
-        params["aw0"]
-        - (params["aw1"] * Elab) / (-params["aw2"] - Elab)
-        + (params["aw3"] - params["aw4"] * Elab) * asym_factor
-    )
+    uw = (uw0, +uw1, *Elab - uw2, *Elab**2 + (factor * uw3, -uw4, *Elab) * asym_factor)
+    rw = (rw0, +(rw1, +rw2, *A) / (rw3, +A + rw4, *Elab) + rw5, *Elab**2)
+    aw = (aw0, -(aw1, *Elab) / (-aw2, -Elab) + (aw3, -aw4, *Elab) * asym_factor)
 
     if (projectile == (1, 0) and Elab < 40) or (
         projectile == (1, 1) and Elab < 20 and A > 100
     ):
-        ud = (
-            params["ud0"]
-            - params["ud1"] * Elab
-            - (params["ud3"] - params["ud4"] * Elab) * asym_factor
-        )
+        ud = (ud0, -ud1, *Elab - (ud3, -ud4, *Elab) * asym_factor)
     else:
         ud = 0
 
-    rd = params["rd0"] - params["rd2"] * Elab - params["rd1"] * A ** (-1.0 / 3)
-    ad = params["ad0"]
+    rd = rd0, -rd2, *Elab - rd1, *A ** (-1.0 / 3)
+    ad = (ad0,)
 
-    uso = params["uso0"] - params["uso1"] * A
-    rso = params["rso0"] - params["rso1"] * A ** (-1.0 / 3.0)
-    aso = params["aso0"] - params["aso1"] * A
+    uso = uso0, -uso1, *A
+    rso = rso0, -rso1, *A ** (-1.0 / 3.0)
+    aso = aso0, -aso1, *A
 
     R_C = rv * A ** (1.0 / 3.0)
     coulomb_params = (Z * Zp, R_C)

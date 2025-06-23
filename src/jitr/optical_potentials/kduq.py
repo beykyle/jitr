@@ -23,66 +23,31 @@ from .potential_forms import (
 from ..data import data_dir
 from ..xs.elastic import DifferentialWorkspace
 
-# determines the ordering of parameters
-PARAMS_N = [
-    "v1_0",
-    "v1_asymm",
-    "v1_A",
-    "v2_0",
-    "v2_A",
-    "v3_0",
-    "v3_A",
-    "v4_0",
-    "rv_0",
-    "rv_A",
-    "av_0",
-    "av_A",
-    "w1_0",
-    "w1_A",
-    "w2_0",
-    "w2_A",
-    "d1_0",
-    "d1_asymm",
-    "d2_0",
-    "d2_A",
-    "d2_A2",
-    "d2_A3",
-    "d3_0",
-    "rd_0",
-    "rd_A",
-    "ad_0",
-    "ad_A",
-    "Vso1_0",
-    "Vso1_A",
-    "Vso2_0",
-    "Wso1_0",
-    "Wso2_0",
-    "rso_0",
-    "rso_A",
-    "aso_0",
-    "Ef_0",
-    "Ef_A",
-]
-
-PARAMS_P = PARAMS_N + [
-    "rc_0",
-    "rc_A",
-    "rc_A2",
-]
-
 
 def get_samples_democratic(projectile: tuple):
-    return [
-        Global(projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json").params
-        for i in range(416)
-    ]
+    return np.array(
+        [
+            list(
+                Global(
+                    projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json"
+                ).params.values()
+            )
+            for i in range(416)
+        ]
+    )
 
 
 def get_samples_federal(projectile: tuple):
-    return [
-        Global(projectile, data_dir / f"KDUQFederal/{i}/parameters.json").params
-        for i in range(416)
-    ]
+    return np.array(
+        [
+            list(
+                Global(
+                    projectile, data_dir / f"KDUQFederal/{i}/parameters.json"
+                ).params.values()
+            )
+            for i in range(416)
+        ]
+    )
 
 
 def Vv(E, v1, v2, v3, v4, Ef):
@@ -173,6 +138,16 @@ class Global:
 
         self.projectile = projectile
         self.params = OrderedDict()
+
+        # fermi energy
+        if self.projectile == (1, 0):
+            self.params["Ef_0"] = -11.2814
+            self.params["Ef_A"] = 0.02646
+
+        else:
+            self.params["Ef_0"] = -8.4075
+            self.params["Ef_A"] = 0.01378
+
         self.param_fpath = param_fpath
         with open(self.param_fpath) as f:
             data = json.load(f)
@@ -295,24 +270,56 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for KDUQ!")
 
-            # fermi energy
-            if self.projectile == (1, 0):
-                self.params["Ef_0"] = -11.2814
-                self.params["Ef_A"] = 0.02646
-
-                assert set(self.params.keys()) == set(PARAMS_N)
-            else:
-                self.params["Ef_0"] = -8.4075
-                self.params["Ef_A"] = 0.01378
-
-                assert set(self.params.keys()) == set(PARAMS_P)
-
     def get_params(self, A, Z, Elab):
-        return calculate_params(self.projectile, (A, Z), Elab, self.params)
+        return calculate_params(
+            self.projectile, (A, Z), Elab, *list(self.params.values())
+        )
 
 
 def calculate_params(
-    projectile: tuple, target: tuple, Elab: float, params: OrderedDict
+    projectile: tuple,
+    target: tuple,
+    Elab: float,
+    Ef_0: float,
+    Ef_A: float,
+    v1_0: float,
+    v1_asymm: float,
+    v1_A: float,
+    v2_0: float,
+    v2_A: float,
+    v3_0: float,
+    v3_A: float,
+    v4_0: float,
+    rv_0: float,
+    rv_A: float,
+    av_0: float,
+    av_A: float,
+    w1_0: float,
+    w1_A: float,
+    w2_0: float,
+    w2_A: float,
+    d1_0: float,
+    d1_asymm: float,
+    d2_0: float,
+    d2_A: float,
+    d2_A2: float,
+    d2_A3: float,
+    d3_0: float,
+    rd_0: float,
+    rd_A: float,
+    ad_0: float,
+    ad_A: float,
+    Vso1_0: float,
+    Vso1_A: float,
+    Vso2_0: float,
+    Wso1_0: float,
+    Wso2_0: float,
+    rso_0: float,
+    rso_A: float,
+    aso_0: float,
+    rc_0: float = 0.0,
+    rc_A: float = 0.0,
+    rc_A2: float = 0.0,
 ):
     """
     Calculate Koning-Delaroche global neutron-nucleus optical potential
@@ -323,16 +330,22 @@ def calculate_params(
     projectile : tuple
         A tuple representing the projectile, with format (Ap, Zp),
         where Ap is the mass number and Zp is the atomic number.
-
     target : tuple
         A tuple representing the target, with format (A, Z),
         where A is the mass number and Z is the atomic number.
-
     Elab : float
         The laboratory energy of the projectile in MeV.
-
-    params : OrderedDict
-        An OrderedDict containing the parameter values for the OMP calculation.
+    Ef_0 : float
+        Base Fermi energy.
+    Ef_A : float
+        Atomic mass number modifier for Fermi energy.
+    v1_0, v1_asymm, ..., rc_A2: float
+        Parameters for the Koning-Delaroche potential, including
+        real and imaginary central depths, forms, spin-orbit terms,
+        and Coulomb correction parameters. See Table V and the Appendix
+        of [Pruitt, et al., 2023]
+        (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
+        for details.
 
     Returns:
     -------
@@ -356,22 +369,22 @@ def calculate_params(
     asym_factor *= factor
 
     # fermi energy
-    Ef = params["Ef_0"] + params["Ef_A"] * A
+    Ef = Ef_0 + Ef_A * A
 
     # real central depth
-    v1 = params["v1_0"] - params["v1_asymm"] * asym_factor - params["v1_A"] * A
-    v2 = params["v2_0"] - params["v2_A"] * A * factor
-    v3 = params["v3_0"] - params["v3_A"] * A * factor
-    v4 = params["v4_0"]
+    v1 = v1_0 - v1_asymm * asym_factor - v1_A * A
+    v2 = v2_0 - v2_A * A * factor
+    v3 = v3_0 - v3_A * A * factor
+    v4 = v4_0
     vv = Vv(Elab, v1, v2, v3, v4, Ef)
 
     # real central form
-    rv = params["rv_0"] - params["rv_A"] * A ** (-1.0 / 3.0)
-    av = params["av_0"] - params["av_A"] * A
+    rv = rv_0 - rv_A * A ** (-1.0 / 3.0)
+    av = av_0 - av_A * A
 
     # imag volume depth
-    w1 = params["w1_0"] + params["w1_A"] * A
-    w2 = params["w2_0"] + params["w2_A"] * A
+    w1 = w1_0 + w1_A * A
+    w2 = w2_0 + w2_A * A
     wv = Wv(Elab, w1, w2, Ef)
 
     # imag volume form
@@ -379,29 +392,27 @@ def calculate_params(
     awv = av
 
     # imag surface depth
-    d1 = params["d1_0"] - params["d1_asymm"] * asym_factor
-    d2 = params["d2_0"] + params["d2_A"] / (
-        1 + np.exp((A - params["d2_A3"]) / params["d2_A2"])
-    )
-    d3 = params["d3_0"]
+    d1 = d1_0 - d1_asymm * asym_factor
+    d2 = d2_0 + d2_A / (1 + np.exp((A - d2_A3) / d2_A2))
+    d3 = d3_0
     wd = Wd(Elab, d1, d2, d3, Ef)
 
     # imag surface form
-    rd = params["rd_0"] - params["rd_A"] * A ** (1.0 / 3.0)
-    ad = params["ad_0"] - params["ad_A"] * A * factor
+    rd = rd_0 - rd_A * A ** (1.0 / 3.0)
+    ad = ad_0 - ad_A * A * factor
 
     # real spin orbit depth
-    vso1 = params["Vso1_0"] + params["Vso1_A"] * A
-    vso2 = params["Vso2_0"]
+    vso1 = Vso1_0 + Vso1_A * A
+    vso2 = Vso2_0
     vso = Vso(Elab, vso1, vso2, Ef)
 
     # real spin orbit form
-    rso = params["rso_0"] - params["rso_A"] * A ** (-1.0 / 3.0)
-    aso = params["aso_0"]
+    rso = rso_0 - rso_A * A ** (-1.0 / 3.0)
+    aso = aso_0
 
     # imag spin orbit form
-    wso1 = params["Wso1_0"]
-    wso2 = params["Wso2_0"]
+    wso1 = Wso1_0
+    wso2 = Wso2_0
     wso = Wso(Elab, wso1, wso2, Ef)
 
     # imag spin orbit form
@@ -412,11 +423,7 @@ def calculate_params(
     R_C = rv * A ** (1.0 / 3.0)
     if Zp == 1:
         # Coulomb radius
-        rc0 = (
-            params["rc_0"]
-            + params["rc_A"] * A ** (-2.0 / 3.0)
-            + params["rc_A2"] * A ** (-5.0 / 3.0)
-        )
+        rc0 = rc_0 + rc_A * A ** (-2.0 / 3.0) + rc_A2 * A ** (-5.0 / 3.0)
         R_C = rc0 * A ** (1.0 / 3.0)
 
         Vcbar = 1.73 / rc0 * Z * A ** (-1.0 / 3.0)
