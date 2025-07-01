@@ -105,10 +105,9 @@ def spin_orbit(r, vso, rso, aso, wso, rwso, awso):
 
     Take Eq. (1) and remove the energy dependence of the coefficients.
     """
-    # extra factor of 2 comes from use of l dot s rather than l dot sigma
-    return 2 * vso / WAVENUMBER_PION**2 * thomas_safe(
+    return vso / WAVENUMBER_PION**2 * thomas_safe(
         r, rso, aso
-    ) + 2j * wso / WAVENUMBER_PION**2 * thomas_safe(r, rwso, awso)
+    ) + 1j * wso / WAVENUMBER_PION**2 * thomas_safe(r, rwso, awso)
 
 
 class Global:

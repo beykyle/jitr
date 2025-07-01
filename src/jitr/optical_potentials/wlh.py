@@ -18,6 +18,7 @@ from .potential_forms import (
     woods_saxon_safe,
     woods_saxon_prime_safe,
     coulomb_charged_sphere,
+    thomas_safe,
 )
 from ..xs.elastic import DifferentialWorkspace
 
