@@ -38,7 +38,7 @@ def get_samples(projectile: tuple):
 
 def spin_orbit(r, uso, rso, aso):
     r"""WLH spin-orbit terms"""
-    return (uso / WAVENUMBER_PION**2) / r * woods_saxon_prime_safe(r, rso, aso)
+    return (uso / WAVENUMBER_PION**2) * thomas_safe(r, rso, aso)
 
 
 def central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
