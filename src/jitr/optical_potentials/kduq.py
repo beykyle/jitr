@@ -365,16 +365,16 @@ def calculate_params(
     Ap, Zp = projectile
     assert Ap == 1 and (Zp == 1 or Zp == 0)
     asym_factor = (A - 2 * Z) / (A)
-    factor = (-1) ** (Zp)
+    factor = (-1) ** (Zp + 1)  # -1 for neutron, +1 for proton
     asym_factor *= factor
 
     # fermi energy
     Ef = Ef_0 + Ef_A * A
 
     # real central depth
-    v1 = v1_0 - v1_asymm * asym_factor - v1_A * A
-    v2 = v2_0 - v2_A * A * factor
-    v3 = v3_0 - v3_A * A * factor
+    v1 = v1_0 + v1_asymm * asym_factor - v1_A * A
+    v2 = v2_0 + v2_A * A * factor
+    v3 = v3_0 + v3_A * A * factor
     v4 = v4_0
     vv = Vv(Elab, v1, v2, v3, v4, Ef)
 
@@ -392,14 +392,14 @@ def calculate_params(
     awv = av
 
     # imag surface depth
-    d1 = d1_0 - d1_asymm * asym_factor
+    d1 = d1_0 + d1_asymm * asym_factor
     d2 = d2_0 + d2_A / (1 + np.exp((A - d2_A3) / d2_A2))
     d3 = d3_0
     wd = Wd(Elab, d1, d2, d3, Ef)
 
     # imag surface form
     rd = rd_0 - rd_A * A ** (1.0 / 3.0)
-    ad = ad_0 - ad_A * A * factor
+    ad = ad_0 + ad_A * A * factor
 
     # real spin orbit depth
     vso1 = Vso1_0 + Vso1_A * A

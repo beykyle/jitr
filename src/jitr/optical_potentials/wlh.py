@@ -264,40 +264,40 @@ def calculate_params(
     Ap, Zp = projectile
     assert Ap == 1 and (Zp == 1 or Zp == 0)
     asym_factor = (A - 2 * Z) / (A)
-    factor = (-1) ** (Zp)
+    factor = (-1) ** (Zp + 1)  # -1 for neutron, +1 for proton
 
     uv = (
-        uv0,
-        -uv1,
-        *Elab + uv2,
-        *Elab**2 + uv3,
-        *Elab**3 + factor * (uv4, -uv5, *Elab + uv6, *Elab**2) * asym_factor,
+        uv0
+        - uv1 * Elab
+        + uv2 * Elab**2
+        + uv3 * Elab**3
+        + factor * (uv4 - uv5 * Elab + uv6 * Elab**2) * asym_factor
     )
-    rv = (rv0, -rv1, *A ** (-1.0 / 3) - rv2, *Elab + rv3, *Elab**2)
+    rv = rv0 - rv1 * A ** (-1.0 / 3) - rv2 * Elab + rv3 * Elab**2
     av = (
-        av0,
-        -factor * av1,
-        *Elab - av2,
-        *Elab**2 - (av3, -av4, *asym_factor) * asym_factor,
+        av0
+        - factor * av1 * Elab
+        - av2 * Elab**2
+        - (av3 - av4 * asym_factor) * asym_factor
     )
 
-    uw = (uw0, +uw1, *Elab - uw2, *Elab**2 + (factor * uw3, -uw4, *Elab) * asym_factor)
-    rw = (rw0, +(rw1, +rw2, *A) / (rw3, +A + rw4, *Elab) + rw5, *Elab**2)
-    aw = (aw0, -(aw1, *Elab) / (-aw2, -Elab) + (aw3, -aw4, *Elab) * asym_factor)
+    uw = uw0 + uw1 * Elab - uw2 * Elab**2 + (factor * uw3 - uw4 * Elab) * asym_factor
+    rw = rw0 + (rw1 + rw2 * A) / (rw3 + A + rw4 * Elab) + rw5 * Elab**2
+    aw = aw0 - (aw1 * Elab) / (-aw2 - Elab) + (aw3 - aw4 * Elab) * asym_factor
 
     if (projectile == (1, 0) and Elab < 40) or (
         projectile == (1, 1) and Elab < 20 and A > 100
     ):
-        ud = (ud0, -ud1, *Elab - (ud3, -ud4, *Elab) * asym_factor)
+        ud = ud0 - ud1 * Elab - (ud3 - ud4 * Elab) * asym_factor
     else:
         ud = 0
 
-    rd = rd0, -rd2, *Elab - rd1, *A ** (-1.0 / 3)
-    ad = (ad0,)
+    rd = rd0 - rd2 * Elab - rd1 * A ** (-1.0 / 3)
+    ad = ad0
 
-    uso = uso0, -uso1, *A
-    rso = rso0, -rso1, *A ** (-1.0 / 3.0)
-    aso = aso0, -aso1, *A
+    uso = uso0 - uso1 * A
+    rso = rso0 - rso1 * A ** (-1.0 / 3.0)
+    aso = aso0 - aso1 * A
 
     R_C = rv * A ** (1.0 / 3.0)
     coulomb_params = (Z * Zp, R_C)
