@@ -7,7 +7,8 @@ from jitr.reactions import (
     ProjectileTargetSystem,
     make_channel_data,
 )
-from jitr.reactions import potentials, wavefunction
+from jitr.reactions import wavefunction
+from jitr.optical_potentials import potential_forms as potentials
 from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 Elab = 14.1

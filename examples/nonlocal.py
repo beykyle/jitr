@@ -4,7 +4,7 @@ from jitr import rmatrix
 
 from jitr.reactions import ProjectileTargetSystem
 
-from jitr.reactions.potentials import (
+from jitr.optical_potentials.potential_forms import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
 )
@@ -28,7 +28,7 @@ def nonlocal_interaction_example():
         channel_radius=30.0,
         lmax=5,
     )
-    channels, asymptotics = sys.get_partial_wave_channels(ecom, mu, k, eta)
+    channels, asymptotics = sys.get_partial_wave_channels(ecom, ecom, mu, k, eta)
 
     l = 0
     solver = rmatrix.Solver(20)

@@ -6,7 +6,14 @@
 </p>
 
 # just-in-time R-Matrix (jitR)
-A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, production ready for calibration and uncertainty-quantification. Give your UQ workflow a caffeine-kick with jitR!
+A nuclear reaction toolkit, production ready for calibration and uncertainty-quantification, featuring:
+
+- fast calculable $\mathcal{R}$-matrix solver for parametric reaction models
+- built in uncertainty-quantified optical potentials
+- built in nuclear data
+- plenty of examples demonstrating the propagation of uncertainties into reaction observables and model calibration
+
+Give your nuclear reaction UQ workflow a caffeine-kick with jitR!
 
 
 ## quick start
@@ -16,6 +23,14 @@ A fast calculable $\mathcal{R}$-matrix solver for parametric reaction models, pr
 ```
 
 The release versions of the package are hosted at [pypi.org/project/jitr/](https://pypi.org/project/jitr/).
+
+## examples and tutorials
+
+Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
+
+In particular, check out:
+- [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
+- [`examples/notebooks/kduq_cross_section_uq_tutorial.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/kduq_cross_section_uq_tutorial.ipynb), which demonstrates how to perform UQ for $(n,n)$ cross sections using [KDUQ](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.107.014602).
 
 ## description
 A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\theta)$ that is a function of some parameters $\theta$. Just write it like so:
@@ -56,11 +71,6 @@ pytest jitr
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
 
-## examples and tutorials
-
-Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
-
-In particular, [`examples/notebooks/kduq_cross_section_uq_tutorial.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/kduq_cross_section_uq_tutorial.ipynb) demonstrates how to perform UQ for $(n,n)$ cross sections using [KDUQ](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.107.014602).
 
 ## BAND
 

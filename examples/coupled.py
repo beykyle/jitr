@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 
 from jitr import rmatrix
 from jitr.reactions import ProjectileTargetSystem, wavefunction
-from jitr.reactions.potentials import (
+from jitr.optical_potentials.potential_forms import (
     woods_saxon_potential as ws,
     surface_peaked_gaussian_potential as spg,
     coulomb_charged_sphere as coul,

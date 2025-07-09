@@ -2,26 +2,26 @@ from numba import njit
 from dataclasses import dataclass
 from scipy.special import eval_legendre, lpmv, gamma
 import numpy as np
-import pickle
 
-from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
-from ..reactions import ProjectileTargetSystem
+from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
 from ..rmatrix import Solver
 
 
 @dataclass
 class ElasticXS:
     r"""
-    Holds differential cross section, analyzing power, total cross section and
-    reaction cross secton, all at a given energy
+    Contains:
+    -   differential cross section [mb/Sr]
+    -   analyzing power [dimensionless]
+    -   total cross section [mb]
+    -   reaction cross secton [mb]
     """
 
     dsdo: np.ndarray
     Ay: np.ndarray
     t: np.float64
     rxn: np.float64
-    rutherford: np.ndarray = None
 
 
 class IntegralWorkspace:
@@ -32,54 +32,53 @@ class IntegralWorkspace:
 
     def __init__(
         self,
-        projectile: tuple,
-        target: tuple,
-        sys: ProjectileTargetSystem,
+        reaction: Reaction,
         kinematics: ChannelKinematics,
+        channel_radius_fm: float,
         solver: Solver,
+        lmax: int,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
-        # system info
-        self.projectile = projectile
-        self.target = target
-        self.sys = sys
-        self.solver = solver
-        self.nbasis = solver.kernel.quadrature.nbasis
-        self.smatrix_abs_tol = smatrix_abs_tol
+        # ensure reaction is elastic
+        if reaction.process.lower() != "el":
+            raise ValueError("Reaction must be elastic!")
 
-        # kinematic info
-        self.mu = kinematics.mu
-        self.Ecm = kinematics.Ecm
-        self.k = kinematics.k
-        self.eta = kinematics.eta
+        # parameters
+        self.smatrix_abs_tol = smatrix_abs_tol
+        self.lmax = lmax
+        self.channel_radius_fm = channel_radius_fm
+        self.a = channel_radius_fm * kinematics.k
+
+        # system info
+        self.kinematics = kinematics
+        self.reaction = reaction
+        self.sys = ProjectileTargetSystem(
+            self.a,
+            lmax,
+            mass_target=self.reaction.target.m0,
+            mass_projectile=self.reaction.projectile.m0,
+            Ztarget=self.reaction.target.Z,
+            Zproj=self.reaction.projectile.Z,
+            coupling=spin_half_orbit_coupling,
+        )
+        self.solver = solver
 
         # precompute things
-        self.free_matrices = self.solver.free_matrix(
-            sys.channel_radius, sys.l, coupled=False
-        )
-        self.basis_boundary = self.solver.precompute_boundaries(sys.channel_radius)
+        self.free_matrices = self.solver.free_matrix(self.a, self.sys.l, coupled=False)
+        self.basis_boundary = self.solver.precompute_boundaries(self.a)
 
         # get information for each channel
-        channels, asymptotics = sys.get_partial_wave_channels(
-            self.Ecm, self.mu, self.k, self.eta
-        )
+        channels, asymptotics = self.sys.get_partial_wave_channels(*self.kinematics)
 
         # de couple into two independent systems per partial wave
         self.channels = [ch.decouple() for ch in channels]
         self.asymptotics = [asym.decouple() for asym in asymptotics]
-        self.l_dot_s = np.array([np.diag(coupling) for coupling in sys.couplings[1:]])
+        self.l_dot_s = np.array(
+            [np.diag(coupling) for coupling in self.sys.couplings[1:]]
+        )
 
         # precompute things related to Coulomb interaction
         self.ls = self.sys.l[:, np.newaxis]
-        self.Zz = self.projectile[1] * self.target[1]
-        if self.Zz > 0:
-            self.k_c = constants.ALPHA * self.Zz * self.mu / constants.HBARC
-            self.eta = self.k_c / self.k
-            self.sigma_l = np.angle(gamma(1 + self.ls + 1j * self.eta))
-        else:
-            self.sigma_l = np.angle(gamma(1 + self.ls + 1j * 0))
-            self.k_c = 0
-            self.eta = 0
 
     def smatrix(
         self,
@@ -161,7 +160,7 @@ class IntegralWorkspace:
         angles=None,
     ):
         r"""
-        returns the angle-integrated total, elastic and reaction cross sections
+        returns the angle-integrated total, elastic and reaction cross sections in mb
         """
         splus, sminus = self.smatrix(
             interaction_central,
@@ -169,7 +168,7 @@ class IntegralWorkspace:
             args_central,
             args_spin_orbit,
         )
-        return integral_elastic_xs(self.k, splus, sminus, self.ls, self.sigma_l)
+        return integral_elastic_xs(self.k, splus, sminus, self.ls)
 
     def transmission_coefficients(
         self,
@@ -202,69 +201,65 @@ class DifferentialWorkspace:
     @classmethod
     def build_from_system(
         cls,
-        projectile: tuple,
-        target: tuple,
-        sys: ProjectileTargetSystem,
+        reaction: Reaction,
         kinematics: ChannelKinematics,
+        channel_radius_fm: float,
         solver: Solver,
+        lmax: int,
         angles: np.array,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
         integral_workspace = IntegralWorkspace(
-            projectile,
-            target,
-            sys,
-            kinematics,
-            solver,
-            smatrix_abs_tol,
+            reaction, kinematics, channel_radius_fm, solver, lmax, smatrix_abs_tol
         )
-        return cls(integral_workspace, angles, smatrix_abs_tol)
+        return cls(integral_workspace, angles)
 
     def __init__(
         self,
         integral_workspace: IntegralWorkspace,
         angles: np.array,
-        smatrix_abs_tol: np.float64 = 1e-6,
     ):
 
         # system info
         self.integral_workspace = integral_workspace
-        self.projectile = integral_workspace.projectile
-        self.target = integral_workspace.target
-        self.sys = integral_workspace.sys
-        self.solver = integral_workspace.solver
-
-        # kinematic info
-        self.mu = integral_workspace.mu
-        self.Ecm = integral_workspace.Ecm
-        self.k = integral_workspace.k
-        self.eta = integral_workspace.eta
+        self.reaction = self.integral_workspace.reaction
+        self.kinematics = self.integral_workspace.kinematics
 
         # precompute angular distributions in each partial wave
+        check_angles(angles)
         self.angles = angles
         self.ls = self.integral_workspace.ls
         self.P_l_costheta = eval_legendre(self.ls, np.cos(self.angles))
         self.P_1_l_costheta = lpmv(1, self.ls, np.cos(self.angles))
 
         # precompute things related to Coulomb interaction
-        self.sigma_l = self.integral_workspace.sigma_l
-        self.Zz = self.integral_workspace.Zz
-        self.k_c = self.integral_workspace.k_c
-        self.eta = self.integral_workspace.eta
+        self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
+        self.sigma_l = self.coulomb_phase_shift(self.ls)
         if self.Zz > 0:
-            sin2 = np.sin(self.angles / 2.0) ** 2
-            self.f_c = (
-                -self.eta
-                / (2 * self.k * sin2)
-                * np.exp(
-                    2j * self.sigma_l[0]
-                    - 2j * self.eta * np.log(np.sin(self.angles / 2))
-                )
-            )
-            self.rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
+            self.rutherford = self.rutherford_xs(self.angles)
+            self.f_c = self.coulomb_amplitude(self.angles, self.sigma_l[0])
         else:
             self.f_c = np.zeros_like(angles)
             self.rutherford = None
+
+    def rutherford_xs(self, angles: np.ndarray):
+        """
+        Rutherford xs in mb/Sr for a providd angular grid in radians
+        """
+        check_angles(angles)
+        sin2 = np.sin(angles / 2.0) ** 2
+        return 10 * self.kinematics.eta**2 / (4 * self.kinematics.k**2 * sin2**2)
+
+    def coulomb_amplitude(self, angles: np.ndarray, sigma_0):
+        sin2 = np.sin(angles / 2.0)
+        return (
+            -self.kinematics.eta
+            / (2 * self.kinematics.k * sin2**2)
+            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2))
+        )
+
+    def coulomb_phase_shift(self, ls):
+        return np.angle(gamma(1 + ls + 1j * self.kinematics.eta))
 
     def xs(
         self,
@@ -272,45 +267,29 @@ class DifferentialWorkspace:
         interaction_spin_orbit,
         args_central=None,
         args_spin_orbit=None,
-        angles=None,
     ):
-        if angles is None:
-            angles = self.angles
-            P_l_costheta = self.P_l_costheta
-            P_1_l_costheta = self.P_1_l_costheta
-            rutherford = self.rutherford
-            f_c = self.f_c
-        else:
-            P_l_costheta = eval_legendre(self.ls, np.cos(angles))
-            P_1_l_costheta = lpmv(1, self.ls, np.cos(angles))
-            if self.Zz > 0:
-                sin2 = np.sin(angles / 2) ** 2
-                rutherford = 10 * self.eta**2 / (4 * self.k**2 * sin2**2)
-                f_c = (
-                    -self.eta
-                    / (2 * self.k * sin2)
-                    * np.exp(-1j * self.eta * np.log(sin2) + 2j * self.sigma_l[0])
-                )
-            else:
-                rutherford = None
-                f_c = np.zeros_like(angles)
-
+        """
+        Returns a dataclass with the following attributes:
+        -   differential cross section [mb/Sr]
+        -   analyzing power [dimensionless]
+        -   total cross section [mb]
+        -   reaction cross secton [mb]
+        """
         splus, sminus = self.integral_workspace.smatrix(
             interaction_central, interaction_spin_orbit, args_central, args_spin_orbit
         )
         return ElasticXS(
             *differential_elastic_xs(
-                self.k,
-                angles,
+                self.kinematics.k,
+                self.angles,
                 splus,
                 sminus,
                 self.ls,
-                P_l_costheta,
-                P_1_l_costheta,
-                f_c,
+                self.P_l_costheta,
+                self.P_1_l_costheta,
+                self.f_c,
                 self.sigma_l,
-            ),
-            rutherford,
+            )
         )
 
 
@@ -320,8 +299,11 @@ def integral_elastic_xs(
     Splus: np.array,
     Sminus: np.array,
     ls: np.array,
-    sigma_l: np.array = 0,
 ):
+    r"""
+    Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb
+    """
     xsrxn = 0.0
     xst = 0.0
 
@@ -351,7 +333,7 @@ def differential_elastic_xs(
 ):
     r"""
     Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
-    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003
+    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb/SR
     """
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
@@ -383,3 +365,12 @@ def differential_elastic_xs(
     xst *= 10 * 2 * np.pi / k**2
 
     return dsdo, Ay, xst, xsrxn
+
+
+def check_angles(angles: np.ndarray):
+    if angles.ndim != 1:
+        raise ValueError("angles must be a 1D array")
+    if angles[0] < 0 or angles[-1] > np.pi:
+        raise ValueError("angles must a grid in radians on [0,pi)")
+    # if not np.all(angles[1:] - angles[:-1] > 0):
+    #    raise ValueError("angles must be monotonically increasing")

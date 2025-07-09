@@ -75,7 +75,10 @@ def mass_db_row(A, Z):
 
 def mass_excess(A, Z, model="ame2020"):
     row = mass_db_row(A, Z)
-    return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
+    if row.empty:
+        return np.nan, np.nan
+    else:
+        return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
 
 
 def mass(A, Z, **kwargs):

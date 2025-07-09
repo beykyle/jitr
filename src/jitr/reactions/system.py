@@ -24,7 +24,7 @@ def spin_half_orbit_coupling(l):
         couplings (np.ndarray): expectation value of l dot s in each j channel
     """
     js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
-    return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js])
+    return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]) / 2
 
 
 class Asymptotics:
@@ -139,6 +139,7 @@ class ProjectileTargetSystem:
 
     def get_partial_wave_channels(
         self,
+        Elab,
         Ecm,
         mu,
         k,
