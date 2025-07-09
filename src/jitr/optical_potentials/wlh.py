@@ -184,8 +184,6 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-            assert set(self.params) == set(PARAMS)
-
     def get_params(self, A, Z, Elab):
         # fermi energy
         return calculate_params(
