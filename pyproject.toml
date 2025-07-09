@@ -10,7 +10,7 @@ authors = [
 description = "Calculable R-matrix solver for quantum scattering using just-in-time compilation for performance."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dynamic = ["dependencies", "version"]
 classifiers = [
     "Programming Language :: Python :: 3",
