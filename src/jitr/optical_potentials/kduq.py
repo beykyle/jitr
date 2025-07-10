@@ -362,7 +362,7 @@ def calculate_params(
 
     A, Z = target
     Ap, Zp = projectile
-    assert Ap == 1 and (Zp == 1 or Zp == 0)
+    assert Ap == 1 and Zp in (0, 1)
     asym_factor = (A - 2 * Z) / (A)
     factor = (-1) ** (Zp + 1)  # -1 for neutron, +1 for proton
     asym_factor *= factor
