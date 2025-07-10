@@ -23,6 +23,8 @@ from .potential_forms import (
 from ..data import data_dir
 from ..xs.elastic import DifferentialWorkspace
 
+NUM_POSTERIOR_SAMPLES = 416
+
 
 def get_samples_democratic(projectile: tuple):
     return np.array(
@@ -32,7 +34,7 @@ def get_samples_democratic(projectile: tuple):
                     projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
@@ -45,7 +47,7 @@ def get_samples_federal(projectile: tuple):
                     projectile, data_dir / f"KDUQFederal/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 

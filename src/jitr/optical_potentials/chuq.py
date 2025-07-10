@@ -24,6 +24,7 @@ from .potential_forms import (
 )
 from ..data import data_dir
 
+NUM_POSTERIOR_SAMPLES = 208
 NUM_PARAMS = 22
 
 
@@ -35,7 +36,7 @@ def get_samples_democratic(projectile: tuple):
                     projectile, data_dir / f"CHUQDemocratic/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
@@ -48,7 +49,7 @@ def get_samples_federal(projectile: tuple):
                     projectile, data_dir / f"CHUQFederal/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
@@ -77,7 +78,7 @@ def central_plus_coulomb(
     return centr + coulomb
 
 
-def calculate_parameters(
+def calculate_params(
     projectile: tuple,
     target: tuple,
     Elab: float,
@@ -155,11 +156,7 @@ def calculate_parameters(
     spin_orbit_params = (Vso, Rso, aso)
     coulomb_params = (Z, RC)
 
-    return (
-        central_params,
-        spin_orbit_params,
-        coulomb_params,
-    )
+    return coulomb_params, central_params, spin_orbit_params
 
 
 def coulomb_correction(A, Z, RC):
