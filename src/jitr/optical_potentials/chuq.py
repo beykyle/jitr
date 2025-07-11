@@ -64,7 +64,7 @@ def central(r, V, W, Wd, R, a, Rd, ad):
 
 def spin_orbit(r, Vso, Rso, aso):
     r"""form of spin-orbit term"""
-    return -2 * Vso * thomas_safe(r, Rso, aso)
+    return 2 * Vso * thomas_safe(r, Rso, aso)
 
 
 def central_plus_coulomb(
@@ -82,28 +82,28 @@ def calculate_params(
     projectile: tuple,
     target: tuple,
     Elab: float,
-    V0: float,
-    Ve: float,
-    Vt: float,
-    r0: float,
-    r0_0: float,
-    a0: float,
-    Wv0: float,
-    Wve0: float,
-    Wvew: float,
-    rw: float,
-    rw_0: float,
-    aw: float,
-    Ws0: float,
-    Wst: float,
-    Wse0: float,
-    Wsew: float,
-    Vso: float,
-    rso: float,
-    rso_0: float,
-    aso: float,
-    rc: float,
-    rc_0: float,
+    V0: float = 52.9,
+    Ve: float = -0.299,
+    Vt: float = 13.1,
+    r0: float = 1.25,
+    r0_0: float = -0.225,
+    a0: float = 0.69,
+    Wv0: float = 7.8,
+    Wve0: float = 35.0,
+    Wvew: float = 16.0,
+    rw: float = 1.33,
+    rw_0: float = -0.42,
+    aw: float = 0.69,
+    Ws0: float = 10.0,
+    Wst: float = 18.0,
+    Wse0: float = 36.0,
+    Wsew: float = 37,
+    Vso: float = 5.9,
+    rso: float = 1.34,
+    rso_0: float = -1.2,
+    aso: float = 0.63,
+    rc: float = 1.24,
+    rc_0: float = 0.12,
 ):
     """
     Calculate the parameters for the optical model potential.
@@ -122,13 +122,19 @@ def calculate_params(
         of [Pruitt, et al., 2023]
         (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
         for details.
+
+        See also Table 3. of the original CH89 paper [Varner, et al., 1991]
+        (https://www.sciencedirect.com/science/article/pii/037015739190039O?via%3Dihub).
+
+        Note: there is a typo in Eq. A4 of the CHUQ paper, there should be a
+        plus/minus sign in front of Wst, not a plus. See Table 3 of the
+        original CH89 paper for the correct sign.
     """
     A, Z = target
     Ap, Zp = projectile
-    assert Ap == 1 and Zp in (0, 1)
-
     is_proton = Zp == 1
     N = A - Z
+    assert Ap == 1 and Zp in (0, 1)
 
     # Asymmetry factor
     alpha = (N - Z) / A
@@ -150,7 +156,7 @@ def calculate_params(
 
     # Imaginary depths (Eq. A4)
     Wv = Wv0 / (1 + np.exp((Wve0 - delta_E) / Wvew))
-    Ws = (Ws0 + alpha * Wst) / (1 + np.exp((delta_E - Wse0) / Wsew))
+    Ws = (Ws0 + asym_factor * Wst) / (1 + np.exp((delta_E - Wse0) / Wsew))
 
     central_params = (V0, Wv, Ws, R0, a0, Rw, aw)
     spin_orbit_params = (Vso, Rso, aso)
