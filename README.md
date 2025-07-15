@@ -30,7 +30,7 @@ Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tr
 
 In particular, check out:
 - [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
-- [`examples/notebooks/kduq_cross_section_uq_tutorial.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/kduq_cross_section_uq_tutorial.ipynb), which demonstrates how to perform UQ for $(n,n)$ cross sections using [KDUQ](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.107.014602).
+- [`examples/notebooks/builtin_omps_uq.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/builtin_omps_uq.ipynb) to see how to use the built-in uncertainty-quantified optical model potentials to propagate uncertainties into reaction observables
 
 ## description
 A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. Consider a local coordinate-space potential $V(r;\theta)$ that is a function of some parameters $\theta$. Just write it like so:
