@@ -1,7 +1,7 @@
 """The Whitehead-Lim-Holt potential is a global mcroscopic nucleon-nucleus
 optical potential
 
-See the [Whitehead, et al., 2021]
+See the [Whitehead et al., 2021]
 (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
 for details. Equation references are with respect to (w.r.t.) this paper.
 """
@@ -22,6 +22,8 @@ from .potential_forms import (
 )
 from ..xs.elastic import DifferentialWorkspace
 
+NUM_POSTERIOR_SAMPLES = 1000
+
 
 def get_samples(projectile: tuple):
     return np.array(
@@ -31,7 +33,7 @@ def get_samples(projectile: tuple):
                     projectile, data_dir / f"WLHSamples/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(1000)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 

@@ -23,6 +23,8 @@ from .potential_forms import (
 from ..data import data_dir
 from ..xs.elastic import DifferentialWorkspace
 
+NUM_POSTERIOR_SAMPLES = 416
+
 
 def get_samples_democratic(projectile: tuple):
     return np.array(
@@ -32,7 +34,7 @@ def get_samples_democratic(projectile: tuple):
                     projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
@@ -45,7 +47,7 @@ def get_samples_federal(projectile: tuple):
                     projectile, data_dir / f"KDUQFederal/{i}/parameters.json"
                 ).params.values()
             )
-            for i in range(416)
+            for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
@@ -362,7 +364,7 @@ def calculate_params(
 
     A, Z = target
     Ap, Zp = projectile
-    assert Ap == 1 and (Zp == 1 or Zp == 0)
+    assert Ap == 1 and Zp in (0, 1)
     asym_factor = (A - 2 * Z) / (A)
     factor = (-1) ** (Zp + 1)  # -1 for neutron, +1 for proton
     asym_factor *= factor

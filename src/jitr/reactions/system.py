@@ -17,14 +17,18 @@ def spin_half_orbit_coupling(l):
     r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus with spin-obit coupling,
     there are maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
 
+    Note: this follows convention of optical potentials where the coupling is
+    of l dot sigma = 2 * l dot s. This corresponds to Vso depth of about 5-8 MeV
+    for nucleon-nucleus scattering.
+
     Parameters:
         l (int): angular momentum
 
     Returns:
-        couplings (np.ndarray): expectation value of l dot s in each j channel
+        couplings (np.ndarray): expectation value of l dot sigma in each j channel
     """
     js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
-    return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js]) / 2
+    return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js])
 
 
 class Asymptotics:
