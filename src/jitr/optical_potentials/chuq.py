@@ -8,47 +8,40 @@ the original CH89 paper [Varner, et al., 1991]
 for details. Equation references are with respect to the former paper.
 """
 
+import json
 from collections import OrderedDict
 from pathlib import Path
-import json
 
 import numpy as np
 
-
+from ..data import data_dir
 from ..utils.constants import ALPHA, HBARC
 from .potential_forms import (
+    coulomb_charged_sphere,
     thomas_safe,
     woods_saxon_prime_safe,
     woods_saxon_safe,
-    coulomb_charged_sphere,
 )
-from ..data import data_dir
 
 NUM_POSTERIOR_SAMPLES = 208
 NUM_PARAMS = 22
 
 
-def get_samples_democratic(projectile: tuple):
+def get_samples_democratic():
     return np.array(
         [
             list(
-                Global(
-                    projectile, data_dir / f"CHUQDemocratic/{i}/parameters.json"
-                ).params.values()
+                Global(data_dir / f"CHUQDemocratic/{i}/parameters.json").params.values()
             )
             for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
 
-def get_samples_federal(projectile: tuple):
+def get_samples_federal():
     return np.array(
         [
-            list(
-                Global(
-                    projectile, data_dir / f"CHUQFederal/{i}/parameters.json"
-                ).params.values()
-            )
+            list(Global(data_dir / f"CHUQFederal/{i}/parameters.json").params.values())
             for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
@@ -175,10 +168,9 @@ def coulomb_correction(A, Z, RC):
 class Global:
     r"""Global optical potential in CHUQ form."""
 
-    def __init__(self, projectile: tuple, param_fpath: Path = None):
+    def __init__(self, param_fpath: Path = None):
         r"""
         Parameters:
-            projectile : neutron or proton?
             param_fpath : path to json file encoding parameter values.
                 Defaults to data/WLH_mean.json
         """
@@ -187,13 +179,7 @@ class Global:
                 "./../../data/CH89_default.json"
             )
 
-        if projectile not in [(1, 0), (1, 1)]:
-            raise RuntimeError(
-                "chuq.Global is defined only for neutron and proton projectiles"
-            )
-
         self.params = OrderedDict()
-        self.projectile = projectile
 
         self.param_fpath = param_fpath
         with open(self.param_fpath) as f:
@@ -227,7 +213,6 @@ class Global:
                 self.params["rc_0"] = data["CH89Coulomb"]["r_c_0"]
 
             elif "CH89RealCentral_V_0" in data:
-
                 self.params["V0"] = data["CH89RealCentral_V_0"]
                 self.params["Ve"] = data["CH89RealCentral_V_e"]
                 self.params["Vt"] = data["CH89RealCentral_V_t"]
@@ -254,8 +239,6 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-    def get_params(self, A, Z, Elab):
+    def get_params(self, projectile, target, Elab):
         # fermi energy
-        return calculate_params(
-            self.projectile, (A, Z), Elab, *list(self.params.values())
-        )
+        return calculate_params(projectile, target, Elab, *list(self.params.values()))
