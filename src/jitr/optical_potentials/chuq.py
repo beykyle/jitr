@@ -153,7 +153,7 @@ def calculate_params(
 
     central_params = (V0, Wv, Ws, R0, a0, Rw, aw)
     spin_orbit_params = (Vso, Rso, aso)
-    coulomb_params = (Z*Zp, RC)
+    coulomb_params = (Z * Zp, RC)
 
     return coulomb_params, central_params, spin_orbit_params
 
