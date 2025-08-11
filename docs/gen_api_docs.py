@@ -30,7 +30,7 @@ for module in modules:
         f.write("      show_root_toc_entry: true\n")
         f.write("      show_root_full_path: false\n")
         f.write("      heading_level: 2\n")
-    
+
     nav[module.split(".")[-1]] = doc_path
 
 # Generate API documentation for subpackages
@@ -46,7 +46,7 @@ for subpackage in subpackages:
         f.write("      show_root_full_path: false\n")
         f.write("      heading_level: 2\n")
         f.write("      show_submodules: true\n")
-    
+
     nav[subpackage.split(".")[-1]] = doc_path
 
 # Write navigation file
