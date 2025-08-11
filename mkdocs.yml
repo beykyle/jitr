@@ -1,0 +1,51 @@
+site_name: jitr
+site_url: https://beykyle.github.io/jitr/
+repo_url: https://github.com/beykyle/jitr
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - jitr.data: api/jitr/data.md
+    - jitr.optical_potentials: api/jitr/optical_potentials/index.md
+    - jitr.quadrature: api/jitr/quadrature/index.md
+    - jitr.reactions: api/jitr/reactions/index.md
+    - jitr.rmatrix: api/jitr/rmatrix/index.md
+    - jitr.utils: api/jitr/utils/index.md
+    - jitr.xs: api/jitr/xs/index.md
+  - Examples & Tutorials: examples/index.md
+  - Theory:
+    - R-Matrix Theory: theory/rmatrix.md
+    - Implementation Details: theory/implementation.md
+  - Contributing: contributing.md
+
+plugins:
+  - mkdocstrings
+  - mkdocs-jupyter
+
+theme:
+  name: material
+  logo: assets/jitr_logo.png
+  favicon: assets/jitr_logo.png
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - attr_list

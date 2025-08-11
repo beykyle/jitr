@@ -1,0 +1,7 @@
+* [data](docs/api/jitr/data.md)
+* [optical_potentials](docs/api/jitr/optical_potentials/index.md)
+* [reactions](docs/api/jitr/reactions/index.md)
+* [utils](docs/api/jitr/utils/index.md)
+* [quadrature](docs/api/jitr/quadrature/index.md)
+* [xs](docs/api/jitr/xs/index.md)
+* [rmatrix](docs/api/jitr/rmatrix/index.md)
