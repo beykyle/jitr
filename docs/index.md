@@ -26,14 +26,14 @@ Explore our [examples and tutorials](examples/notebooks/) to learn how to use ji
 
 ## Citation
 ```latex
-@software{Beyer_JITR_2024,
+@software{Beyer_JITR_2025,
 author = {Beyer, Kyle},
 license = {BSD-3-Clause},
 month = oct,
 title = {{JITR}},
 url = {https://github.com/beykyle/jitr},
-version = {1.3.0},
-year = {2024}
+version = {X.X.X},
+year = {2025}
 }
 ```
 
