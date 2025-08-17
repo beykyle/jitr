@@ -1,7 +1,12 @@
 import numpy as np
 
 from ..utils import mass, constants
-from ..utils.kinematics import ChannelKinematics, semi_relativistic_kinematics
+from ..utils.kinematics import (
+    ChannelKinematics,
+    semi_relativistic_kinematics,
+    lab_to_cm_frame,
+    cm_to_lab_frame,
+)
 import periodictable
 
 
@@ -521,6 +526,45 @@ class Reaction:
             self.product.m0,
             Elab,
             Zz=self.residual.Z * self.product.Z,
+        )
+
+    def to_lab_frame(self, theta_cm: np.ndarray, Ecm: float, Q: float) -> np.ndarray:
+        """
+        Convert angles from the center-of-mass frame to the laboratory frame
+        (target rest frame).
+        Args:
+            theta_cm (np.ndarray): Angles in the center-of-mass frame in degrees.
+            Ecm (float): Center-of-mass energy.
+            Q (float): Q-value of the reaction.
+        """
+        return cm_to_lab_frame(
+            theta_cm,
+            self.projectile.m0,
+            self.target.m0,
+            self.product.m0,
+            self.residual.m0,
+            Ecm,
+            Q,
+        )
+
+    def to_cm_frame(self, theta_lab: np.ndarray, Elab: float, Q: float) -> np.ndarray:
+        """
+        Convert angles from the laboratory (target rest frame) frame to the
+        center-of-mass frame.
+        Args:
+            theta_lab (np.ndarray): Angles in the laboratory frame in degrees.
+            Elab (float): Laboratory energy.
+            Q (float): Q-value of the reaction.
+        """
+        kinematics = self.kinematics(Elab)
+        return lab_to_cm_frame(
+            theta_lab,
+            self.projectile.m0,
+            self.target.m0,
+            self.product.m0,
+            self.residual.m0,
+            Ecm,
+            Q,
         )
 
     def __repr__(self):
