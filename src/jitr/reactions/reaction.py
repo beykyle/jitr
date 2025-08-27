@@ -664,8 +664,11 @@ class AbsorptionReaction(Reaction):
     """
 
     def __init__(self, target, projectile, **kwargs):
+        residual = Nucleus(
+            *target, mass_kwargs=mass_kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, mass_kwargs=mass_kwargs.get("mass_kwargs", None))
         super().__init__(
-            target, projectile, product=None, residual=None, process="abs", **kwargs
+            target, projectile, residual=residual, product=None, process="abs", **kwargs
         )
 
 
@@ -697,7 +700,9 @@ class GammaCaptureReaction(Reaction):
     """
 
     def __init__(self, target, projectile, **kwargs):
-        residual = target + projectile
+        residual = Nucleus(
+            *target, mass_kwargs=mass_kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, mass_kwargs=mass_kwargs.get("mass_kwargs", None))
         super().__init__(
             target, projectile, residual=residual, product=Gamma(), **kwargs
         )
