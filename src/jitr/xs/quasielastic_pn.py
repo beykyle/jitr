@@ -1,17 +1,13 @@
 import numpy as np
-
-from scipy.special import sph_harm, gamma
+from scipy.special import gamma, sph_harm
 from sympy.physics.wigner import clebsch_gordan
 
-from .elastic import check_angles
+from ..reactions import (ProjectileTargetSystem, Reaction,
+                         spin_half_orbit_coupling)
+from ..rmatrix import Solver
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
-from ..reactions import (
-    Reaction,
-    spin_half_orbit_coupling,
-    ProjectileTargetSystem,
-)
-from ..rmatrix import Solver
+from .elastic import check_angles
 
 
 class System:
