@@ -2,8 +2,7 @@ import numpy as np
 from scipy.special import gamma, sph_harm
 from sympy.physics.wigner import clebsch_gordan
 
-from ..reactions import (ProjectileTargetSystem, Reaction,
-                         spin_half_orbit_coupling)
+from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
 from ..rmatrix import Solver
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
