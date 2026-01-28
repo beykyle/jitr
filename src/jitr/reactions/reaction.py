@@ -1,13 +1,13 @@
 import numpy as np
+import periodictable
 
-from ..utils import mass, constants
+from ..utils import constants, mass
 from ..utils.kinematics import (
     ChannelKinematics,
-    semi_relativistic_kinematics,
-    lab_to_cm_frame,
     cm_to_lab_frame,
+    lab_to_cm_frame,
+    semi_relativistic_kinematics,
 )
-import periodictable
 
 
 class Particle:
@@ -382,7 +382,7 @@ class Reaction:
                     raise ValueError(
                         f"Invalid {self.process} process reaction configuration."
                         + f"\nThere should be no product but {product} was provided"
-                        + f"\nThere must be a residual provided"
+                        + "\nThere must be a residual provided"
                     )
                 self.product = None
                 self.residual = Particle.parse(residual, mass_kwargs=mass_kwargs)
