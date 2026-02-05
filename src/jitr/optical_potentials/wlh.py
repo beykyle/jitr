@@ -6,21 +6,21 @@ See the [Whitehead et al., 2021]
 for details. Equation references are with respect to (w.r.t.) this paper.
 """
 
+import json
 from collections import OrderedDict
 from pathlib import Path
-import json
 
 import numpy as np
 
 from ..data import data_dir
 from ..utils.constants import WAVENUMBER_PION
+from ..xs.elastic import DifferentialWorkspace
 from .potential_forms import (
-    woods_saxon_safe,
-    woods_saxon_prime_safe,
     coulomb_charged_sphere,
     thomas_safe,
+    woods_saxon_prime_safe,
+    woods_saxon_safe,
 )
-from ..xs.elastic import DifferentialWorkspace
 
 NUM_POSTERIOR_SAMPLES = 1000
 
@@ -289,7 +289,10 @@ def calculate_params(
     if (projectile == (1, 0) and Elab < 40) or (
         projectile == (1, 1) and Elab < 20 and A > 100
     ):
-        ud = ud0 - ud1 * Elab - (ud3 - ud4 * Elab) * asym_factor
+        # In the paper this is positive, which is probably a typo
+        # as the potential is absorptive (see the canceling minus signs in
+        # the central function above).
+        ud = -(ud0 - ud1 * Elab - (ud3 - ud4 * Elab) * asym_factor)
     else:
         ud = 0
 
