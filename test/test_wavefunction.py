@@ -46,7 +46,7 @@ channels, asymptotics = sys.get_partial_wave_channels(*channel_kinematics)
 
 
 def interaction(r, *params):
-    (V0, W0, R0, a0, zz, RC) = params
+    V0, W0, R0, a0, zz, RC = params
     coulomb = potentials.coulomb_charged_sphere(r, zz, RC)
     nuclear = -potentials.woods_saxon_potential(r, V0, W0, R0, a0)
     return coulomb + nuclear
