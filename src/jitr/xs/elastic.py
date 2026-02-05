@@ -170,7 +170,7 @@ class IntegralWorkspace:
             args_central,
             args_spin_orbit,
         )
-        return integral_elastic_xs(self.k, splus, sminus, self.ls)
+        return integral_elastic_xs(self.kinematics.k, splus, sminus, self.ls)
 
     def transmission_coefficients(
         self,
