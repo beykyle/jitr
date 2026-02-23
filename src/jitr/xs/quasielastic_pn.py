@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import gamma, sph_harm
+from scipy.special import gamma, sph_harm_y
 from sympy.physics.wigner import clebsch_gordan
 
 from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
@@ -207,7 +207,7 @@ class Workspace:
                         [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
                     ):
                         if abs(m - mp) <= l and jp >= 0:
-                            ylm = sph_harm(m - mp, l, 0, self.angles)
+                            ylm = sph_harm_y(l, m - mp,  0, self.angles)
                             cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, m, mp)
                             cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
 
