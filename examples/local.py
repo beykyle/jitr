@@ -21,7 +21,7 @@ mass_proton = 938.271653086152  # MeV/c^2
 
 
 def interaction(r, *params):
-    (V0, W0, R0, a0, zz, RC) = params
+    V0, W0, R0, a0, zz, RC = params
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
 
 
