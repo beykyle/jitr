@@ -115,13 +115,14 @@ class IntegralWorkspace:
         )
 
         # s-wave, l = 0, j = 1/2
-        _, splus[0], _ = self.solver.solve(
+        _, s0, _ = self.solver.solve(
             self.channels[0][0],
             self.asymptotics[0][0],
             free_matrix=self.free_matrices[0],
             interaction_matrix=im_central,
             basis_boundary=self.basis_boundary,
         )
+        splus[0] = s0[0,0]
 
         # higher partial waves
         for l in self.sys.l[1:]:
@@ -129,22 +130,24 @@ class IntegralWorkspace:
             asym = self.asymptotics[l]
             lds = self.l_dot_s[l - 1]  # starts from 1 not 0
             # j = l + 1/2
-            _, splus[l], _ = self.solver.solve(
+            _, sp, _ = self.solver.solve(
                 ch[0],
                 asym[0],
                 free_matrix=self.free_matrices[l],
                 interaction_matrix=im_central + lds[0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
+            splus[l] = sp[0,0]
 
             # j = l - 1/2
-            _, sminus[l], _ = self.solver.solve(
+            _, sm, _ = self.solver.solve(
                 ch[1],
                 asym[1],
                 free_matrix=self.free_matrices[l],
                 interaction_matrix=im_central + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
+            sminus[l]
 
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
                 np.absolute(1 - sminus[l])
