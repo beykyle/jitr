@@ -122,7 +122,7 @@ class IntegralWorkspace:
             interaction_matrix=im_central,
             basis_boundary=self.basis_boundary,
         )
-        splus[0] = s0[0,0]
+        splus[0] = s0[0, 0]
 
         # higher partial waves
         for l in self.sys.l[1:]:
@@ -137,7 +137,7 @@ class IntegralWorkspace:
                 interaction_matrix=im_central + lds[0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
-            splus[l] = sp[0,0]
+            splus[l] = sp[0, 0]
 
             # j = l - 1/2
             _, sm, _ = self.solver.solve(
@@ -147,7 +147,7 @@ class IntegralWorkspace:
                 interaction_matrix=im_central + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
-            sminus[l] = sm[0,0]
+            sminus[l] = sm[0, 0]
 
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
                 np.absolute(1 - sminus[l])
