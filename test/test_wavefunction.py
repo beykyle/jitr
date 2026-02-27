@@ -1,15 +1,9 @@
 import numpy as np
-from numba import njit
-from scipy.integrate import solve_ivp
-
 from jitr import rmatrix
-from jitr.reactions import (
-    ProjectileTargetSystem,
-    make_channel_data,
-)
-from jitr.reactions import wavefunction
 from jitr.optical_potentials import potential_forms as potentials
-from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
+from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
+from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
+from scipy.integrate import solve_ivp
 
 Elab = 14.1
 nodes_within_radius = 5

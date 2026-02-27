@@ -1,15 +1,13 @@
 import numpy as np
+from jitr import rmatrix
+from jitr.optical_potentials.potential_forms import (
+    coulomb_charged_sphere,
+    woods_saxon_potential,
+)
+from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
+from jitr.utils import delta, kinematics, schrodinger_eqn_ivp_order1, smatrix
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
-from numba import njit
-
-from jitr import rmatrix
-from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
-from jitr.optical_potentials.potential_forms import (
-    woods_saxon_potential,
-    coulomb_charged_sphere,
-)
-from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 # target (A,Z)
 Ca48 = (48, 20)

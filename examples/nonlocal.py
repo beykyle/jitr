@@ -1,14 +1,10 @@
 import numpy as np
-
 from jitr import rmatrix
-
-from jitr.reactions import ProjectileTargetSystem
-
 from jitr.optical_potentials.potential_forms import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
 )
-
+from jitr.reactions import ProjectileTargetSystem
 from jitr.utils.constants import HBARC
 
 
