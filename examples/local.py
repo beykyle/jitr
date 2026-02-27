@@ -279,7 +279,6 @@ def rmse_RK_LM():
 
             error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
 
-    lines = []
     for l in sys.l:
         plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
 
