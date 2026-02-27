@@ -147,7 +147,7 @@ class IntegralWorkspace:
                 interaction_matrix=im_central + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
-            sminus[l]
+            sminus[l] = sm[0,0]
 
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
                 np.absolute(1 - sminus[l])

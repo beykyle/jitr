@@ -28,7 +28,13 @@ The release versions of the package are hosted at [pypi.org/project/jitr/](https
 
 Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
 
-In particular, check out:
+There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
+
+```
+pip install -r examples/notebooks/requirements.txt
+```
+
+Then, you can run the notebooks. In particular, check out:
 - [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
 - [`examples/notebooks/builtin_omps_uq.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/builtin_omps_uq.ipynb) to see how to use the built-in uncertainty-quantified optical model potentials to propagate uncertainties into reaction observables
 
@@ -63,10 +69,16 @@ pip install -r ./jitr/requirements.txt
 pip install -e ./jitr
 ```
 
-then run the tests:
+then run the unit tests:
 
 ```
 pytest jitr
+```
+
+The notebooks in `examples/notebooks/`, aside from being demos, also can be used as tests:
+```
+pip install -r examples/notebooks/requirements.txt
+pytest --nbval-lax examples/notebooks/
 ```
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.

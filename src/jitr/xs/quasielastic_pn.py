@@ -207,7 +207,7 @@ class Workspace:
                         [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
                     ):
                         if abs(m - mp) <= l and jp >= 0:
-                            ylm = sph_harm_y(l, m - mp,  0, self.angles)
+                            ylm = sph_harm_y(l, int(m - mp),  self.angles, 0)
                             cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, m, mp)
                             cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
 
@@ -372,7 +372,7 @@ class Workspace:
                 / self.kinematics_entrance.k
                 / self.kinematics_exit.k
             )
-            return tlj, snlj, splj
+            return tlj, snlj[0,0], splj[0,0]
 
         # S-wave
         Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(0, 0, 0)

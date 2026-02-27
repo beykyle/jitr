@@ -1,0 +1,6 @@
+jitr
+exfor_tools
+nbmake
+nbval
+pytest
+matplotlib

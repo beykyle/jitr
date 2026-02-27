@@ -62,3 +62,8 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    
+    - name: run jupyter notebook tests
+      run: |
+        pip install -r examples/notebooks/requirements.txt
+        pytest --nbval-lax examples/notebooks/ -v
