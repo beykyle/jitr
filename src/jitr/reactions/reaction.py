@@ -556,14 +556,13 @@ class Reaction:
             Elab (float): Laboratory energy.
             Q (float): Q-value of the reaction.
         """
-        kinematics = self.kinematics(Elab)
         return lab_to_cm_frame(
             theta_lab,
             self.projectile.m0,
             self.target.m0,
             self.product.m0,
             self.residual.m0,
-            Ecm,
+            Elab,
             Q,
         )
 
@@ -665,8 +664,8 @@ class AbsorptionReaction(Reaction):
 
     def __init__(self, target, projectile, **kwargs):
         residual = Nucleus(
-            *target, mass_kwargs=mass_kwargs.get("mass_kwargs", None)
-        ) + Nucleus(*projectile, mass_kwargs=mass_kwargs.get("mass_kwargs", None))
+            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, kwargs=mass_kwargs.get("mass_kwargs", None))
         super().__init__(
             target, projectile, residual=residual, product=None, process="abs", **kwargs
         )
@@ -701,8 +700,8 @@ class GammaCaptureReaction(Reaction):
 
     def __init__(self, target, projectile, **kwargs):
         residual = Nucleus(
-            *target, mass_kwargs=mass_kwargs.get("mass_kwargs", None)
-        ) + Nucleus(*projectile, mass_kwargs=mass_kwargs.get("mass_kwargs", None))
+            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, mass_kwargs=kwargs.get("mass_kwargs", None))
         super().__init__(
             target, projectile, residual=residual, product=Gamma(), **kwargs
         )

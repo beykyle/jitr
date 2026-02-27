@@ -29,7 +29,6 @@ def local_interaction_example():
     """
     Elab = 14.1
     nodes_within_radius = 3
-    n_partial_waves = 1
 
     sys = ProjectileTargetSystem(
         channel_radius=2 * np.pi * nodes_within_radius,
