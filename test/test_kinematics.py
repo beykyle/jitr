@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
-from numpy.testing import assert_almost_equal
-
 from jitr.utils.kinematics import cm_to_lab_frame, lab_to_cm_frame
+from numpy.testing import assert_allclose
 
 
 @pytest.fixture
@@ -41,13 +40,14 @@ def test_cm_to_lab(example_parameters):
         params["E"],
         params["Q"],
     )
-    assert_almost_equal(params["angles_cm_deg"], angles_cm_deg_recovered, decimal=6)
+    assert_allclose(params["angles_cm_deg"], angles_cm_deg_recovered, atol=1e-6)
 
 
 def test_lab_to_cm(example_parameters):
     """Test lab_to_cm_frame conversion."""
     params = example_parameters
-    angles_lab_deg = np.linspace(0, 90, 5)  # Example angles in lab frame
+    # Example angles in lab frame
+    angles_lab_deg = np.linspace(0, 90, 5)
     angles_cm_deg = lab_to_cm_frame(
         angles_lab_deg,
         params["ma"],
@@ -68,4 +68,4 @@ def test_lab_to_cm(example_parameters):
         params["E"],
         params["Q"],
     )
-    assert_almost_equal(angles_lab_deg, angles_lab_deg_recovered, decimal=6)
+    assert_allclose(angles_lab_deg, angles_lab_deg_recovered, atol=1e-6)
