@@ -1,20 +1,16 @@
 import numpy as np
-from scipy.integrate import solve_ivp
-from numba import njit
 from jitr import rmatrix
-from jitr.reactions import (
-    ProjectileTargetSystem,
-    make_channel_data,
-)
 from jitr.optical_potentials.potential_forms import (
-    woods_saxon_potential,
     coulomb_charged_sphere,
+    woods_saxon_potential,
 )
-from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
+from jitr.reactions import ProjectileTargetSystem, make_channel_data
+from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
+from scipy.integrate import solve_ivp
 
 
 def interaction(r, *args):
-    (V0, W0, R0, a0, zz, r_c) = args
+    V0, W0, R0, a0, zz, r_c = args
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(
         r, zz, r_c
     )

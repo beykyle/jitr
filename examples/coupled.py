@@ -1,14 +1,13 @@
 import numpy as np
-from matplotlib import pyplot as plt
-
 from jitr import rmatrix
-from jitr.reactions import ProjectileTargetSystem, wavefunction
+from jitr.optical_potentials.potential_forms import coulomb_charged_sphere as coul
 from jitr.optical_potentials.potential_forms import (
-    woods_saxon_potential as ws,
     surface_peaked_gaussian_potential as spg,
-    coulomb_charged_sphere as coul,
 )
-from jitr.utils import complex_det, kinematics, mass, constants
+from jitr.optical_potentials.potential_forms import woods_saxon_potential as ws
+from jitr.reactions import ProjectileTargetSystem, wavefunction
+from jitr.utils import complex_det, constants, kinematics, mass
+from matplotlib import pyplot as plt
 
 
 def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):

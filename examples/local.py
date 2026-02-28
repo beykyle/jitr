@@ -1,15 +1,13 @@
 import numpy as np
+from jitr import rmatrix
+from jitr.optical_potentials.potential_forms import (
+    coulomb_charged_sphere,
+    woods_saxon_potential,
+)
+from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
+from jitr.utils import delta, kinematics, schrodinger_eqn_ivp_order1, smatrix
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
-from numba import njit
-
-from jitr import rmatrix
-from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
-from jitr.optical_potentials.potential_forms import (
-    woods_saxon_potential,
-    coulomb_charged_sphere,
-)
-from jitr.utils import delta, smatrix, schrodinger_eqn_ivp_order1, kinematics
 
 # target (A,Z)
 Ca48 = (48, 20)
@@ -21,7 +19,7 @@ mass_proton = 938.271653086152  # MeV/c^2
 
 
 def interaction(r, *params):
-    (V0, W0, R0, a0, zz, RC) = params
+    V0, W0, R0, a0, zz, RC = params
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
 
 
@@ -31,7 +29,6 @@ def local_interaction_example():
     """
     Elab = 14.1
     nodes_within_radius = 3
-    n_partial_waves = 1
 
     sys = ProjectileTargetSystem(
         channel_radius=2 * np.pi * nodes_within_radius,
@@ -282,7 +279,6 @@ def rmse_RK_LM():
 
             error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
 
-    lines = []
     for l in sys.l:
         plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
 

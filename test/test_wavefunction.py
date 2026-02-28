@@ -1,15 +1,9 @@
 import numpy as np
-from numba import njit
-from scipy.integrate import solve_ivp
-
 from jitr import rmatrix
-from jitr.reactions import (
-    ProjectileTargetSystem,
-    make_channel_data,
-)
-from jitr.reactions import wavefunction
 from jitr.optical_potentials import potential_forms as potentials
-from jitr.utils import smatrix, schrodinger_eqn_ivp_order1, kinematics
+from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
+from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
+from scipy.integrate import solve_ivp
 
 Elab = 14.1
 nodes_within_radius = 5
@@ -46,7 +40,7 @@ channels, asymptotics = sys.get_partial_wave_channels(*channel_kinematics)
 
 
 def interaction(r, *params):
-    (V0, W0, R0, a0, zz, RC) = params
+    V0, W0, R0, a0, zz, RC = params
     coulomb = potentials.coulomb_charged_sphere(r, zz, RC)
     nuclear = -potentials.woods_saxon_potential(r, V0, W0, R0, a0)
     return coulomb + nuclear

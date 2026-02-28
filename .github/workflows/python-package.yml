@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     
     steps:
     - uses: actions/checkout@v3
@@ -62,3 +62,8 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    
+    - name: run jupyter notebook tests
+      run: |
+        pip install -r examples/notebooks/requirements.txt
+        pytest --nbval-lax examples/notebooks/ -v

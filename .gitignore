@@ -1,3 +1,9 @@
+# virtual docs
+.virtual_documents/
+
+#slurm files
+*.slurm
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

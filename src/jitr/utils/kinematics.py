@@ -131,6 +131,8 @@ def cm_to_lab_frame(
     using tan(theta_lab) = sin(theta_cm) / (rho + cos(theta_cm)) [Thompson & Nunes Eq 2.3.14]
     where rho = sqrt(ma * mc / (mb * md) * E / (E + Q)) [Thompson & Nunes Eq. 2.3.16].
 
+    The lab frame is defined as the frame where particle B is initially at rest.
+
     Parameters:
     --------
     angles_cm_deg : np.ndarray
@@ -178,6 +180,8 @@ def lab_to_cm_frame(
     using tan(theta_lab) = sin(theta_cm) / (rho + cos(theta_cm))
     [Thompson & Nunes Eq 2.3.14]cwhere rho = sqrt(ma * mc / (mb * md) * E / (E + Q))
     [Thompson & Nunes Eq. 2.3.16].
+
+    The lab frame is defined as the frame where particle B is initially at rest.
 
     Parameters:
     --------

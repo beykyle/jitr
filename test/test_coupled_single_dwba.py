@@ -1,6 +1,6 @@
+import numpy as np
 from jitr import reactions, rmatrix
 from jitr.utils.kinematics import classical_kinematics
-import numpy as np
 
 
 def potential_scalar(r, depth, mass):

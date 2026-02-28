@@ -1,11 +1,12 @@
-from numba import njit
 from dataclasses import dataclass
-from scipy.special import eval_legendre, lpmv, gamma
-import numpy as np
 
-from ..utils.kinematics import ChannelKinematics
+import numpy as np
+from numba import njit
+from scipy.special import eval_legendre, gamma, lpmv
+
 from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
 from ..rmatrix import Solver
+from ..utils.kinematics import ChannelKinematics
 
 
 @dataclass
@@ -14,12 +15,14 @@ class ElasticXS:
     Contains:
     -   differential cross section [mb/Sr]
     -   analyzing power [dimensionless]
+    -   Q (spin rotation function) [dimensionless]
     -   total cross section [mb]
     -   reaction cross secton [mb]
     """
 
     dsdo: np.ndarray
     Ay: np.ndarray
+    Q: np.ndarray
     t: np.float64
     rxn: np.float64
 
@@ -113,13 +116,14 @@ class IntegralWorkspace:
         )
 
         # s-wave, l = 0, j = 1/2
-        _, splus[0], _ = self.solver.solve(
+        _, s0, _ = self.solver.solve(
             self.channels[0][0],
             self.asymptotics[0][0],
             free_matrix=self.free_matrices[0],
             interaction_matrix=im_central,
             basis_boundary=self.basis_boundary,
         )
+        splus[0] = s0[0, 0]
 
         # higher partial waves
         for l in self.sys.l[1:]:
@@ -127,22 +131,24 @@ class IntegralWorkspace:
             asym = self.asymptotics[l]
             lds = self.l_dot_s[l - 1]  # starts from 1 not 0
             # j = l + 1/2
-            _, splus[l], _ = self.solver.solve(
+            _, sp, _ = self.solver.solve(
                 ch[0],
                 asym[0],
                 free_matrix=self.free_matrices[l],
                 interaction_matrix=im_central + lds[0] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
+            splus[l] = sp[0, 0]
 
             # j = l - 1/2
-            _, sminus[l], _ = self.solver.solve(
+            _, sm, _ = self.solver.solve(
                 ch[1],
                 asym[1],
                 free_matrix=self.free_matrices[l],
                 interaction_matrix=im_central + lds[1] * im_spin_orbit,
                 basis_boundary=self.basis_boundary,
             )
+            sminus[l] = sm[0, 0]
 
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
                 np.absolute(1 - sminus[l])
@@ -168,7 +174,7 @@ class IntegralWorkspace:
             args_central,
             args_spin_orbit,
         )
-        return integral_elastic_xs(self.k, splus, sminus, self.ls)
+        return integral_elastic_xs(self.kinematics.k, splus, sminus, self.ls)
 
     def transmission_coefficients(
         self,
@@ -219,7 +225,6 @@ class DifferentialWorkspace:
         integral_workspace: IntegralWorkspace,
         angles: np.array,
     ):
-
         # system info
         self.integral_workspace = integral_workspace
         self.reaction = self.integral_workspace.reaction
@@ -322,49 +327,65 @@ def integral_elastic_xs(
 @njit
 def differential_elastic_xs(
     k: float,
-    angles: np.array,
-    splus: np.array,
-    sminus: np.array,
-    ls: np.array,
-    P_l_costheta: np.array,
-    P_1_l_costheta: np.array,
-    f_c: np.array = 0,
-    sigma_l: np.array = 0,
+    angles: np.ndarray,
+    splus: np.ndarray,
+    sminus: np.ndarray,
+    ls: np.ndarray,
+    P_l_costheta: np.ndarray,
+    P_1_l_costheta: np.ndarray,
+    f_c: np.ndarray = 0,
+    sigma_l: np.ndarray = 0,
+    eps: float = 1e-30,
 ):
     r"""
-    Calculates differential, total and reaction cross section for spin-1/2 spin-0 scattering
-    following Herman, et al., 2007, https://doi.org/10.1016/j.nds.2007.11.003 in mb/SR
+    Calculates differential, total and reaction cross sections for spin-1/2 on spin-0 scattering
+    in mb/sr, plus analyzing power A_y and spin-rotation parameter Q.
+
+    Amplitudes:
+      f(θ) = a(θ) + i (σ·n̂) b(θ)
+
+    Observables:
+      dσ/dΩ = |a|^2 + |b|^2
+      A_y   = 2 Im(a* b) / (|a|^2 + |b|^2)
+      Q     = 2 Re(a* b) / (|a|^2 + |b|^2)
     """
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
+
     xsrxn = 0.0
     xst = 0.0
 
     for l in range(splus.shape[0]):
+        phase = np.exp(2j * sigma_l[l]) / (2j * k)
+
         a += (
             P_l_costheta[l, :]
-            * np.exp(2j * sigma_l[l])
-            / (2j * k)
+            * phase
             * ((l + 1) * (splus[l] - 1) + l * (sminus[l] - 1))
         )
-        b += (
-            P_1_l_costheta[l, :]
-            * np.exp(2j * sigma_l[l])
-            / (2j * k)
-            * (splus[l] - sminus[l])
-        )
+        b += P_1_l_costheta[l, :] * phase * (splus[l] - sminus[l])
 
-        xsrxn += (l + 1) * (1 - np.absolute(splus[l]) ** 2) + l * (
-            1 - np.absolute(sminus[l]) ** 2
+        xsrxn += (l + 1) * (1 - np.abs(splus[l]) ** 2) + l * (
+            1 - np.abs(sminus[l]) ** 2
         )
         xst += (l + 1) * (1 - np.real(splus[l])) + l * (1 - np.real(sminus[l]))
 
-    dsdo = (np.absolute(a) ** 2 + np.absolute(b) ** 2) * 10
-    Ay = 2 * np.imag(a.conj() * b) * 10 / dsdo
-    xsrxn *= 10 * np.pi / k**2
-    xst *= 10 * 2 * np.pi / k**2
+    # Base (dimensionless) dσ/dΩ
+    dsdo0 = np.abs(a) ** 2 + np.abs(b) ** 2
 
-    return dsdo, Ay, xst, xsrxn
+    # Scale to mb/sr
+    dsdo = dsdo0 * 10.0
+
+    # Avoid division by zero at extreme angles/energies
+    denom = np.maximum(dsdo0, eps)
+
+    Ay = 2.0 * np.imag(np.conjugate(a) * b) / denom
+    Q = 2.0 * np.real(np.conjugate(a) * b) / denom
+
+    xsrxn *= 10.0 * np.pi / k**2
+    xst *= 10.0 * 2.0 * np.pi / k**2
+
+    return dsdo, Ay, Q, xst, xsrxn
 
 
 def check_angles(angles: np.ndarray):

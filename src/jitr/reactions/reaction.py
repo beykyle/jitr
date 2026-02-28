@@ -1,8 +1,13 @@
 import numpy as np
-
-from ..utils import mass, constants
-from ..utils.kinematics import ChannelKinematics, semi_relativistic_kinematics
 import periodictable
+
+from ..utils import constants, mass
+from ..utils.kinematics import (
+    ChannelKinematics,
+    cm_to_lab_frame,
+    lab_to_cm_frame,
+    semi_relativistic_kinematics,
+)
 
 
 class Particle:
@@ -377,7 +382,7 @@ class Reaction:
                     raise ValueError(
                         f"Invalid {self.process} process reaction configuration."
                         + f"\nThere should be no product but {product} was provided"
-                        + f"\nThere must be a residual provided"
+                        + "\nThere must be a residual provided"
                     )
                 self.product = None
                 self.residual = Particle.parse(residual, mass_kwargs=mass_kwargs)
@@ -523,6 +528,56 @@ class Reaction:
             Zz=self.residual.Z * self.product.Z,
         )
 
+    def to_lab_frame(self, theta_cm: np.ndarray, Ecm: float, Q: float) -> np.ndarray:
+        """
+        Convert angles from the center-of-mass frame to the laboratory frame
+        (target rest frame).
+        Args:
+            theta_cm (np.ndarray): Angles in the center-of-mass frame in degrees.
+            Ecm (float): Center-of-mass energy.
+            Q (float): Q-value of the reaction.
+        """
+        if self.product is None or self.residual is None:
+            raise ValueError(
+                "to_lab_frame() requires both product and residual to be defined. "
+                f"This reaction ({self.reaction_string}) does not have a defined "
+                "product and/or residual."
+            )
+        return cm_to_lab_frame(
+            theta_cm,
+            self.projectile.m0,
+            self.target.m0,
+            self.product.m0,
+            self.residual.m0,
+            Ecm,
+            Q,
+        )
+
+    def to_cm_frame(self, theta_lab: np.ndarray, Elab: float, Q: float) -> np.ndarray:
+        """
+        Convert angles from the laboratory (target rest frame) frame to the
+        center-of-mass frame.
+        Args:
+            theta_lab (np.ndarray): Angles in the laboratory frame in degrees.
+            Elab (float): Laboratory energy.
+            Q (float): Q-value of the reaction.
+        """
+        if self.product is None or self.residual is None:
+            raise ValueError(
+                "to_cm_frame() requires both product and residual to be defined. "
+                f"This reaction ({self.reaction_string}) does not have a defined "
+                "product and/or residual."
+            )
+        return lab_to_cm_frame(
+            theta_lab,
+            self.projectile.m0,
+            self.target.m0,
+            self.product.m0,
+            self.residual.m0,
+            Elab,
+            Q,
+        )
+
     def __repr__(self):
         """
         Returns the symbolic representation of the Reaction.
@@ -620,8 +675,11 @@ class AbsorptionReaction(Reaction):
     """
 
     def __init__(self, target, projectile, **kwargs):
+        residual = Nucleus(
+            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, mass_kwargs=kwargs.get("mass_kwargs", None))
         super().__init__(
-            target, projectile, product=None, residual=None, process="abs", **kwargs
+            target, projectile, residual=residual, product=None, process="abs", **kwargs
         )
 
 
@@ -653,7 +711,9 @@ class GammaCaptureReaction(Reaction):
     """
 
     def __init__(self, target, projectile, **kwargs):
-        residual = target + projectile
+        residual = Nucleus(
+            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
+        ) + Nucleus(*projectile, mass_kwargs=kwargs.get("mass_kwargs", None))
         super().__init__(
             target, projectile, residual=residual, product=Gamma(), **kwargs
         )
