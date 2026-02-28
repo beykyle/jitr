@@ -1,5 +1,7 @@
 from dataclasses import astuple, dataclass
+
 import numpy as np
+
 from .constants import ALPHA, HBARC
 
 
@@ -126,42 +128,12 @@ def cm_to_lab_frame(
     E: float,
     Q: float,
 ):
-    r"""
-    Convert angles from center of mass to lab frame for a 2-body A + B -> C + D reaction,
-    using tan(theta_lab) = sin(theta_cm) / (rho + cos(theta_cm)) [Thompson & Nunes Eq 2.3.14]
-    where rho = sqrt(ma * mc / (mb * md) * E / (E + Q)) [Thompson & Nunes Eq. 2.3.16].
-
-    The lab frame is defined as the frame where particle B is initially at rest.
-
-    Parameters:
-    --------
-    angles_cm_deg : np.ndarray
-        Angles in degrees in the center of mass frame.
-    ma : float
-        Mass of particle A in MeV/c^2.
-    mb : float
-        Mass of particle B in MeV/c^2.
-    mc : float
-        Mass of particle C in MeV/c^2.
-    md : float
-        Mass of particle D in MeV/c^2.
-    E : float
-        Total energy in the center of mass frame in MeV.
-    Q : float
-        Q-value of the reaction in MeV.
-    Returns:
-    --------
-    np.ndarray
-        Angles in degrees in the lab frame.
-    """
     rho = np.sqrt(ma * mc / (mb * md) * E / (E + Q))
     if rho >= 1:
-        raise ValueError("rho must be >= 1 for valid angle conversion.")
+        raise ValueError("rho must be < 1 for valid angle conversion.")
     angles_cm_rad = np.deg2rad(angles_cm_deg)
-    angles_cm_rad[np.isclose(angles_cm_rad, np.pi)] = 0
     y = np.sin(angles_cm_rad)
     x = rho + np.cos(angles_cm_rad)
-
     theta_lab_rad = np.arctan2(y, x)
     return np.rad2deg(theta_lab_rad)
 
@@ -175,43 +147,23 @@ def lab_to_cm_frame(
     E: float,
     Q: float,
 ):
-    r"""
-    Convert angles from lab to center of mass frame for a 2-body A + B -> C + D reaction,
-    using tan(theta_lab) = sin(theta_cm) / (rho + cos(theta_cm))
-    [Thompson & Nunes Eq 2.3.14]cwhere rho = sqrt(ma * mc / (mb * md) * E / (E + Q))
-    [Thompson & Nunes Eq. 2.3.16].
-
-    The lab frame is defined as the frame where particle B is initially at rest.
-
-    Parameters:
-    --------
-    angles_lab_deg : np.ndarray
-        Angles in degrees in the center of mass frame.
-    ma : float
-        Mass of particle A in MeV/c^2.
-    mb : float
-        Mass of particle B in MeV/c^2.
-    mc : float
-        Mass of particle C in MeV/c^2.
-    md : float
-        Mass of particle D in MeV/c^2.
-    E : float
-        Total energy in the center of mass frame in MeV.
-    Q : float
-        Q-value of the reaction in MeV.
-    Returns:
-    --------
-    np.ndarray
-        Angles in degrees in the center of mass frame.
-    """
     rho = np.sqrt(ma * mc / (mb * md) * E / (E + Q))
     if rho >= 1:
-        raise ValueError("rho must be >= 1 for valid angle conversion.")
+        raise ValueError("rho must be < 1 for valid angle conversion.")
     t = np.tan(np.deg2rad(angles_lab_deg))
-
-    s = (rho * t + np.sqrt((1 - rho**2) * t**4 + t**2)) / (t**2 + 1)
-    peak_index = np.argmax(s)  # angle cm is within [0,pi]
+    # Compute s with explicit clipping for numerical safety
+    under_sqrt = (1 - rho**2) * t**4 + t**2
+    # Prevent small negative numbers inside sqrt
+    # due to numerical noise
+    under_sqrt = np.clip(under_sqrt, 0, None)
+    s = (rho * t + np.sqrt(under_sqrt)) / (t**2 + 1)
+    s = np.clip(s, -1, 1)  # For arcsin domain safety
     theta_cm_rad = np.arcsin(s)
+    peak_index = np.argmax(s)
     offset = 0 if s.size % 2 == 0 else 1
-    theta_cm_rad[peak_index + offset :] = np.pi - theta_cm_rad[peak_index + offset :]
+    # only set the mirror if in range
+    if peak_index + offset < s.size:
+        theta_cm_rad[peak_index + offset :] = (
+            np.pi - theta_cm_rad[peak_index + offset :]
+        )
     return np.rad2deg(theta_cm_rad)
