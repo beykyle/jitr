@@ -537,6 +537,12 @@ class Reaction:
             Ecm (float): Center-of-mass energy.
             Q (float): Q-value of the reaction.
         """
+        if self.product is None or self.residual is None:
+            raise ValueError(
+                "to_lab_frame() requires both product and residual to be defined. "
+                f"This reaction ({self.reaction_string}) does not have a defined "
+                "product and/or residual."
+            )
         return cm_to_lab_frame(
             theta_cm,
             self.projectile.m0,
@@ -556,6 +562,12 @@ class Reaction:
             Elab (float): Laboratory energy.
             Q (float): Q-value of the reaction.
         """
+        if self.product is None or self.residual is None:
+            raise ValueError(
+                "to_cm_frame() requires both product and residual to be defined. "
+                f"This reaction ({self.reaction_string}) does not have a defined "
+                "product and/or residual."
+            )
         return lab_to_cm_frame(
             theta_lab,
             self.projectile.m0,
