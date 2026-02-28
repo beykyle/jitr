@@ -15,6 +15,7 @@ class ElasticXS:
     Contains:
     -   differential cross section [mb/Sr]
     -   analyzing power [dimensionless]
+    -   Q (spin rotation function) [dimensionless]
     -   total cross section [mb]
     -   reaction cross secton [mb]
     """
@@ -332,13 +333,13 @@ def differential_elastic_xs(
     ls: np.ndarray,
     P_l_costheta: np.ndarray,
     P_1_l_costheta: np.ndarray,
-    f_c: np.ndarray = 0,
-    sigma_l: np.ndarray = 0,
+    f_c: np.ndarray = None,
+    sigma_l: np.ndarray = None,
     eps: float = 1e-30,
 ):
     r"""
     Calculates differential, total and reaction cross sections for spin-1/2 on spin-0 scattering
-    (Herman et al., 2007) in mb/sr, plus analyzing power A_y and spin-rotation parameter Q.
+    in mb/sr, plus analyzing power A_y and spin-rotation parameter Q.
 
     Amplitudes:
       f(θ) = a(θ) + i (σ·n̂) b(θ)
@@ -348,6 +349,11 @@ def differential_elastic_xs(
       A_y   = 2 Im(a* b) / (|a|^2 + |b|^2)
       Q     = 2 Re(a* b) / (|a|^2 + |b|^2)
     """
+    if f_c is None:
+        f_c = 0
+    if sigma_l is None:
+        sigma_l = np.zeros_like(splus)
+
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
 
