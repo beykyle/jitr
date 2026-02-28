@@ -333,8 +333,8 @@ def differential_elastic_xs(
     ls: np.ndarray,
     P_l_costheta: np.ndarray,
     P_1_l_costheta: np.ndarray,
-    f_c: np.ndarray = None,
-    sigma_l: np.ndarray = None,
+    f_c: np.ndarray = 0,
+    sigma_l: np.ndarray = 0,
     eps: float = 1e-30,
 ):
     r"""
@@ -349,11 +349,6 @@ def differential_elastic_xs(
       A_y   = 2 Im(a* b) / (|a|^2 + |b|^2)
       Q     = 2 Re(a* b) / (|a|^2 + |b|^2)
     """
-    if f_c is None:
-        f_c = 0
-    if sigma_l is None:
-        sigma_l = np.zeros_like(splus)
-
     a = np.zeros_like(angles, dtype=np.complex128) + f_c
     b = np.zeros_like(angles, dtype=np.complex128)
 
