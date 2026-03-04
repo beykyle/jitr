@@ -29,8 +29,9 @@ class ElasticXS:
 
 class IntegralWorkspace:
     r"""
-    Workspace for integral observables like S-matrix elements and total and reaction cross sections for
-    local interactions with spin-orbit coupling
+    Workspace for integral observables like S-matrix elements and total
+    and reaction cross sections for local interactions with spin-orbit
+    coupling
     """
 
     def __init__(
@@ -42,6 +43,30 @@ class IntegralWorkspace:
         lmax: int,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
+        """
+        Builds the workspace from the reaction and kinematics
+        information.
+
+        Parameters:
+        -----------
+        reaction: Reaction
+            The reaction for which to compute the observables. Must be
+            elastic.
+        kinematics: ChannelKinematics
+            The kinematics of the reaction, including energy and
+            momentum information.
+        channel_radius_fm: float
+            The channel radius in fm for the R-matrix calculation.
+        solver: Solver
+            The R-matrix solver to use for computing the S-matrix
+            elements.
+        lmax: int
+            The maximum partial wave to include in the calculation.
+        smatrix_abs_tol: float
+            The absolute tolerance for determining when the S-matrix
+            elements are close enough to 1 to stop the partial wave
+            expansion. Default is 1e-6.
+        """
         # ensure reaction is elastic
         if reaction.process.lower() != "el":
             raise ValueError("Reaction must be elastic!")
@@ -87,8 +112,10 @@ class IntegralWorkspace:
         self,
         interaction_central,
         interaction_spin_orbit,
+        interaction_coulomb=None,
         args_central=None,
         args_spin_orbit=None,
+        args_coulomb=None,
     ):
         r"""
         returns the partial wave S-matrix elements as two arrays over partial
@@ -114,6 +141,16 @@ class IntegralWorkspace:
             local_interaction=interaction_spin_orbit,
             local_args=args_spin_orbit,
         )
+        if interaction_coulomb is not None:
+            im_coulomb = self.solver.interaction_matrix(
+                self.channels[0][0].k[0],
+                self.channels[0][0].E[0],
+                self.channels[0][0].a,
+                self.channels[0][0].size,
+                local_interaction=interaction_coulomb,
+                local_args=args_coulomb,
+            )
+            im_central += im_coulomb
 
         # s-wave, l = 0, j = 1/2
         _, s0, _ = self.solver.solve(
@@ -161,9 +198,10 @@ class IntegralWorkspace:
         self,
         interaction_central,
         interaction_spin_orbit,
+        interaction_coulomb=None,
         args_central=None,
         args_spin_orbit=None,
-        angles=None,
+        args_coulomb=None,
     ):
         r"""
         returns the angle-integrated total, elastic and reaction cross sections in mb
@@ -171,8 +209,10 @@ class IntegralWorkspace:
         splus, sminus = self.smatrix(
             interaction_central,
             interaction_spin_orbit,
+            interaction_coulomb,
             args_central,
             args_spin_orbit,
+            args_coulomb,
         )
         return integral_elastic_xs(self.kinematics.k, splus, sminus, self.ls)
 
@@ -180,9 +220,10 @@ class IntegralWorkspace:
         self,
         interaction_central,
         interaction_spin_orbit,
+        interaction_coulomb=None,
         args_central=None,
         args_spin_orbit=None,
-        angles=None,
+        args_coulomb=None,
     ):
         r"""
         returns the partial wave tranmission coefficients as two arrays over
@@ -192,8 +233,10 @@ class IntegralWorkspace:
         splus, sminus = self.smatrix(
             interaction_central,
             interaction_spin_orbit,
+            interaction_coulomb,
             args_central,
             args_spin_orbit,
+            args_coulomb,
         )
         return 1.0 - np.absolute(splus) ** 2, 1.0 - np.absolute(sminus) ** 2
 
@@ -215,6 +258,31 @@ class DifferentialWorkspace:
         angles: np.array,
         smatrix_abs_tol: np.float64 = 1e-6,
     ):
+        """
+        Builds the workspace from the reaction and kinematics information.
+
+        Parameters:
+        -----------
+        reaction: Reaction
+            The reaction for which to compute the observables. Must be
+            elastic.
+        kinematics: ChannelKinematics
+            The kinematics of the reaction, including energy and
+            momentum information.
+        channel_radius_fm: float
+            The channel radius in fm for the R-matrix calculation.
+        solver: Solver
+            The R-matrix solver to use for computing the S-matrix elements.
+        lmax: int
+            The maximum partial wave to include in the calculation.
+        angles: np.array
+            A 1D array of angles in radians at which to compute the
+            differential observables.
+        smatrix_abs_tol: float
+            The absolute tolerance for determining when the S-matrix
+            elements are close enough to 1 to stop the partial wave
+            expansion. Default is 1e-6.
+        """
         integral_workspace = IntegralWorkspace(
             reaction, kinematics, channel_radius_fm, solver, lmax, smatrix_abs_tol
         )
@@ -270,8 +338,10 @@ class DifferentialWorkspace:
         self,
         interaction_central,
         interaction_spin_orbit,
+        interaction_coulomb=None,
         args_central=None,
         args_spin_orbit=None,
+        args_coulomb=None,
     ):
         """
         Returns a dataclass with the following attributes:
@@ -281,7 +351,12 @@ class DifferentialWorkspace:
         -   reaction cross secton [mb]
         """
         splus, sminus = self.integral_workspace.smatrix(
-            interaction_central, interaction_spin_orbit, args_central, args_spin_orbit
+            interaction_central,
+            interaction_spin_orbit,
+            interaction_coulomb,
+            args_central,
+            args_spin_orbit,
+            args_coulomb,
         )
         return ElasticXS(
             *differential_elastic_xs(

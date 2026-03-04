@@ -15,7 +15,10 @@ from pathlib import Path
 import numpy as np
 
 from ..data import data_dir
+from ..reactions.reaction import Reaction
 from ..utils.constants import ALPHA, HBARC
+from ..utils.kinematics import ChannelKinematics
+from .omp import SingleChannelOpticalModel
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -27,48 +30,100 @@ NUM_POSTERIOR_SAMPLES = 208
 NUM_PARAMS = 22
 
 
-def get_samples_democratic():
+def get_param_names():
+    """
+    Get the names of the parameters for the given projectile, in the
+    order they are returned by the get_samples function.
+    """
+    return list(Global().params.keys())
+
+
+def get_samples(posterior: str = "federal"):
+    """
+    Get the posterior samples for the given projectile (neutron or
+    proton) from the CHUQ Federal or Democratic posteriors.
+
+    See [Pruitt, et al., 2023]
+    (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602) for
+    details on the CHUQ posteriors.
+
+    Parameters:
+    ----------
+    posterior : str
+        Which CHUQ posterior to return samples from. Must be either
+        "federal" or "democratic". Defaults to "federal".
+
+    Returns:
+    -------
+    np.ndarray
+        An array of shape (NUM_POSTERIOR_SAMPLES, num_params) containing
+        the posterior samples for the given projectile, where num_params
+        is the number of parameters in the Chapel-Hill potential,
+        and the parameters are ordered according to the order set by
+        the get_param_names function.
+    """
+    if posterior == "federal":
+        directory = "CHUQFederal"
+    elif posterior == "democratic":
+        directory = "CHUQDemocratic"
+    else:
+        raise ValueError("posterior must be either 'federal' or 'democratic'")
+
     return np.array(
         [
-            list(
-                Global(data_dir / f"CHUQDemocratic/{i}/parameters.json").params.values()
-            )
+            list(Global(data_dir / f"{directory}/{i}/parameters.json").params.values())
             for i in range(NUM_POSTERIOR_SAMPLES)
         ]
     )
 
 
-def get_samples_federal():
-    return np.array(
-        [
-            list(Global(data_dir / f"CHUQFederal/{i}/parameters.json").params.values())
-            for i in range(NUM_POSTERIOR_SAMPLES)
-        ]
-    )
+def central(r, V, W, Wd, Rv, av, Rd, ad) -> complex:
+    r"""
+    Form of the central term of the CHUQ potential, given by Eqs. A7-8
+    of [Pruitt, et al., 2023]
 
-
-def central(r, V, W, Wd, R, a, Rd, ad):
-    r"""form of central part (volume and surface)"""
-    volume = V * woods_saxon_safe(r, R, a)
+    Parameters:
+    ----------
+    r : float or np.ndarray
+        The radius at which to evaluate the potential.
+    V : float
+        The depth of the real central potential.
+    W : float
+        The depth of the imaginary volume potential.
+    Wd : float
+        The depth of the imaginary surface potential.
+    Rv : float
+        The radius of the real central potential.
+    av : float
+        The diffuseness of the real central potential.
+    Rd : float
+        The radius of the imaginary potential.
+    ad : float
+        The diffuseness of the imaginary potential.
+    """
+    volume = V * woods_saxon_safe(r, Rv, av)
     imag_volume = 1j * W * woods_saxon_safe(r, Rd, ad)
     surface = -(4j * ad * Wd) * woods_saxon_prime_safe(r, Rd, ad)
     return -volume - imag_volume - surface
 
 
-def spin_orbit(r, Vso, Rso, aso):
-    r"""form of spin-orbit term"""
+def spin_orbit(r, Vso, Rso, aso) -> complex:
+    """
+    Form of the spin-orbit term of the CHUQ potential, given by Eqs.
+    A7-8 of [Pruitt, et al., 2023]
+
+    Parameters:
+    ----------
+    r : float or np.ndarray
+        The radius at which to evaluate the potential.
+    Vso : float
+        The depth of the spin-orbit potential.
+    Rso : float
+        The radius of the spin-orbit potential.
+    aso : float
+        The diffuseness of the spin-orbit potential.
+    """
     return 2 * Vso * thomas_safe(r, Rso, aso)
-
-
-def central_plus_coulomb(
-    r,
-    central_params,
-    coulomb_params,
-):
-    r"""sum of coulomb, central isoscalar and central isovector terms"""
-    coulomb = coulomb_charged_sphere(r, *coulomb_params)
-    centr = central(r, *central_params)
-    return centr + coulomb
 
 
 def calculate_params(
@@ -99,7 +154,9 @@ def calculate_params(
     rc_0: float = 0.12,
 ):
     """
-    Calculate the parameters for the optical model potential.
+    Calculate the arguments for the central, spin_orbit, and
+    coulomb_charged_sphere functions corresponding to the CHUQ potential
+    for a given projectile, target, lab energy, and the CHUQ parameters.
 
     Parameters:
     ----------
@@ -122,6 +179,31 @@ def calculate_params(
         Note: there is a typo in Eq. A4 of the CHUQ paper, there should be a
         plus/minus sign in front of Wst, not a plus. See Table 3 of the
         original CH89 paper for the correct sign.
+
+    Returns:
+    -------
+        central_params : tuple
+            A tuple containing the parameters for the central part
+            of the potential, in the form (V0, Wv, Ws, R0, a0, Rw,
+            aw), where V0 is the depth of the real central
+            potential, Wv is the depth of the imaginary volume
+            potential, Ws is the depth of the imaginary surface
+            potential, R0 is the radius of the real central
+            potential, a0 is the diffuseness of the real central
+            potential, Rw is the radius of the imaginary potential,
+            and aw is the diffuseness of the imaginary potential.
+        spin_orbit_params : tuple
+            A tuple containing the parameters for the spin-orbit
+            part of the potential, in the form (Vso, Rso, aso),
+            where Vso is the depth of the spin-orbit potential,
+            Rso is the radius of the spin-orbit potential, and aso
+            is the diffuseness of the spin-orbit potential.
+        coulomb_params : tuple
+            A tuple containing the parameters for the Coulomb
+            potential,
+            in the form (Z*Zp, RC), where Z is the charge of the
+            target, Zp is the charge of the projectile, and RC is
+            the Coulomb radius.
     """
     A, Z = target
     Ap, Zp = projectile
@@ -155,7 +237,7 @@ def calculate_params(
     spin_orbit_params = (Vso, Rso, aso)
     coulomb_params = (Z * Zp, RC)
 
-    return coulomb_params, central_params, spin_orbit_params
+    return central_params, spin_orbit_params, coulomb_params
 
 
 def coulomb_correction(A, Z, RC):
@@ -242,3 +324,74 @@ class Global:
     def get_params(self, projectile, target, Elab):
         # fermi energy
         return calculate_params(projectile, target, Elab, *list(self.params.values()))
+
+
+class CHUQ(SingleChannelOpticalModel):
+    """
+    Chapel-Hill Uncertainty Quantification (CHUQ) optical
+    potential model.
+
+    Note that CH89 is Lane consistent, so the same parameters can be
+    used for both neutron and proton projectiles.
+    """
+
+    def __init__(self):
+        super().__init__(
+            params=get_param_names(),
+            interaction_central=central,
+            interaction_spin_orbit=spin_orbit,
+            interaction_coulomb=coulomb_charged_sphere,
+        )
+
+    def params_by_term(
+        self,
+        reaction: Reaction,
+        kinematics: ChannelKinematics,
+        *params,
+    ) -> tuple:
+        """
+        Calculate the central, spin-orbit, and Coulomb parameters for
+        the Chapel-Hill '89 potential based on the provided parameters
+        and the reaction and kinematics.
+
+        Parameters:
+        ----------
+        reaction : Reaction
+            The reaction for which to calculate the parameters.
+        kinematics : ChannelKinematics
+            The kinematics of the reaction channel.s
+        V0, Ve, ..., rc_0: float
+            Parameters for the Chapel-Hill optical model potential.
+            See Table V and the Appendix
+            of [Pruitt, et al., 2023]
+            (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
+            for details.
+
+            Note: there is a typo in Eq. A4 of the CHUQ paper, there should be a
+            plus/minus sign in front of Wst, not a plus. See Table 3 of the
+            original CH89 paper for the correct sign.
+
+        Returns:
+        -------
+            central_params : tuple
+                (V0, Wv, Ws, R0, a0, Rw, aw), where V0 is the depth of the
+                real central potential, Wv is the depth of the imaginary
+                volume potential, Ws is the depth of the imaginary surface
+                potential, R0 is the radius of the real central potential,
+                a0 is the diffuseness of the real central potential, Rw is
+                the radius of the imaginary potential, and aw is the
+                diffuseness of the imaginary potential.
+            spin_orbit_params : tuple
+                (Vso, Rso, aso), where Vso is the depth of the spin-orbit
+                potential, Rso is the radius of the spin-orbit potential, and
+                aso is the diffuseness of the spin-orbit potential.
+            coulomb_params : tuple
+                (Z*Zp, RC), where Z is the charge of the target, Zp is the
+                charge of the projectile, and RC is the Coulomb radius.
+        """
+        return calculate_params(
+            tuple(reaction.projectile),
+            tuple(reaction.target),
+            kinematics.Elab,
+            *params,
+        )

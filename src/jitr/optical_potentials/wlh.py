@@ -13,8 +13,10 @@ from pathlib import Path
 import numpy as np
 
 from ..data import data_dir
+from ..reactions.reaction import Reaction
 from ..utils.constants import WAVENUMBER_PION
-from ..xs.elastic import DifferentialWorkspace
+from ..utils.kinematics import ChannelKinematics
+from .omp import SingleChannelOpticalModel
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -25,7 +27,25 @@ from .potential_forms import (
 NUM_POSTERIOR_SAMPLES = 1000
 
 
+def get_param_names(projectile: tuple):
+    """
+    Get the names of the parameters for the given projectile, in the
+    order they are returned by the get_samples function.
+    """
+    return list(Global(projectile).params.keys())
+
+
 def get_samples(projectile: tuple):
+    """
+    Get the parameter samples for the WLH potential for the given
+    projectile.
+
+    Parameters:
+    ------------
+    projectile : tuple
+        (A, Z) of the projectile. Should be (1, 0) for neutron and (1,
+        1) for proton.
+    """
     return np.array(
         [
             list(
@@ -38,24 +58,58 @@ def get_samples(projectile: tuple):
     )
 
 
-def spin_orbit(r, uso, rso, aso):
-    r"""WLH spin-orbit terms"""
-    return (uso / WAVENUMBER_PION**2) * thomas_safe(r, rso, aso)
+def spin_orbit(r, Uso, Rso, aso) -> complex:
+    """
+    Form of the spin-orbit term in the WLH potential. See Eq. (2) of
+    Whitehead et al., 2021.
+
+    Parameters:
+    ------------
+    r : float or np.ndarray
+        Radial coordinate(s) at which to evaluate the potential
+    Uso : float
+        Spin-orbit strength parameter
+    Rso : float
+        Spin-orbit radius parameter
+    aso : float
+        Spin-orbit diffuseness parameter
+    """
+    return (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
 
 
-def central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
-    r"""WLH without the spin-orbit term"""
+def central(r, Uv, Rv, av, Uw, Rw, aw, Ud, Rd, ad) -> complex:
+    """
+    Form of the central term in the WLH potential. See Eq. (2) of
+    Whitehead et al., 2021.
+
+    Parameters:
+    ------------
+    r : float or np.ndarray
+        Radial coordinate(s) at which to evaluate the potential
+    Uv : float
+        Real volume potential strength parameter
+    Rv : float
+        Real volume potential radius parameter
+    av : float
+        Real volume potential diffuseness parameter
+    Uw : float
+        Imaginary volume potential strength parameter
+    Rw : float
+        Imaginary volume potential radius parameter
+    aw : float
+        Imaginary volume potential diffuseness parameter
+    Ud : float
+        Imaginary surface potential strength parameter
+    Rd : float
+        Imaginary surface potential radius parameter
+    ad : float
+        Imaginary surface potential diffuseness parameter
+    """
     return (
-        -uv * woods_saxon_safe(r, rv, av)
-        - 1j * uw * woods_saxon_safe(r, rw, aw)
-        - 1j * (-4 * ad) * ud * woods_saxon_prime_safe(r, rd, ad)
+        -Uv * woods_saxon_safe(r, Rv, av)
+        - 1j * Uw * woods_saxon_safe(r, Rw, aw)
+        - 1j * (-4 * ad) * Ud * woods_saxon_prime_safe(r, Rd, ad)
     )
-
-
-def central_plus_coulomb(r, central_params, coulomb_params):
-    nucl = central(r, *central_params)
-    coul = coulomb_charged_sphere(r, *coulomb_params)
-    return nucl + coul
 
 
 class Global:
@@ -245,9 +299,12 @@ def calculate_params(
     aso1: float,
 ):
     """
-    Calculates WLH parameters for a given system
+    Calculate the arguments for the central, spin_orbit, and
+    coulomb_charged_sphere functions corresponding to the WLH potential
+    for a given projectile, target, lab energy, and the WLH parameters.
 
     Parameters:
+    ------------
         projectile : tuple
             (A, Z) of the projectile
         target : tuple
@@ -259,6 +316,21 @@ def calculate_params(
             [Whitehead et al., 2021]
             (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
             for details.
+
+    Returns:
+    ------------
+        central_params : tuple
+            (uv, Rv, av, uw, Rw, aw, ud, Rd, ad) where uv, rv, av are
+            the real volume potential parameters, uw, rw, aw are the
+            imaginary volume potential parameters, and ud, rd, ad are
+            the imaginary surface potential parameters
+        spin_orbit_params : tuple
+            (uso, Rso, aso) where uso is the spin-orbit strength, and
+            Rso, aso are the spin-orbit radius and diffuseness
+            parameters
+        coulomb_params : tuple
+            (Z*Zp, RC), where Z is the charge of the target, Zp is the
+            charge of the projectile, and RC is the Coulomb radius.
     """
 
     A, Z = target
@@ -321,21 +393,66 @@ def calculate_params(
         rso * A ** (1.0 / 3.0),
         aso,
     )
-    return coulomb_params, central_params, spin_orbit_params
+    return central_params, spin_orbit_params, coulomb_params
 
 
-def calculate_diff_xs(
-    workspace: DifferentialWorkspace,
-    params: OrderedDict,
-):
-    rxn = workspace.reaction
-    coulomb_params, central_params, spin_orbit_params = calculate_params(
-        rxn.projectile, rxn.target, workspace.kinematics.Elab, params
-    )
+class WLH(SingleChannelOpticalModel):
+    """
+    The Whitehead-Lim-Holt global optical potential for nucleon-nucleus
+    scattering.
+    """
 
-    return workspace.xs(
-        central_plus_coulomb,
-        spin_orbit,
-        (central_params, coulomb_params),
-        spin_orbit_params,
-    )
+    def __init__(self, projectile: tuple):
+        super().__init__(
+            params=get_param_names(projectile),
+            interaction_central=central,
+            interaction_spin_orbit=spin_orbit,
+            interaction_coulomb=coulomb_charged_sphere,
+        )
+        self.projectile = projectile
+
+    def params_by_term(
+        self,
+        reaction: Reaction,
+        kinematics: ChannelKinematics,
+        *params,
+    ) -> tuple:
+        """
+        Calculate the arguments for the central, spin_orbit, and
+        coulomb_charged_sphere functions corresponding to the WLH potential
+        for a given projectile, target, lab energy, and the WLH parameters.
+
+
+        Parameters:
+        ----------
+        reaction : Reaction
+            The reaction for which to calculate the parameters.
+        kinematics : ChannelKinematics
+            The kinematics of the reaction channel.s
+        uv0, uv1, ..., aso1 : float
+            Parameters of the WLH potential. See
+            [Whitehead et al., 2021]
+            (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
+            for details.
+
+        Returns:
+        -------
+        central_params : tuple
+            (uv, Rv, av, uw, Rw, aw, ud, Rd, ad) where uv, rv, av are
+            the real volume potential parameters, uw, rw, aw are the
+            imaginary volume potential parameters, and ud, rd, ad are
+            the imaginary surface potential parameters
+        spin_orbit_params : tuple
+            (uso, Rso, aso) where uso is the spin-orbit strength, and
+            Rso, aso are the spin-orbit radius and diffuseness
+            parameters
+        coulomb_params : tuple
+            (Z*Zp, RC), where Z is the charge of the target, Zp is the
+            charge of the projectile, and RC is the Coulomb radius.
+        """
+        return calculate_params(
+            tuple(reaction.projectile),
+            tuple(reaction.target),
+            kinematics.Elab,
+            *params,
+        )
