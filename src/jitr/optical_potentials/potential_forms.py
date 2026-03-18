@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import special as sc
+
 from ..utils.constants import ALPHA, HBARC
 
 MAX_ARG = np.log(1 / 1e-16)
@@ -87,7 +88,7 @@ def woods_saxon_prime_mean_square_radius(R, a):
 
 
 def thomas_volume_integral(V, R, a):
-    return 8 * np.pi * R**3 * V * (1 + (np.pi * a / R) ** 2)
+    return 4 * np.pi * V * (R + a * np.log(1 + np.exp(-R / a)))
 
 
 def thomas_mean_square_radius(R, a):
