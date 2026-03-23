@@ -1,12 +1,9 @@
 import numpy as np
 
-from ..reactions.system import Channels, Asymptotics
-from ..utils import block
-from .core import (
-    solution_coeffs_with_inverse,
-    solve_smatrix_with_inverse,
-)
 from ..quadrature import Kernel
+from ..reactions.system import Asymptotics, Channels
+from ..utils import block
+from .core import solution_coeffs_with_inverse, solve_smatrix_with_inverse
 
 
 class Solver:
