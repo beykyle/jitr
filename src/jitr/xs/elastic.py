@@ -187,12 +187,13 @@ class IntegralWorkspace:
             )
             sminus[l] = sm[0, 0]
 
+            last_l = l
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
                 np.absolute(1 - sminus[l])
             ) < self.smatrix_abs_tol:
                 break
 
-        return splus[:l], sminus[:l]
+        return splus[: last_l + 1], sminus[: last_l + 1]
 
     def xs(
         self,
