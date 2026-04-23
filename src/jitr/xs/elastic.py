@@ -4,7 +4,12 @@ import numpy as np
 from numba import njit
 from scipy.special import eval_legendre, gamma, lpmv
 
-from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
+from ..reactions import (
+    ProjectileTargetSystem,
+    Reaction,
+    spin_half_orbit_coupling,
+    wavefunction,
+)
 from ..rmatrix import Solver
 from ..utils.kinematics import ChannelKinematics
 
@@ -156,6 +161,101 @@ class IntegralWorkspace:
                 break
 
         return splus[:l], sminus[:l]
+
+    def wavefunctions(
+        self,
+        sgrid: np.ndarray,
+        interaction_central,
+        interaction_spin_orbit,
+        args_central=None,
+        args_spin_orbit=None,
+    ):
+        r"""
+        Returns the partial waves of the scattering wavefunction
+        on a provided radial grid sgrid in fm, as two arrays over partial
+        wave l, one for for the l+1/2 and a ssecond for the l-1/2 partial waves
+        """
+        wvfxn_plus = np.zeros((self.sys.lmax + 1, sgrid.size), dtype=np.complex128)
+        wvfxn_minus = np.zeros((self.sys.lmax + 1, sgrid.size), dtype=np.complex128)
+
+        # precompute the interaction matrix
+        im_central = self.solver.interaction_matrix(
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
+            local_interaction=interaction_central,
+            local_args=args_central,
+        )
+        im_spin_orbit = self.solver.interaction_matrix(
+            self.channels[0][0].k[0],
+            self.channels[0][0].E[0],
+            self.channels[0][0].a,
+            self.channels[0][0].size,
+            local_interaction=interaction_spin_orbit,
+            local_args=args_spin_orbit,
+        )
+
+        # s-wave, l = 0, j = 1/2
+        R, s, x, uext_prime_a = self.solver.solve(
+            self.channels[0][0],
+            self.asymptotics[0][0],
+            free_matrix=self.free_matrices[0],
+            interaction_matrix=im_central,
+            basis_boundary=self.basis_boundary,
+            wavefunction=True,
+        )
+        u_lm = wavefunction.Wavefunctions(
+            self.solver,
+            x,
+            s,
+            uext_prime_a,
+            self.channels[0][0],
+        ).uint()[0]
+        wvfxn_plus[0, :] = u_lm(sgrid)
+
+        # higher partial waves
+        for l in self.sys.l[1:]:
+            ch = self.channels[l]
+            asym = self.asymptotics[l]
+            lds = self.l_dot_s[l - 1]  # starts from 1 not 0
+            # j = l + 1/2
+            R, s, x, uext_prime_a = self.solver.solve(
+                ch[0],
+                asym[0],
+                free_matrix=self.free_matrices[l],
+                interaction_matrix=im_central + lds[0] * im_spin_orbit,
+                basis_boundary=self.basis_boundary,
+                wavefunction=True,
+            )
+            u_lm = wavefunction.Wavefunctions(
+                self.solver,
+                x,
+                s,
+                uext_prime_a,
+                ch[0],
+            ).uint()[0]
+            wvfxn_plus[l, :] = u_lm(sgrid)
+
+            # j = l - 1/2
+            R, s, x, uext_prime_a = self.solver.solve(
+                ch[1],
+                asym[1],
+                free_matrix=self.free_matrices[l],
+                interaction_matrix=im_central + lds[1] * im_spin_orbit,
+                basis_boundary=self.basis_boundary,
+                wavefunction=True,
+            )
+            u_lm = wavefunction.Wavefunctions(
+                self.solver,
+                x,
+                s,
+                uext_prime_a,
+                ch[1],
+            ).uint()[0]
+            wvfxn_minus[l, :] = u_lm(sgrid)
+
+        return wvfxn_plus, wvfxn_minus
 
     def xs(
         self,
