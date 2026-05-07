@@ -1,6 +1,7 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=80", "setuptools_scm[toml]>=8"]
 build-backend = "setuptools.build_meta"
+
 
 [project]
 name = "jitr"
@@ -10,15 +11,76 @@ authors = [
 description = "Calculable R-matrix solver for quantum scattering using just-in-time compilation for performance."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.10"
-dynamic = ["dependencies", "version"]
+requires-python = ">=3.12"
+dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+    "mpmath",
+    "numpy",
+    "scipy",
+    "sympy",
+    "periodictable",
+    "numba",
+    "sympy",
+    "pandas",
+]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[dependency-groups]
+test = [
+    "pytest",
+]
+
+examples = [
+    "matplotlib",
+    "exfor_tools",
+    "nbmake",
+    "nbval",
+    "ipykernel",
+    "jupyter",
+    "pytest",
+    "matplotlib",
+]
+
+lint = [
+    "ruff",
+    "black",
+    "flake8",
+    "mypy",
+]
+
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "examples" },
+]
 
 [tool.setuptools_scm]
-write_to = "src/jitr/__version__.py"
+version_file = "src/jitr/__version__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.uv.workspace]
+members = [
+    "jitr",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["jitr"]
+strict = false
