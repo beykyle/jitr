@@ -1,8 +1,7 @@
 """DWBA workspaces for quasi-elastic ``(p,n)`` scattering observables."""
 
-from typing import Any
-
 import numpy as np
+import numpy.typing as npt
 from scipy.special import gamma, sph_harm_y
 from sympy.physics.wigner import clebsch_gordan
 
@@ -11,6 +10,9 @@ from ..rmatrix import Solver
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
 from .elastic import check_angles
+
+ComplexArray = npt.NDArray[np.complex128]
+FloatArray = npt.NDArray[np.float64]
 
 
 class System:
@@ -42,7 +44,7 @@ class System:
         reaction: Reaction,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> None:
         r"""
         Initialize the System for (p,n) quasi-elastic scattering observables.
         Parameters:
@@ -98,11 +100,11 @@ class Workspace:
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
         solver: Solver,
-        angles: np.array,
+        angles: FloatArray,
         lmax: int,
         channel_radius_fm: float,
         tmatrix_abs_tol: float = 1e-6,
-    ):
+    ) -> None:
         r"""
         Initialize the Workspace for (p,n) quasi-elastic scattering observables.
         Parameters:
@@ -226,18 +228,27 @@ class Workspace:
                                 * ylm
                             )
 
+    def radial_grid(self) -> FloatArray:
+        """Return the physical quadrature grid used for local potentials."""
+        return self.solver.radial_grid(
+            self.p_channels[0][0].a, self.kinematics_entrance.k
+        )
+
+    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
+        """Validate and cast a local potential array on the quadrature grid."""
+        potential_array = np.asarray(potential, dtype=np.complex128)
+        expected_shape = (self.solver.kernel.quadrature.nbasis,)
+        if potential_array.shape != expected_shape:
+            raise ValueError(f"{name} must have shape {expected_shape}")
+        return potential_array
+
     def tmatrix(
         self,
-        U_p_coulomb: Any | None = None,
-        U_p_central: Any | None = None,
-        U_p_spin_orbit: Any | None = None,
-        U_n_central: Any | None = None,
-        U_n_spin_orbit: Any | None = None,
-        args_p_coulomb: tuple[Any, ...] | None = None,
-        args_p_central: tuple[Any, ...] | None = None,
-        args_p_spin_orbit: tuple[Any, ...] | None = None,
-        args_n_central: tuple[Any, ...] | None = None,
-        args_n_spin_orbit: tuple[Any, ...] | None = None,
+        U_p_coulomb: npt.ArrayLike | None = None,
+        U_p_central: npt.ArrayLike | None = None,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
@@ -279,29 +290,41 @@ class Workspace:
 
         # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
+        if (
+            U_p_coulomb is None
+            or U_p_central is None
+            or U_p_spin_orbit is None
+            or U_n_central is None
+            or U_n_spin_orbit is None
+        ):
+            raise ValueError("All proton and neutron potential arrays are required")
+
+        proton_central = self._local_potential(U_p_central, "U_p_central")
+        proton_spin_orbit = self._local_potential(U_p_spin_orbit, "U_p_spin_orbit")
+        proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
+        neutron_central = self._local_potential(U_n_central, "U_n_central")
+        neutron_spin_orbit = self._local_potential(U_n_spin_orbit, "U_n_spin_orbit")
+
         im_central_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_central,
-            local_args=args_p_central,
+            local_potential=proton_central,
         )
         im_spin_orbit_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_spin_orbit,
-            local_args=args_p_spin_orbit,
+            local_potential=proton_spin_orbit,
         )
         im_coulomb_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_coulomb,
-            local_args=args_p_coulomb,
+            local_potential=proton_coulomb,
         )
 
         # precomute central and spin-obit interaction matrices
@@ -311,36 +334,19 @@ class Workspace:
             self.n_channels[0][0].E[0],
             self.n_channels[0][0].a,
             self.n_channels[0][0].size,
-            local_interaction=U_n_central,
-            local_args=args_n_central,
+            local_potential=neutron_central,
         )
         im_spin_orbit_n = self.solver.interaction_matrix(
             self.n_channels[0][0].k[0],
             self.n_channels[0][0].E[0],
             self.n_channels[0][0].a,
             self.n_channels[0][0].size,
-            local_interaction=U_n_spin_orbit,
-            local_args=args_n_spin_orbit,
+            local_potential=neutron_spin_orbit,
         )
 
-        # evaluate the QE (p,n) transition matrix element on the quadrature
-        # in r-space
-        r_quadrature = (
-            self.solver.kernel.quadrature.abscissa * self.sys.channel_radius_fm
-        )
-        U1_central = (
-            -(
-                U_n_central(r_quadrature, *args_n_central)
-                - U_p_central(r_quadrature, *args_p_central)
-            )
-            * self.isovector_factor
-        )
+        U1_central = -(neutron_central - proton_central) * self.isovector_factor
         U1_spin_orbit = (
-            -(
-                U_n_spin_orbit(r_quadrature, *args_n_spin_orbit)
-                - U_p_spin_orbit(r_quadrature, *args_p_spin_orbit)
-            )
-            * self.isovector_factor
+            -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
         )
 
         def tmatrix_element(l, ji, l_dot_s):
@@ -397,16 +403,11 @@ class Workspace:
 
     def xs(
         self,
-        U_p_coulomb: Any | None = None,
-        U_p_central: Any | None = None,
-        U_p_spin_orbit: Any | None = None,
-        U_n_central: Any | None = None,
-        U_n_spin_orbit: Any | None = None,
-        args_p_coulomb: tuple[Any, ...] | None = None,
-        args_p_central: tuple[Any, ...] | None = None,
-        args_p_spin_orbit: tuple[Any, ...] | None = None,
-        args_n_central: tuple[Any, ...] | None = None,
-        args_n_spin_orbit: tuple[Any, ...] | None = None,
+        U_p_coulomb: npt.ArrayLike | None = None,
+        U_p_central: npt.ArrayLike | None = None,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
     ) -> np.ndarray:
         """
         Calculate the differential cross section for (p,n) quasi-elastic scattering
@@ -447,11 +448,6 @@ class Workspace:
             U_p_spin_orbit=U_p_spin_orbit,
             U_n_central=U_n_central,
             U_n_spin_orbit=U_n_spin_orbit,
-            args_p_coulomb=args_p_coulomb,
-            args_p_central=args_p_central,
-            args_p_spin_orbit=args_p_spin_orbit,
-            args_n_central=args_n_central,
-            args_n_spin_orbit=args_n_spin_orbit,
         )
         # TODO cast into a np.sum
         for im, m in enumerate([-0.5, 0.5]):

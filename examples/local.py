@@ -24,6 +24,11 @@ def interaction(r, *params):
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
 
 
+def local_potential_array(solver, channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
+
+
 def local_interaction_example():
     r"""
     example of single-channel s-wave S-matrix calculation for p+Ca48
@@ -77,8 +82,12 @@ def local_interaction_example():
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
     # Lagrange mesh
+    local_potential = local_potential_array(solver_lm, channels[l], params)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        channels[l], asymptotics[l], interaction, params, wavefunction=True
+        channels[l],
+        asymptotics[l],
+        local_potential=local_potential,
+        wavefunction=True,
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = wavefunction.Wavefunctions(
@@ -169,8 +178,11 @@ def channel_radius_dependence_test():
     for i, a in enumerate(a_grid):
         sys.channel_radius = a
         channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
+        local_potential = solver.radial_grid(channels[l].a, channels[l].k[0])
         R, S, _ = solver.solve(
-            channels[l], asymptotics[l], woods_saxon_potential, params
+            channels[l],
+            asymptotics[l],
+            local_potential=woods_saxon_potential(local_potential, *params),
         )
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
@@ -241,13 +253,13 @@ def rmse_RK_LM():
         # since our interaction is l-independent and we're using the same
         # set of parameters for each partial wave, we can actually pre-compute
         # the interaction part of the Lagrange-matrix
+        local_potential = local_potential_array(solver, channels[0], params)
         im = solver.interaction_matrix(
             channels[0].k[0],
             channels[0].E[0],
             channels[0].a,
             channels[0].size,
-            local_interaction=interaction,
-            local_args=params,
+            local_potential=local_potential,
         )
 
         for l in sys.l:

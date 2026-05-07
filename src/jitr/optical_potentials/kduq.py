@@ -574,66 +574,25 @@ class KDUQ(SingleChannelOpticalModel):
     """
 
     def __init__(self, projectile: tuple):
-        super().__init__(
-            params=get_param_names(projectile),
-            interaction_central=central,
-            interaction_spin_orbit=spin_orbit,
-            interaction_coulomb=coulomb_charged_sphere,
-        )
+        super().__init__(params=get_param_names(projectile))
         self.projectile = projectile
 
-    def params_by_term(
+    def evaluate(
         self,
+        rgrid: float | np.ndarray,
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
     ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
-        """
-        Calculate the central, spin-orbit, and Coulomb parameters for
-        the Koning-Delaroche potential based on the provided parameters
-        and the reaction and kinematics.
-
-        Parameters:
-        ----------
-        reaction : Reaction
-            The reaction for which to calculate the parameters.
-        kinematics : ChannelKinematics
-            The kinematics of the reaction channel.s
-        *params : tuple
-            Parameters for the Koning-Delaroche potential, including
-            real and imaginary central depths, forms, spin-orbit terms,
-            and Coulomb correction parameters. See Table V and the Appendix
-            of [Pruitt, et al., 2023]
-            (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
-            for details. Provided in the same order as calculate_params
-            function and as listed in the Global class, and as provided
-            by the get_samples functions in this module.
-
-        Returns:
-        -------
-            central_params: tuple
-                (vv, Rv, av, wv, Rwv, awv, wd, Rd, ad), where vv is the
-                real central depth, Rv is the real central radius, av is
-                the real central diffuseness, wv is the imaginary volume
-                depth, Rwv is the imaginary volume radius, awv is the
-                imaginary volume diffuseness, wd is the imaginary
-                surface depth, Rd is the imaginary surface radius, and
-                ad is the imaginary surface diffuseness.
-            spin_orbit_params: tuple
-                (vso, Rso, aso, wso, Rwso, awso ), where vso is the real
-                spin-orbit depth, Rso is the real spin-orbit radius, aso
-                is the real spin-orbit diffuseness, wso is the imaginary
-                spin-orbit depth, Rwso is the imaginary spin-orbit
-                radius, and awso is the imaginary spin-orbit
-                diffuseness. Note that the real and imaginary spin-orbit
-                terms have the same form, so Rso = Rwso and aso = awso.
-            coulomb_params : tuple
-                (Z*Zp, RC), where Z is the charge of the target, Zp is the
-                charge of the projectile, and RC is the Coulomb radius.
-        """
-        return calculate_params(
+        """Evaluate the KDUQ central, spin-orbit, and Coulomb terms."""
+        central_params, spin_orbit_params, coulomb_params = calculate_params(
             tuple(reaction.projectile),
             tuple(reaction.target),
             kinematics.Elab,
             *params,
+        )
+        return (
+            central(rgrid, *central_params),
+            spin_orbit(rgrid, *spin_orbit_params),
+            coulomb_charged_sphere(rgrid, *coulomb_params),
         )

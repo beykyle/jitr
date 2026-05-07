@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -47,7 +46,7 @@ class IntegralWorkspace:
         channel_radius_fm: float,
         solver: Solver,
         lmax: int,
-        smatrix_abs_tol: np.float64 = 1e-6,
+        smatrix_abs_tol: float = 1e-6,
     ) -> None:
         """Build the workspace from reaction and kinematic information."""
         if reaction.process.lower() != "el":
@@ -82,43 +81,56 @@ class IntegralWorkspace:
         )
         self.ls = self.sys.l[:, np.newaxis]
 
+    def radial_grid(self) -> FloatArray:
+        """Return the physical quadrature grid used for local potentials."""
+        return self.solver.radial_grid(self.a, self.kinematics.k)
+
+    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
+        """Validate and cast a local potential array on the quadrature grid."""
+        potential_array = np.asarray(potential, dtype=np.complex128)
+        expected_shape = (self.solver.kernel.quadrature.nbasis,)
+        if potential_array.shape != expected_shape:
+            raise ValueError(f"{name} must have shape {expected_shape}")
+        return potential_array
+
     def smatrix(
         self,
-        interaction_central: Any,
-        interaction_spin_orbit: Any,
-        interaction_coulomb: Any | None = None,
-        args_central: tuple[Any, ...] | None = None,
-        args_spin_orbit: tuple[Any, ...] | None = None,
-        args_coulomb: tuple[Any, ...] | None = None,
+        central_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike,
+        coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[ComplexArray, ComplexArray]:
         """Compute the elastic S-matrix for ``j=l±1/2`` channels."""
         splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
+        central_array = self._local_potential(central_potential, "central_potential")
+        spin_orbit_array = self._local_potential(
+            spin_orbit_potential, "spin_orbit_potential"
+        )
 
         im_central = self.solver.interaction_matrix(
             self.channels[0][0].k[0],
             self.channels[0][0].E[0],
             self.channels[0][0].a,
             self.channels[0][0].size,
-            local_interaction=interaction_central,
-            local_args=args_central,
+            local_potential=central_array,
         )
         im_spin_orbit = self.solver.interaction_matrix(
             self.channels[0][0].k[0],
             self.channels[0][0].E[0],
             self.channels[0][0].a,
             self.channels[0][0].size,
-            local_interaction=interaction_spin_orbit,
-            local_args=args_spin_orbit,
+            local_potential=spin_orbit_array,
         )
-        if interaction_coulomb is not None:
+        if coulomb_potential is not None:
+            coulomb_array = self._local_potential(
+                coulomb_potential, "coulomb_potential"
+            )
             im_coulomb = self.solver.interaction_matrix(
                 self.channels[0][0].k[0],
                 self.channels[0][0].E[0],
                 self.channels[0][0].a,
                 self.channels[0][0].size,
-                local_interaction=interaction_coulomb,
-                local_args=args_coulomb,
+                local_potential=coulomb_array,
             )
             im_central += im_coulomb
 
@@ -164,41 +176,29 @@ class IntegralWorkspace:
 
     def xs(
         self,
-        interaction_central: Any,
-        interaction_spin_orbit: Any,
-        interaction_coulomb: Any | None = None,
-        args_central: tuple[Any, ...] | None = None,
-        args_spin_orbit: tuple[Any, ...] | None = None,
-        args_coulomb: tuple[Any, ...] | None = None,
+        central_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike,
+        coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[float, float]:
         """Return total and reaction cross sections in mb."""
         splus, sminus = self.smatrix(
-            interaction_central,
-            interaction_spin_orbit,
-            interaction_coulomb,
-            args_central,
-            args_spin_orbit,
-            args_coulomb,
+            central_potential,
+            spin_orbit_potential,
+            coulomb_potential,
         )
         return integral_elastic_xs(self.kinematics.k, splus, sminus, self.ls)
 
     def transmission_coefficients(
         self,
-        interaction_central: Any,
-        interaction_spin_orbit: Any,
-        interaction_coulomb: Any | None = None,
-        args_central: tuple[Any, ...] | None = None,
-        args_spin_orbit: tuple[Any, ...] | None = None,
-        args_coulomb: tuple[Any, ...] | None = None,
+        central_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike,
+        coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return transmission coefficients for ``j=l±1/2`` channels."""
         splus, sminus = self.smatrix(
-            interaction_central,
-            interaction_spin_orbit,
-            interaction_coulomb,
-            args_central,
-            args_spin_orbit,
-            args_coulomb,
+            central_potential,
+            spin_orbit_potential,
+            coulomb_potential,
         )
         return 1.0 - np.absolute(splus) ** 2, 1.0 - np.absolute(sminus) ** 2
 
@@ -215,7 +215,7 @@ class DifferentialWorkspace:
         solver: Solver,
         lmax: int,
         angles: FloatArray,
-        smatrix_abs_tol: np.float64 = 1e-6,
+        smatrix_abs_tol: float = 1e-6,
     ) -> DifferentialWorkspace:
         """Construct a differential workspace from the raw system inputs."""
         integral_workspace = IntegralWorkspace(
@@ -246,6 +246,10 @@ class DifferentialWorkspace:
             self.f_c = np.zeros_like(angles)
             self.rutherford = None
 
+    def radial_grid(self) -> FloatArray:
+        """Return the physical quadrature grid used for local potentials."""
+        return self.integral_workspace.radial_grid()
+
     def rutherford_xs(self, angles: FloatArray) -> FloatArray:
         """Return the Rutherford cross section in mb/sr."""
         check_angles(angles)
@@ -267,21 +271,15 @@ class DifferentialWorkspace:
 
     def xs(
         self,
-        interaction_central: Any,
-        interaction_spin_orbit: Any,
-        interaction_coulomb: Any | None = None,
-        args_central: tuple[Any, ...] | None = None,
-        args_spin_orbit: tuple[Any, ...] | None = None,
-        args_coulomb: tuple[Any, ...] | None = None,
+        central_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike,
+        coulomb_potential: npt.ArrayLike | None = None,
     ) -> ElasticXS:
         """Return differential and integral elastic observables."""
         splus, sminus = self.integral_workspace.smatrix(
-            interaction_central,
-            interaction_spin_orbit,
-            interaction_coulomb,
-            args_central,
-            args_spin_orbit,
-            args_coulomb,
+            central_potential,
+            spin_orbit_potential,
+            coulomb_potential,
         )
         return ElasticXS(
             *differential_elastic_xs(

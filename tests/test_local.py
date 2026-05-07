@@ -17,6 +17,11 @@ def interaction(r, *args):
     )
 
 
+def local_potential_array(solver, channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
+
+
 def test_local():
     r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
 
@@ -73,12 +78,12 @@ def test_local():
         )
 
         for l in sys.l:
+            local_potential = local_potential_array(solver, channels[l], params)
             # Lagrange-Legendre R-Matrix solve for this partial wave
             R_lm, S_lm, uext_boundary = solver.solve(
                 channels[l],
                 asymptotics[l],
-                local_interaction=interaction,
-                local_args=params,
+                local_potential=local_potential,
                 basis_boundary=basis_boundary,
                 free_matrix=free_matrices[l],
             )

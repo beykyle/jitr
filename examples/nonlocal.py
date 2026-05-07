@@ -29,11 +29,12 @@ def nonlocal_interaction_example():
 
     l = 0
     solver = rmatrix.Solver(20)
+    rgrid, rpgrid = solver.nonlocal_radial_grids(channels[l].a, channels[l].k[0])
+    nonlocal_potential = yamaguchi_potential(rgrid, rpgrid, *params)
     _, S, _ = solver.solve(
         channels[l],
         asymptotics[l],
-        nonlocal_interaction=yamaguchi_potential,
-        nonlocal_args=params,
+        nonlocal_potential=nonlocal_potential,
     )
 
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))

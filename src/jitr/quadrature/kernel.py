@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -58,79 +58,96 @@ class Kernel:
         """Evaluate the ``n``-th Lagrange basis function."""
         return self.basis_function(n, a, s, self.quadrature)
 
-    def integrate_local(
-        self,
-        f: Callable[..., npt.ArrayLike],
-        a: float,
-        args: tuple[Any, ...] = (),
-    ) -> np.complex128:
-        """Integrate a local function on ``[0, a]`` using Gauss quadrature."""
-        values = np.asarray(f(self.quadrature.abscissa * a, *args), dtype=np.complex128)
-        return np.sum(values * self.quadrature.weights) * a
+    def radial_grid(self, radius: float) -> FloatArray:
+        """Return the one-dimensional quadrature grid on ``[0, radius]``."""
+        return self.quadrature.abscissa * radius
+
+    def nonlocal_radial_grids(self, radius: float) -> tuple[FloatArray, FloatArray]:
+        """Return the tensor-product quadrature grids on ``[0, radius]^2``."""
+        return self.Xn * radius, self.Xm * radius
+
+    def integrate_local(self, values: npt.ArrayLike, radius: float) -> np.complex128:
+        """Integrate local values on ``[0, radius]`` using Gauss quadrature."""
+        values_array = np.asarray(values, dtype=np.complex128)
+        if values_array.shape != (self.quadrature.nbasis,):
+            raise ValueError(
+                "local quadrature values must have shape "
+                f"({self.quadrature.nbasis},)"
+            )
+        return np.sum(values_array * self.quadrature.weights) * radius
 
     def double_integrate_nonlocal(
         self,
-        f: Callable[..., npt.ArrayLike],
-        a: float,
+        values: npt.ArrayLike,
+        radius: float,
         is_symmetric: bool = True,
-        args: tuple[Any, ...] = (),
     ) -> np.complex128:
-        """Integrate a nonlocal kernel on ``[0, a] × [0, a]``."""
-        if is_symmetric:
-            off_diag_values = np.asarray(
-                f(self.Xn[self.lower_mask] * a, self.Xm[self.lower_mask] * a, *args),
-                dtype=np.complex128,
+        """Integrate nonlocal values on ``[0, radius] × [0, radius]``."""
+        values_array = np.asarray(values, dtype=np.complex128)
+        expected_shape = (self.quadrature.nbasis, self.quadrature.nbasis)
+        if values_array.shape != expected_shape:
+            raise ValueError(
+                "nonlocal quadrature values must have shape " f"{expected_shape}"
             )
-            off_diag = np.sum(self.weight_matrix[self.lower_mask] * off_diag_values)
-            diag_values = np.asarray(
-                f(self.quadrature.abscissa * a, self.quadrature.abscissa * a, *args),
-                dtype=np.complex128,
-            )
-            diag = np.sum(self.quadrature.weights**2 * diag_values)
-            return a**2 * (2 * off_diag + diag)
 
-        values = np.asarray(f(self.Xn * a, self.Xm * a, *args), dtype=np.complex128)
-        return a**2 * np.sum(self.weight_matrix * values)
+        if is_symmetric:
+            off_diag = np.sum(
+                self.weight_matrix[self.lower_mask] * values_array[self.lower_mask]
+            )
+            diag = np.sum(self.quadrature.weights**2 * np.diag(values_array))
+            return radius**2 * (2 * off_diag + diag)
+
+        return radius**2 * np.sum(self.weight_matrix * values_array)
 
     def fourier_bessel_transform(
         self,
         l: int,  # noqa: E741
-        f: Callable[..., npt.ArrayLike],
+        values: npt.ArrayLike,
         k: FloatArray,
-        a: float,
-        *args: Any,
+        radius: float,
     ) -> ComplexArray:
         """Perform a Fourier-Bessel transform of order ``l``."""
-        r = self.quadrature.abscissa * a
+        values_array = np.asarray(values, dtype=np.complex128)
+        r = self.radial_grid(radius)
+        if values_array.shape != r.shape:
+            raise ValueError(
+                "local values for a Fourier-Bessel transform must have shape "
+                f"{r.shape}"
+            )
         kr = np.outer(k, r)
-        values = np.asarray(f(r, *args), dtype=np.complex128)
         return np.sum(
-            sc.spherical_jn(l, kr) * r**2 * values * self.quadrature.weights,
+            sc.spherical_jn(l, kr) * r**2 * values_array * self.quadrature.weights,
             axis=1,
         )
 
     def double_fourier_bessel_transform(
         self,
         l: int,  # noqa: E741
-        f: Callable[..., npt.ArrayLike],
+        values: npt.ArrayLike,
         k: float,
-        a: float,
-        *args: Any,
+        radius: float,
     ) -> ComplexArray:
         """Perform a double Fourier-Bessel transform of order ``l``."""
-        n_basis = self.quadrature.nbasis
-        r = self.quadrature.abscissa * a
-        jkr = sc.spherical_jn(l, np.outer(k, r))
-        transformed_kkp = np.zeros((n_basis, n_basis), dtype=np.complex128)
-        transformed_rkp = np.zeros((n_basis, n_basis), dtype=np.complex128)
+        values_array = np.asarray(values, dtype=np.complex128)
+        expected_shape = (self.quadrature.nbasis, self.quadrature.nbasis)
+        if values_array.shape != expected_shape:
+            raise ValueError(
+                "nonlocal values for a double Fourier-Bessel transform must have "
+                f"shape {expected_shape}"
+            )
 
-        for i in range(n_basis):
+        r = self.radial_grid(radius)
+        jkr = sc.spherical_jn(l, np.outer(k, r))
+        transformed_rkp = np.zeros_like(values_array, dtype=np.complex128)
+        transformed_kkp = np.zeros_like(values_array, dtype=np.complex128)
+
+        for i in range(self.quadrature.nbasis):
             transformed_rkp[i, :] = np.sum(
-                jkr * r**2 * np.asarray(f(r[i], r, *args)) * self.quadrature.weights,
+                jkr * r**2 * values_array[i, :] * self.quadrature.weights,
                 axis=1,
             )
 
-        for i in range(n_basis):
+        for i in range(self.quadrature.nbasis):
             transformed_kkp[:, i] = np.sum(
                 jkr * r**2 * transformed_rkp[:, i] * self.quadrature.weights,
                 axis=1,
@@ -142,42 +159,54 @@ class Kernel:
         self,
         bra: ComplexArray,
         ket: ComplexArray,
-        a: float,
-        f: Callable[..., npt.ArrayLike],
-        args: tuple[Any, ...],
+        values: npt.ArrayLike,
     ) -> np.complex128:
         """Return a DWBA matrix element for a local operator."""
-        return np.sum(bra * self.matrix_local(f, a, args) * ket)
+        return np.sum(bra * self.matrix_local(values) * ket)
 
     def dwba_nonlocal(
         self,
         bra: ComplexArray,
         ket: ComplexArray,
-        a: float,
-        f: Callable[..., npt.ArrayLike],
-        args: tuple[Any, ...],
-        is_symmetric: bool = True,
+        values: npt.ArrayLike,
+        radius: float,
     ) -> np.complex128:
         """Return a DWBA matrix element for a nonlocal operator."""
-        operator = self.matrix_nonlocal(f, a, is_symmetric=is_symmetric, args=args)
+        operator = self.matrix_nonlocal(values, radius)
         return np.complex128(bra.T @ operator @ ket)
 
-    def matrix_local(
-        self,
-        f: Callable[..., npt.ArrayLike],
-        a: float,
-        args: tuple[Any, ...] = (),
-    ) -> ComplexArray:
-        """Evaluate a diagonal local operator in the Lagrange basis."""
-        return np.asarray(f(self.quadrature.abscissa * a, *args), dtype=np.complex128)
+    def matrix_local(self, values: npt.ArrayLike) -> ComplexArray:
+        """Validate and cast local quadrature values."""
+        values_array = np.asarray(values, dtype=np.complex128)
+        nbasis = self.quadrature.nbasis
+        if values_array.ndim == 1 and values_array.shape == (nbasis,):
+            return values_array
+        if (
+            values_array.ndim == 3
+            and values_array.shape[0] == values_array.shape[1]
+            and values_array.shape[2] == nbasis
+        ):
+            return values_array
+        raise ValueError(
+            "local potential values must have shape "
+            f"({nbasis},) or (nchannels, nchannels, {nbasis})"
+        )
 
-    def matrix_nonlocal(
-        self,
-        f: Callable[..., npt.ArrayLike],
-        a: float,
-        is_symmetric: bool = True,
-        args: tuple[Any, ...] = (),
-    ) -> ComplexArray:
-        """Evaluate a nonlocal operator in the Lagrange basis."""
-        values = np.asarray(f(self.Xn * a, self.Xm * a, *args), dtype=np.complex128)
-        return np.sqrt(self.weight_matrix) * values * a
+    def matrix_nonlocal(self, values: npt.ArrayLike, radius: float) -> ComplexArray:
+        """Validate and weight nonlocal quadrature values."""
+        values_array = np.asarray(values, dtype=np.complex128)
+        nbasis = self.quadrature.nbasis
+        weight_sqrt = np.sqrt(self.weight_matrix)
+        if values_array.ndim == 2 and values_array.shape == (nbasis, nbasis):
+            return weight_sqrt * values_array * radius
+        if (
+            values_array.ndim == 4
+            and values_array.shape[0] == values_array.shape[1]
+            and values_array.shape[2:] == (nbasis, nbasis)
+        ):
+            return weight_sqrt[np.newaxis, np.newaxis, :, :] * values_array * radius
+        raise ValueError(
+            "nonlocal potential values must have shape "
+            f"({nbasis}, {nbasis}) or "
+            f"(nchannels, nchannels, {nbasis}, {nbasis})"
+        )

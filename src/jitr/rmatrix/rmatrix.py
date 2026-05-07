@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -20,17 +19,21 @@ FloatArray = npt.NDArray[np.float64]
 class Solver:
     """Solve coupled-channel Schrödinger equations with the R-matrix method."""
 
-    def __init__(self, nbasis: np.int32, basis: str = "Legendre", **args: Any) -> None:
-        """Construct an R-matrix solver on a Lagrange mesh.
-
-        Args:
-            nbasis: Number of basis functions or quadrature points.
-            basis: Mesh family to use.
-            **args: Reserved for future extensions.
-        """
+    def __init__(self, nbasis: int, basis: str = "Legendre", **args: Any) -> None:
+        """Construct an R-matrix solver on a Lagrange mesh."""
         self.kernel = Kernel(nbasis, basis)
 
-    def precompute_boundaries(self, a: np.float64) -> ComplexArray:
+    def radial_grid(self, a: float, k0: float) -> FloatArray:
+        """Return the physical quadrature grid for a dimensionless radius ``a``."""
+        return self.kernel.radial_grid(a / k0)
+
+    def nonlocal_radial_grids(
+        self, a: float, k0: float
+    ) -> tuple[FloatArray, FloatArray]:
+        """Return the physical tensor-product quadrature grids for ``a``."""
+        return self.kernel.nonlocal_radial_grids(a / k0)
+
+    def precompute_boundaries(self, a: float) -> ComplexArray:
         """Precompute basis-function values at the channel radius ``a``."""
         nbasis = self.kernel.quadrature.nbasis
         return np.array(
@@ -40,32 +43,38 @@ class Solver:
 
     def get_channel_block(
         self,
-        matrix: np.ndarray,
-        i: np.int32,
-        j: np.int32 | None = None,
-    ) -> np.ndarray:
+        matrix: npt.ArrayLike,
+        i: int,
+        j: int | None = None,
+    ) -> ComplexArray:
         """Extract a channel block from a full block-structured matrix."""
         n_basis = self.kernel.quadrature.nbasis
         if j is None:
             j = i
-        return block(matrix, (i, j), (n_basis, n_basis))
+        return np.asarray(block(np.asarray(matrix), (i, j), (n_basis, n_basis)))
 
     def kinetic_matrix(
         self,
-        a: np.float64,
-        l: np.ndarray,
-        mu: np.ndarray | None = None,
+        a: float,
+        l: npt.ArrayLike,
+        mu: npt.ArrayLike | None = None,
     ) -> ComplexArray:
         """Assemble the full kinetic-energy matrix."""
-        if mu is None:
-            mu = np.ones(l.shape, dtype=np.float64)
+        l_array = np.asarray(l)
+        mu_array = np.ones(l_array.shape, dtype=np.float64)
+        if mu is not None:
+            mu_array = np.asarray(mu, dtype=np.float64)
 
         n_basis = self.kernel.quadrature.nbasis
-        n_channels = np.size(l)
+        n_channels = int(np.size(l_array))
         size = n_basis * n_channels
         kinetic = np.zeros((size, size), dtype=np.complex128)
         for i in range(n_channels):
-            block_ij = self.kernel.quadrature.kinetic_matrix(a, l[i]) * mu[0] / mu[i]
+            block_ij = (
+                self.kernel.quadrature.kinetic_matrix(a, int(l_array[i]))
+                * mu_array[0]
+                / mu_array[i]
+            )
             kinetic[
                 (i * n_basis) : (i + 1) * n_basis, (i * n_basis) : (i + 1) * n_basis
             ] += block_ij
@@ -73,125 +82,103 @@ class Solver:
 
     def energy_matrix(
         self,
-        a: np.float64,
-        l: np.float64,
-        E: np.ndarray | None = None,
+        a: float,
+        l: npt.ArrayLike,
+        E: npt.ArrayLike | None = None,
     ) -> ComplexArray:
         """Assemble the full overlap-weighted energy matrix."""
-        if E is None:
-            E = np.ones(l.shape, dtype=np.float64)
+        l_array = np.asarray(l)
+        energy_scale = np.ones(l_array.shape, dtype=np.float64)
+        if E is not None:
+            energy_scale = np.asarray(E, dtype=np.float64)
 
         n_basis = self.kernel.quadrature.nbasis
-        n_channels = np.size(l)
+        n_channels = int(np.size(l_array))
         size = n_basis * n_channels
         energy = np.zeros((size, size), dtype=np.complex128)
         for i in range(n_channels):
             energy[
                 (i * n_basis) : (i + 1) * n_basis, (i * n_basis) : (i + 1) * n_basis
-            ] += (self.kernel.overlap * E[i])
+            ] += (self.kernel.overlap * energy_scale[i])
 
-        return energy / E[0]
+        return energy / energy_scale[0]
 
     def free_matrix(
         self,
-        a: np.float64,
-        l: np.ndarray,
-        E: np.ndarray | None = None,
-        mu: np.ndarray | None = None,
+        a: float,
+        l: npt.ArrayLike,
+        E: npt.ArrayLike | None = None,
+        mu: npt.ArrayLike | None = None,
         coupled: bool = True,
-    ) -> ComplexArray | list[np.ndarray]:
-        """Precompute the free Hamiltonian matrix.
-
-        Args:
-            a: Dimensionless channel radius.
-            l: Orbital angular momentum for each channel.
-            E: Dimensionless energies for each channel.
-            mu: Dimensionless reduced masses for each channel.
-            coupled: If ``False``, return one diagonal channel block per channel.
-
-        Returns:
-            Either the full coupled matrix or a list of uncoupled channel blocks.
-        """
-        free_matrix = self.kinetic_matrix(a, l, mu) - self.energy_matrix(a, l, E)
+    ) -> ComplexArray | list[ComplexArray]:
+        """Precompute the free Hamiltonian matrix."""
+        l_array = np.asarray(l)
+        free_matrix = self.kinetic_matrix(a, l_array, mu) - self.energy_matrix(
+            a, l_array, E
+        )
 
         if coupled:
             return free_matrix
-        return [self.get_channel_block(free_matrix, i) for i in range(l.size)]
+        return [
+            self.get_channel_block(free_matrix, i) for i in range(int(np.size(l_array)))
+        ]
 
     def interaction_matrix(
         self,
-        k0: np.float64,
-        E0: np.float64,
-        a: np.float64,
-        nch: np.int32,
-        local_interaction: Callable[..., complex] | None = None,
-        local_args: tuple[Any, ...] | None = None,
-        nonlocal_interaction: Callable[..., complex] | None = None,
-        nonlocal_args: tuple[Any, ...] | None = None,
+        k0: float,
+        E0: float,
+        a: float,
+        nch: int,
+        local_potential: npt.ArrayLike | None = None,
+        nonlocal_potential: npt.ArrayLike | None = None,
     ) -> ComplexArray:
-        """Build the interaction matrix in the Lagrange basis."""
+        """Build the interaction matrix from pre-evaluated potential arrays."""
         n_basis = self.kernel.quadrature.nbasis
         size = n_basis * nch
         interaction = np.zeros((size, size), dtype=np.complex128)
+        radius = a / k0
 
-        channel_radius_r = a / k0
-
-        if local_interaction is not None:
-            local_terms = self.kernel.matrix_local(
-                local_interaction, channel_radius_r, args=local_args
-            ).reshape(nch, nch, n_basis)
+        if local_potential is not None:
+            local_terms = self.kernel.matrix_local(local_potential)
+            if local_terms.ndim == 1:
+                if nch != 1:
+                    raise ValueError(
+                        "1D local potentials are only valid for one channel"
+                    )
+                local_terms = local_terms.reshape(1, 1, n_basis)
             for i in range(nch):
                 for j in range(nch):
                     interaction[
                         i * n_basis : (i + 1) * n_basis, j * n_basis : (j + 1) * n_basis
                     ] = np.diag(local_terms[i, j, ...])
 
-        if nonlocal_interaction is not None:
+        if nonlocal_potential is not None:
+            nonlocal_terms = self.kernel.matrix_nonlocal(nonlocal_potential, radius)
+            if nonlocal_terms.ndim == 2:
+                if nch != 1:
+                    raise ValueError(
+                        "2D nonlocal potentials are only valid for one channel"
+                    )
+                nonlocal_terms = nonlocal_terms.reshape(1, 1, n_basis, n_basis)
             interaction += (
-                self.kernel.matrix_nonlocal(
-                    nonlocal_interaction, channel_radius_r, args=nonlocal_args
-                )
-                .reshape(nch, nch, n_basis, n_basis)
-                .swapaxes(1, 2)
-                .reshape(size, size, order="C")
-                / k0
+                nonlocal_terms.swapaxes(1, 2).reshape(size, size, order="C") / k0
             )
-        interaction /= E0
-        return interaction
+
+        return interaction / E0
 
     def solve(
         self,
         channels: Channels,
         asymptotics: Asymptotics,
-        local_interaction: Callable[..., complex] | None = None,
-        local_args: tuple[Any, ...] | None = None,
-        nonlocal_interaction: Callable[..., complex] | None = None,
-        nonlocal_args: tuple[Any, ...] | None = None,
+        local_potential: npt.ArrayLike | None = None,
+        nonlocal_potential: npt.ArrayLike | None = None,
         interaction_matrix: ComplexArray | None = None,
         free_matrix: ComplexArray | None = None,
         basis_boundary: ComplexArray | None = None,
         weights: FloatArray | None = None,
-        wavefunction: bool | None = None,
+        wavefunction: bool = False,
     ) -> tuple[np.ndarray, ...]:
-        """Solve the scattering problem for one coupled set of channels.
-
-        Args:
-            channels: Channel metadata for a single partial wave.
-            asymptotics: Precomputed asymptotic solutions for the same channels.
-            local_interaction: Optional local interaction.
-            local_args: Positional arguments for the local interaction.
-            nonlocal_interaction: Optional nonlocal interaction.
-            nonlocal_args: Positional arguments for the nonlocal interaction.
-            interaction_matrix: Optional precomputed interaction matrix.
-            free_matrix: Optional precomputed free matrix.
-            basis_boundary: Optional basis values evaluated at the boundary.
-            weights: Incoming-channel weights.
-            wavefunction: If truthy, also return internal basis coefficients.
-
-        Returns:
-            ``(R, S, uext_prime_boundary)`` by default, or
-            ``(R, S, coeffs, uext_prime_boundary)`` when ``wavefunction`` is truthy.
-        """
+        """Solve the scattering problem for one coupled set of channels."""
         if free_matrix is None:
             free_matrix = self.free_matrix(
                 channels.a,
@@ -211,10 +198,8 @@ class Solver:
                 channels.E[0],
                 channels.a,
                 channels.size,
-                local_interaction,
-                local_args,
-                nonlocal_interaction,
-                nonlocal_args,
+                local_potential=local_potential,
+                nonlocal_potential=nonlocal_potential,
             )
 
         size = channels.size * self.kernel.quadrature.nbasis
@@ -222,9 +207,9 @@ class Solver:
         assert interaction_matrix.shape == (size, size)
         assert basis_boundary.shape == (self.kernel.quadrature.nbasis,)
 
-        A = free_matrix + interaction_matrix
-        R, S, Ainv, uext_prime_boundary = solve_smatrix_with_inverse(
-            A,
+        system_matrix = free_matrix + interaction_matrix
+        R, S, inverse, uext_prime_boundary = solve_smatrix_with_inverse(
+            system_matrix,
             basis_boundary,
             asymptotics.Hp,
             asymptotics.Hm,
@@ -236,11 +221,11 @@ class Solver:
             self.kernel.quadrature.nbasis,
         )
 
-        if wavefunction is None:
+        if not wavefunction:
             return R, S, uext_prime_boundary
 
         coeffs = solution_coeffs_with_inverse(
-            Ainv,
+            inverse,
             basis_boundary,
             S,
             uext_prime_boundary,

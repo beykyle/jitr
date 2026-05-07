@@ -47,6 +47,11 @@ def interaction(r, *params):
     return coulomb + nuclear
 
 
+def local_potential_array(solver, channel):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
+
+
 def test_wavefunction(l=0):
     ch = channels[l]
     asym = asymptotics[l]
@@ -59,8 +64,7 @@ def test_wavefunction(l=0):
         ch,
         asym,
         wavefunction=True,
-        local_interaction=interaction,
-        local_args=params,
+        local_potential=local_potential_array(solver_lm, ch),
     )
     u_lm = wavefunction.Wavefunctions(
         solver_lm,

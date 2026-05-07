@@ -347,62 +347,24 @@ class CHUQ(SingleChannelOpticalModel):
     """
 
     def __init__(self):
-        super().__init__(
-            params=get_param_names(),
-            interaction_central=central,
-            interaction_spin_orbit=spin_orbit,
-            interaction_coulomb=coulomb_charged_sphere,
-        )
+        super().__init__(params=get_param_names())
 
-    def params_by_term(
+    def evaluate(
         self,
+        rgrid: float | np.ndarray,
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
     ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
-        """
-        Calculate the central, spin-orbit, and Coulomb parameters for
-        the Chapel-Hill '89 potential based on the provided parameters
-        and the reaction and kinematics.
-
-        Parameters:
-        ----------
-        reaction : Reaction
-            The reaction for which to calculate the parameters.
-        kinematics : ChannelKinematics
-            The kinematics of the reaction channel.s
-        V0, Ve, ..., rc_0: float
-            Parameters for the Chapel-Hill optical model potential.
-            See Table V and the Appendix
-            of [Pruitt, et al., 2023]
-            (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
-            for details.
-
-            Note: there is a typo in Eq. A4 of the CHUQ paper, there should be a
-            plus/minus sign in front of Wst, not a plus. See Table 3 of the
-            original CH89 paper for the correct sign.
-
-        Returns:
-        -------
-            central_params : tuple
-                (V0, Wv, Ws, R0, a0, Rw, aw), where V0 is the depth of the
-                real central potential, Wv is the depth of the imaginary
-                volume potential, Ws is the depth of the imaginary surface
-                potential, R0 is the radius of the real central potential,
-                a0 is the diffuseness of the real central potential, Rw is
-                the radius of the imaginary potential, and aw is the
-                diffuseness of the imaginary potential.
-            spin_orbit_params : tuple
-                (Vso, Rso, aso), where Vso is the depth of the spin-orbit
-                potential, Rso is the radius of the spin-orbit potential, and
-                aso is the diffuseness of the spin-orbit potential.
-            coulomb_params : tuple
-                (Z*Zp, RC), where Z is the charge of the target, Zp is the
-                charge of the projectile, and RC is the Coulomb radius.
-        """
-        return calculate_params(
+        """Evaluate the CHUQ central, spin-orbit, and Coulomb terms."""
+        central_params, spin_orbit_params, coulomb_params = calculate_params(
             tuple(reaction.projectile),
             tuple(reaction.target),
             kinematics.Elab,
             *params,
+        )
+        return (
+            central(rgrid, *central_params),
+            spin_orbit(rgrid, *spin_orbit_params),
+            coulomb_charged_sphere(rgrid, *coulomb_params),
         )

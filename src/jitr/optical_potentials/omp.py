@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TypeAlias
-
+import numpy as np
 import numpy.typing as npt
 
 from ..reactions import reaction
@@ -17,55 +15,41 @@ from .potential_forms import (
     woods_saxon_safe,
 )
 
-PotentialCallable: TypeAlias = Callable[..., complex]
-RadiusInput: TypeAlias = float | npt.NDArray
+FloatArray = npt.NDArray[np.float64]
+ComplexArray = npt.NDArray[np.complex128]
+GridInput = float | FloatArray
+TermArray = complex | ComplexArray
 
 
 class SingleChannelOpticalModel:
-    """Base class for local single-channel optical potentials.
+    """Base class for local single-channel optical potentials."""
 
-    Subclasses map a high-level parameter vector to the central, spin-orbit, and
-    Coulomb terms used by the elastic-scattering workspaces.
-    """
-
-    def __init__(
-        self,
-        params: list[str],
-        interaction_central: PotentialCallable,
-        interaction_spin_orbit: PotentialCallable,
-        interaction_coulomb: PotentialCallable | None = None,
-    ) -> None:
-        """Store the parameter names and interaction callables."""
+    def __init__(self, params: list[str]) -> None:
         self.params = params
         self.n_params = len(params)
-        self.interaction_central = interaction_central
-        self.interaction_spin_orbit = interaction_spin_orbit
-        self.interaction_coulomb = interaction_coulomb
 
-    def params_by_term(
+    def evaluate(
         self,
+        rgrid: GridInput,
         reaction: reaction.Reaction,
         kinematics: kinematics.ChannelKinematics,
         *params: float,
-    ) -> tuple[tuple, tuple, tuple]:
-        """Split model parameters into central, spin-orbit, and Coulomb terms.
+    ) -> tuple[TermArray, TermArray, TermArray]:
+        """Evaluate central, spin-orbit, and Coulomb terms on ``rgrid``."""
+        raise NotImplementedError("Subclasses must implement the evaluate method.")
 
-        Args:
-            reaction: Reaction defining the projectile and target.
-            kinematics: Entrance-channel kinematics.
-            *params: Model parameters in the order declared by ``self.params``.
-
-        Returns:
-            ``(central_params, spin_orbit_params, coulomb_params)``.
-        """
-        raise NotImplementedError(
-            "Subclasses must return the parameters for the central, spin-orbit, "
-            "and Coulomb terms for the requested reaction and kinematics."
-        )
+    def __call__(
+        self,
+        rgrid: GridInput,
+        reaction: reaction.Reaction,
+        kinematics: kinematics.ChannelKinematics,
+        *params: float,
+    ) -> tuple[TermArray, TermArray, TermArray]:
+        return self.evaluate(rgrid, reaction, kinematics, *params)
 
 
 def central(
-    r: float,
+    r: GridInput,
     Vv: float,
     Rv: float,
     av: float,
@@ -76,7 +60,7 @@ def central(
     Vd: float,
     Rd: float,
     ad: float,
-) -> complex:
+) -> TermArray:
     """Evaluate the default Woods-Saxon central potential."""
     return (
         -Vv * woods_saxon_safe(r, Rv, av)
@@ -86,7 +70,9 @@ def central(
     )
 
 
-def spin_orbit(r: float, Vso: float, Wso: float, Rso: float, aso: float) -> complex:
+def spin_orbit(
+    r: GridInput, Vso: float, Wso: float, Rso: float, aso: float
+) -> TermArray:
     """Evaluate the default Thomas-form spin-orbit potential."""
     return (Vso + 1j * Wso) / WAVENUMBER_PION**2 * thomas_safe(r, Rso, aso)
 
@@ -95,41 +81,38 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
     """Simple local optical potential with optional nucleus-nucleus radius scaling."""
 
     def __init__(self, scale_radii_by_At_and_Ap: bool = False) -> None:
-        """Configure the default local optical-potential parameterization.
-
-        Args:
-            scale_radii_by_At_and_Ap: If ``True``, scale radius parameters by
-                ``A_target^(1/3) + A_projectile^(1/3)``. Otherwise use the target
-                mass only.
-        """
+        self.central_params = [
+            "Vv",
+            "rv",
+            "av",
+            "Wv",
+            "rw",
+            "aw",
+            "Wd",
+            "Vd",
+            "rd",
+            "ad",
+        ]
+        self.spin_orbit_params = ["Vso", "Wso", "rso", "aso"]
+        self.coulomb_params = ["rC"]
         super().__init__(
-            params=[
-                "Vv",
-                "rv",
-                "av",
-                "Wv",
-                "rw",
-                "aw",
-                "Wd",
-                "Vd",
-                "rd",
-                "ad",
-                "Vso",
-                "Wso",
-                "rso",
-                "aso",
-                "rc",
-            ],
-            interaction_central=central,
-            interaction_spin_orbit=spin_orbit,
-            interaction_coulomb=coulomb_charged_sphere,
+            params=self.central_params + self.spin_orbit_params + self.coulomb_params
         )
         self.scale_radii_by_At_and_Ap = scale_radii_by_At_and_Ap
 
-    def params_by_term(
+    def radius_factor(self, reaction_model: reaction.Reaction) -> float:
+        """Return the radius scaling factor for the current reaction."""
+        target_mass = reaction_model.target.A
+        projectile_mass = reaction_model.projectile.A
+        if self.scale_radii_by_At_and_Ap:
+            return target_mass ** (1 / 3) + projectile_mass ** (1 / 3)
+        return target_mass ** (1 / 3)
+
+    def evaluate(
         self,
-        reaction: reaction.Reaction,
-        kinematics: kinematics.ChannelKinematics,
+        rgrid: GridInput,
+        reaction_model: reaction.Reaction,
+        kinematics_model: kinematics.ChannelKinematics,
         Vv: float,
         rv: float,
         av: float,
@@ -144,23 +127,20 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
         Wso: float,
         rso: float,
         aso: float,
-        rc: float,
-    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
-        """Scale radius parameters for the requested reaction."""
-        A, Z = reaction.target.A, reaction.target.Z
-        Ap, Zp = reaction.projectile.A, reaction.projectile.Z
-        if self.scale_radii_by_At_and_Ap:
-            radius_factor = A ** (1 / 3) + Ap ** (1 / 3)
-        else:
-            radius_factor = A ** (1 / 3)
+        rC: float,
+    ) -> tuple[TermArray, TermArray, TermArray]:
+        """Evaluate the local optical-potential terms on ``rgrid``."""
+        del kinematics_model
 
+        radius_factor = self.radius_factor(reaction_model)
         Rv = rv * radius_factor
         Rw = rw * radius_factor
         Rd = rd * radius_factor
         Rso = rso * radius_factor
-        RC = rc * radius_factor
+        RC = rC * radius_factor
+        zz = reaction_model.target.Z * reaction_model.projectile.Z
 
-        central_params = (Vv, Rv, av, Wv, Rw, aw, Wd, Vd, Rd, ad)
-        spin_orbit_params = (Vso, Wso, Rso, aso)
-        coulomb_params = (Z * Zp, RC)
-        return central_params, spin_orbit_params, coulomb_params
+        central_term = central(rgrid, Vv, Rv, av, Wv, Rw, aw, Wd, Vd, Rd, ad)
+        spin_orbit_term = spin_orbit(rgrid, Vso, Wso, Rso, aso)
+        coulomb_term = coulomb_charged_sphere(rgrid, zz, RC)
+        return central_term, spin_orbit_term, coulomb_term

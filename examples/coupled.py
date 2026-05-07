@@ -27,6 +27,11 @@ def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
     return diagonal + off_diag
 
 
+def local_potential_array(solver, channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction_3level(rgrid, *params)
+
+
 def coupled_channels_example():
     """
     3 level system example with local diagonal and transition potentials and neutral
@@ -82,17 +87,15 @@ def coupled_channels_example():
     l = 0
 
     # get R and S-matrix, and both internal and external soln
+    local_potential = local_potential_array(
+        solver,
+        channels[l],
+        (-42, 4, 0.8, sys.Zproj * sys.Zproj, coupling_matrix),
+    )
     R, S, x, uext_prime_boundary = solver.solve(
         channels[l],
         asymptotics[l],
-        local_interaction=interaction_3level,
-        local_args=(
-            -42,
-            4,
-            0.8,
-            sys.Zproj * sys.Zproj,
-            coupling_matrix,
-        ),
+        local_potential=local_potential,
         wavefunction=True,
     )
 

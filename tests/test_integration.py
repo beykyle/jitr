@@ -28,29 +28,32 @@ def Vnl_asym(x, y, a, b):
 
 def test_local_integration():
     analytic = 37.2894619874794
-    quadrature = solver_le.integrate_local(V, a, (2, 3))
+    values = V(solver_le.radial_grid(a), 2, 3)
+    quadrature = solver_le.integrate_local(values, a)
     np.testing.assert_almost_equal(quadrature, analytic)
 
 
 def test_nonlocal_integration():
     analytic = 18.298993686404124
+    xn, xm = solver_le.nonlocal_radial_grids(a)
     quadrature = solver_le.double_integrate_nonlocal(
-        Vnl_asym, a, is_symmetric=False, args=(1.0 / 16, 2)
+        Vnl_asym(xn, xm, 1.0 / 16, 2), a, is_symmetric=False
     )
     np.testing.assert_almost_equal(quadrature, analytic)
     quadrature = solver_le.double_integrate_nonlocal(
-        Vnl_asym, a, is_symmetric=False, args=(1.0 / 16, 2)
+        Vnl_asym(xn, xm, 1.0 / 16, 2), a, is_symmetric=False
     )
     np.testing.assert_almost_equal(quadrature, analytic)
 
     analytic = 48.58040025635857
+    xn, xm = solver_le.nonlocal_radial_grids(2 * np.pi)
     quadrature = solver_le.double_integrate_nonlocal(
-        Vnl_sym, 2 * np.pi, is_symmetric=False, args=(1.0 / 16, 2)
+        Vnl_sym(xn, xm, 1.0 / 16, 2), 2 * np.pi, is_symmetric=False
     )
     np.testing.assert_almost_equal(quadrature, analytic, decimal=3)
 
     quadrature = solver_le.double_integrate_nonlocal(
-        Vnl_sym, 2 * np.pi, is_symmetric=True, args=(1.0 / 16, 2)
+        Vnl_sym(xn, xm, 1.0 / 16, 2), 2 * np.pi, is_symmetric=True
     )
     np.testing.assert_almost_equal(quadrature, analytic, decimal=3)
 

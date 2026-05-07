@@ -11,9 +11,10 @@ from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 
 from ..data import data_dir
-from ..reactions.reaction import Reaction
+from ..reactions import Reaction
 from ..utils.constants import WAVENUMBER_PION
 from ..utils.kinematics import ChannelKinematics
 from .omp import SingleChannelOpticalModel
@@ -418,22 +419,24 @@ class WLH(SingleChannelOpticalModel):
     def __init__(self, projectile: tuple):
         super().__init__(
             params=get_param_names(projectile),
-            interaction_central=central,
-            interaction_spin_orbit=spin_orbit,
-            interaction_coulomb=coulomb_charged_sphere,
         )
         self.projectile = projectile
 
-    def params_by_term(
+    def evaluate(
         self,
+        rgrid: float | npt.NDArray[np.float64],
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
-    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+    ) -> tuple[
+        complex | npt.NDArray[np.complex128],
+        complex | npt.NDArray[np.complex128],
+        float | npt.NDArray[np.float64],
+    ]:
         """
-        Calculate the arguments for the central, spin_orbit, and
-        coulomb_charged_sphere functions corresponding to the WLH potential
-        for a given projectile, target, lab energy, and the WLH parameters.
+        Evaluate the central, spin-orbit, and Coulomb terms of the WLH
+        potential on the given radial grid for the specified reaction and
+        kinematics, using the provided potential parameters.
 
 
         Parameters:
@@ -450,22 +453,31 @@ class WLH(SingleChannelOpticalModel):
 
         Returns:
         -------
-        central_params : tuple
-            (uv, Rv, av, uw, Rw, aw, ud, Rd, ad) where uv, rv, av are
-            the real volume potential parameters, uw, rw, aw are the
-            imaginary volume potential parameters, and ud, rd, ad are
-            the imaginary surface potential parameters
-        spin_orbit_params : tuple
-            (uso, Rso, aso) where uso is the spin-orbit strength, and
-            Rso, aso are the spin-orbit radius and diffuseness
-            parameters
-        coulomb_params : tuple
-            (Z*Zp, RC), where Z is the charge of the target, Zp is the
-            charge of the projectile, and RC is the Coulomb radius.
+        U_central : np.ndarray
+            Central term of the optical potential evaluated on the radial grid
+        U_spin_orbit : np.ndarray
+            Spin-orbit term of the optical potential evaluated on the radial
+            grid
+        U_coulomb : np.ndarray
+            Coulomb term of the optical potential evaluated on the radial grid
         """
-        return calculate_params(
+        central_params, spin_orbit_params, coulomb_params = calculate_params(
             tuple(reaction.projectile),
             tuple(reaction.target),
             kinematics.Elab,
             *params,
         )
+
+        U_central = central(
+            rgrid,
+            *central_params,
+        )
+        U_spin_orbit = spin_orbit(
+            rgrid,
+            *spin_orbit_params,
+        )
+        U_coulomb = coulomb_charged_sphere(
+            rgrid,
+            *coulomb_params,
+        )
+        return U_central, U_spin_orbit, U_coulomb
