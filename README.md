@@ -39,9 +39,9 @@ The theory generally follows:
 with the primary difference being that this code uses the energy-scaled version of the Bloch-Shrödinger equation, with dimensionless domain, $s = k_0 r$, where $r$ is the radial coordinate and $k_0$ is the entrance channel wavenumber.
 
 
-# Installation and Development
+## Installation and Development
 
-## For users
+### For users
 
 Install the latest released version of `jitr` from PyPI:
 
@@ -73,18 +73,18 @@ Or install it into the current environment with:
 uv pip install jitr
 ```
 
-## For developers
+### For developers
 
 This repository uses [`uv`](https://docs.astral.sh/uv/) for Python packaging, dependency management, virtual environments, and locking.
 
-### Clone the repository
+#### Clone the repository
 
 ```bash
 git clone https://github.com/beykyle/jitr.git
 cd jitr
 ```
 
-### Create and sync the development environment
+#### Create and sync the development environment
 
 Install all development dependencies:
 
