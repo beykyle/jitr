@@ -1,29 +1,31 @@
+"""Wavefunction reconstruction for solved R-matrix channels."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
 import numpy as np
-from ..utils.free_solutions import (
-    H_plus,
-    H_minus,
-    CoulombAsymptotics,
-)
+import numpy.typing as npt
+
+from ..utils.free_solutions import CoulombAsymptotics, H_minus, H_plus
+
+ComplexArray = npt.NDArray[np.complex128]
 
 
 class Wavefunctions:
-    """
-    Represents a wavefunction, expressed internally to the channel as a
-    linear combination of Lagrange-Legendre functions, and externally as
-    a linear combination of incoming and outgoing Coulomb scattering
-    wavefunctions
-    """
+    """Internal and external wavefunction representations for solved channels."""
 
     def __init__(
         self,
         solver,
-        coeffs,
-        S,
-        uext_prime_boundary,
+        coeffs: ComplexArray,
+        S: ComplexArray,
+        uext_prime_boundary: ComplexArray,
         channels,
-        incoming_weights=None,
+        incoming_weights: npt.NDArray[np.float64] | None = None,
         asym=CoulombAsymptotics,
-    ):
+    ) -> None:
+        """Store the ingredients needed to reconstruct channel wavefunctions."""
         self.solver = solver
         self.coeffs = coeffs
         self.S = S
@@ -35,21 +37,17 @@ class Wavefunctions:
         self.incoming_weights = incoming_weights
         self.asym = asym
 
-    def uext(self):
-        r"""Returns a callable which evaluates the asymptotic form of
-        wavefunction in each channel, valid external to the channel radii.
-        Follows Eqn. 3.79 from P. Descouvemont and D. Baye 2010 Rep.
-        Prog. Phys. 73 036301
-        """
+    def uext(self) -> list[Callable[[npt.ArrayLike], ComplexArray]]:
+        """Return external-channel wavefunctions valid beyond the boundary."""
 
-        def uext_channel(i):
+        def uext_channel(i: int) -> Callable[[npt.ArrayLike], ComplexArray]:
             l = self.channels.l[i]
             eta = self.channels.eta[i]
 
-            def asym_func_in(s):
+            def asym_func_in(s: float) -> complex:
                 return self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
 
-            def asym_func_out(s):
+            def asym_func_out(s: float) -> complex:
                 return np.sum(
                     [
                         self.incoming_weights[j]
@@ -65,14 +63,12 @@ class Wavefunctions:
                 dtype=np.complex128,
             )
 
-        uext = []
-        for i in range(len(self.channels)):
-            uext.append(uext_channel(i))
+        return [uext_channel(i) for i in range(len(self.channels))]
 
-        return uext
+    def uint(self) -> list[Callable[[float], complex]]:
+        """Return internal wavefunctions expanded in the Lagrange basis."""
 
-    def uint(self):
-        def uint_channel(i):
+        def uint_channel(i: int) -> Callable[[float], complex]:
             return lambda s: np.sum(
                 [
                     self.coeffs[i, n]
@@ -83,8 +79,4 @@ class Wavefunctions:
                 axis=0,
             )
 
-        uint = []
-        for i in range(self.channels.size):
-            uint.append(uint_channel(i))
-
-        return uint
+        return [uint_channel(i) for i in range(self.channels.size)]

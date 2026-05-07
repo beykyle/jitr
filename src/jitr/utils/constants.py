@@ -1,3 +1,5 @@
+"""Physical constants used throughout :mod:`jitr`."""
+
 import numpy as np
 
 HBARC = 197.3269804  # hbar*c in [MeV femtometers]

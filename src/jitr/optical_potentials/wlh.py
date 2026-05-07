@@ -27,7 +27,7 @@ from .potential_forms import (
 NUM_POSTERIOR_SAMPLES = 1000
 
 
-def get_param_names(projectile: tuple):
+def get_param_names(projectile: tuple[int, int]) -> list[str]:
     """
     Get the names of the parameters for the given projectile, in the
     order they are returned by the get_samples function.
@@ -35,7 +35,7 @@ def get_param_names(projectile: tuple):
     return list(Global(projectile).params.keys())
 
 
-def get_samples(projectile: tuple):
+def get_samples(projectile: tuple[int, int]) -> np.ndarray:
     """
     Get the parameter samples for the WLH potential for the given
     projectile.
@@ -58,7 +58,7 @@ def get_samples(projectile: tuple):
     )
 
 
-def spin_orbit(r, Uso, Rso, aso) -> complex:
+def spin_orbit(r: float | np.ndarray, Uso: float, Rso: float, aso: float) -> complex:
     """
     Form of the spin-orbit term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
@@ -77,7 +77,18 @@ def spin_orbit(r, Uso, Rso, aso) -> complex:
     return (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
 
 
-def central(r, Uv, Rv, av, Uw, Rw, aw, Ud, Rd, ad) -> complex:
+def central(
+    r: float | np.ndarray,
+    Uv: float,
+    Rv: float,
+    av: float,
+    Uw: float,
+    Rw: float,
+    aw: float,
+    Ud: float,
+    Rd: float,
+    ad: float,
+) -> complex:
     """
     Form of the central term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
@@ -240,8 +251,10 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-    def get_params(self, A, Z, Elab):
-        # fermi energy
+    def get_params(
+        self, A: int, Z: int, Elab: float
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """Return WLH central, spin-orbit, and Coulomb parameters."""
         return calculate_params(
             self.projectile, (A, Z), Elab, *list(self.params.values())
         )
@@ -297,7 +310,7 @@ def calculate_params(
     rso1: float,
     aso0: float,
     aso1: float,
-):
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the WLH potential
@@ -415,8 +428,8 @@ class WLH(SingleChannelOpticalModel):
         self,
         reaction: Reaction,
         kinematics: ChannelKinematics,
-        *params,
-    ) -> tuple:
+        *params: float,
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
         """
         Calculate the arguments for the central, spin_orbit, and
         coulomb_charged_sphere functions corresponding to the WLH potential

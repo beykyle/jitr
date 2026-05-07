@@ -1,3 +1,5 @@
+"""Reaction-system models and helpers for common nuclear processes."""
+
 import numpy as np
 import periodictable
 
@@ -29,7 +31,7 @@ class Particle:
         self.m0 = m0
         self.q = q
 
-    def latex(self):
+    def latex(self) -> str:
         """
         Returns the LaTeX representation of the particle.
 
@@ -69,7 +71,8 @@ class Particle:
         pass
 
     @classmethod
-    def parse(cls, p, **kwargs):
+    def parse(cls, p: object, **kwargs: object) -> object:
+        """Parse a particle-like object into a concrete particle instance."""
         if p is None:
             return None
         elif isinstance(p, tuple):
@@ -98,7 +101,7 @@ class Nucleus(Particle):
         Efp (float): Proton Fermi energy.
     """
 
-    def __init__(self, A: int, Z: int, mass_kwargs={}):
+    def __init__(self, A: int, Z: int, mass_kwargs: dict | None = None):
         """
         Initializes a Nucleus instance.
 
@@ -107,6 +110,9 @@ class Nucleus(Particle):
             Z (int): Atomic number (must be greater than or equal to 0).
             mass_kwargs: Additional keyword arguments for mass calculations.
         """
+
+        if mass_kwargs is None:
+            mass_kwargs = {}
 
         self.A = A
         self.Z = Z
@@ -172,7 +178,7 @@ class Nucleus(Particle):
         else:
             raise ValueError(f"Cannot add {type(other)} to a Nucleus")
 
-    def latex(self):
+    def latex(self) -> str:
         """
         Returns the LaTeX representation of the particle.
 
@@ -230,7 +236,7 @@ class Gamma(Particle):
         """
         super().__init__(0, 0)
 
-    def latex(self):
+    def latex(self) -> str:
         return r"\gamma"
 
     def __repr__(self):
@@ -250,7 +256,7 @@ class Electron(Particle):
         """
         super().__init__(constants.MASS_E, -1)
 
-    def latex(self):
+    def latex(self) -> str:
         return r"e^{-}"
 
     def __repr__(self):
@@ -270,7 +276,7 @@ class Positron(Particle):
         """
         super().__init__(constants.MASS_E, +1)
 
-    def latex(self):
+    def latex(self) -> str:
         return r"e^{+}"
 
     def __repr__(self):
@@ -303,7 +309,7 @@ class Reaction:
         product: Particle = None,
         residual: Particle = None,
         process: str = None,
-        mass_kwargs={},
+        mass_kwargs: dict | None = None,
     ):
         """Initializes a Reaction instance.
 
@@ -323,6 +329,9 @@ class Reaction:
             ValueError: If isospin is not conserved or if invalid product/
             residual types are provided.
         """
+        if mass_kwargs is None:
+            mass_kwargs = {}
+
         self.target = Particle.parse(target, mass_kwargs=mass_kwargs)
         self.projectile = Particle.parse(projectile, mass_kwargs=mass_kwargs)
         self.compound_system = self.target + self.projectile
@@ -719,7 +728,7 @@ class GammaCaptureReaction(Reaction):
         )
 
 
-def get_latex(A, Z, Ex=None):
+def get_latex(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the LaTeX representation of a nucleus.
 
@@ -748,7 +757,7 @@ def get_latex(A, Z, Ex=None):
             return f"^{{{A}}} \\rm{{{periodictable.elements[Z]}}}({ex})"
 
 
-def get_symbol(A, Z, Ex=None):
+def get_symbol(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the symbol representation of a nucleus.
 
@@ -777,7 +786,8 @@ def get_symbol(A, Z, Ex=None):
             return f"{A}-{str(periodictable.elements[Z])}{ex}"
 
 
-def these_things_are_all_nuclei(*things_that_might_be_nuclei):
+def these_things_are_all_nuclei(*things_that_might_be_nuclei: object) -> bool:
+    """Return ``True`` when each supplied object is a nucleus or ``None``."""
     for thing in things_that_might_be_nuclei:
         if not (thing is None or isinstance(thing, Nucleus)):
             return False
@@ -787,8 +797,9 @@ def these_things_are_all_nuclei(*things_that_might_be_nuclei):
 def cluster_separation_energy(
     target: Nucleus,
     projectile: Nucleus,
-    **mass_kwargs,
-):
+    **mass_kwargs: object,
+) -> float:
+    """Return the separation energy for removing ``projectile`` from ``target``."""
     mf = mass.mass(
         target.A - projectile.A,
         target.Z - projectile.Z,

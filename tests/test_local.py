@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.integrate import solve_ivp
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
@@ -6,7 +8,6 @@ from jitr.optical_potentials.potential_forms import (
 )
 from jitr.reactions import ProjectileTargetSystem, make_channel_data
 from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
-from scipy.integrate import solve_ivp
 
 
 def interaction(r, *args):
@@ -86,8 +87,8 @@ def test_local():
             rk_solver_info = make_channel_data(channels[l])[0]
             domain, init_con = rk_solver_info.initial_conditions()
             sol_rk = solve_ivp(
-                lambda s, y: schrodinger_eqn_ivp_order1(
-                    s, y, rk_solver_info, interaction, params
+                lambda s, y, channel=rk_solver_info: schrodinger_eqn_ivp_order1(
+                    s, y, channel, interaction, params
                 ),
                 domain,
                 init_con,

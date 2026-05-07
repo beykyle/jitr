@@ -1,4 +1,7 @@
 import numpy as np
+from matplotlib import pyplot as plt
+from scipy.integrate import solve_ivp
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
@@ -6,8 +9,6 @@ from jitr.optical_potentials.potential_forms import (
 )
 from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
 from jitr.utils import delta, kinematics, schrodinger_eqn_ivp_order1, smatrix
-from matplotlib import pyplot as plt
-from scipy.integrate import solve_ivp
 
 # target (A,Z)
 Ca48 = (48, 20)
@@ -123,7 +124,7 @@ def local_interaction_example():
 
     plt.legend()
     plt.xlabel(r"$r$ [fm]")
-    plt.ylabel(r"$u_{%d} (r) $ [a.u.]" % ch.l)
+    plt.ylabel(rf"$u_{{{ch.l}}} (r) $ [a.u.]")
     plt.tight_layout()
     plt.show()
 
@@ -263,8 +264,8 @@ def rmse_RK_LM():
             rk_solver_info = make_channel_data(channels[l])[0]
             domain, init_con = rk_solver_info.initial_conditions()
             sol_rk = solve_ivp(
-                lambda s, y: schrodinger_eqn_ivp_order1(
-                    s, y, rk_solver_info, interaction, params
+                lambda s, y, channel=rk_solver_info: schrodinger_eqn_ivp_order1(
+                    s, y, channel, interaction, params
                 ),
                 domain,
                 init_con,
@@ -280,7 +281,7 @@ def rmse_RK_LM():
             error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
 
     for l in sys.l:
-        plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
+        plt.plot(egrid, 100 * error_matrix[l, :], label=rf"$l = {l}$")
 
     plt.ylabel(
         r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} |"

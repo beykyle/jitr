@@ -31,11 +31,20 @@ Run unit tests:
 uv run pytest
 ```
 
+Run a focused test file or test selection:
+
+```bash
+uv run pytest tests/test_local.py
+uv run pytest tests/test_local.py -k some_test_name
+```
+
 Run notebook tests:
 
 ```bash
 uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
+
+Notebook tests are a separate CI gate and take much longer than the unit suite. Do not treat `uv run pytest` as full validation when changes can affect examples, docs-facing APIs, or shared numerical behavior.
 
 Run linting and type checks:
 
@@ -44,6 +53,18 @@ uv run ruff check .
 uv run black --check .
 uv run flake8 src tests
 uv run mypy src
+```
+
+For changes to typing, linting, formatting, workflow files, test layout, or other repo-wide quality/configuration surfaces, run the full validation matrix before concluding work:
+
+```bash
+uv run ruff check .
+uv run black --check .
+uv run flake8 src tests
+uv run mypy src
+uv run pytest
+uv run --group examples pytest --nbval-lax examples/notebooks/
+uv build
 ```
 
 When fixing formatting or lint issues, prefer:
@@ -79,6 +100,7 @@ Built artifacts are written to `dist/`.
 * Do not edit generated files or lockfiles by hand.
 * Keep changes focused on the requested task.
 * Run the relevant validation commands before considering the task complete.
+* Keep references to the test suite consistent across the repository: if test paths change, update `pyproject.toml`, workflows, and instructions together.
 
 ## Public API
 - Avoid changing public APIs unless explicitly requested.
@@ -90,9 +112,15 @@ Built artifacts are written to `dist/`.
 - Add or preserve type annotations for public functions and classes.
 - Avoid broad `Any` unless necessary.
 - Keep `mypy` passing after type-related changes.
+- The mypy policy for this repo lives in `pyproject.toml` under `[tool.mypy]` and `[[tool.mypy.overrides]]`; adjust that first when dealing with third-party stubs or intentionally excluded legacy modules instead of changing the workflow.
 
 ## Dependencies
 - Do not add new dependencies unless needed.
 - Prefer standard-library solutions for small utilities.
 - Put runtime dependencies in `[project.dependencies]`.
 - Put test, lint, notebook, or development-only dependencies in dependency groups.
+
+## Linting conventions
+- Ruff, Black, and Flake8 are intentionally aligned around an 88-character line length.
+- Flake8 is configured through `pyproject.toml` and depends on `flake8-pyproject` in the `lint` dependency group; keep that plugin in place if you expect Flake8 to honor repo settings.
+- Notebook cells use a targeted Ruff ignore for `examples/notebooks/*.ipynb` `E501`; prefer that narrow exception over broad global relaxations.

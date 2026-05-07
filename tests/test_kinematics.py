@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from jitr.utils.kinematics import cm_to_lab_frame, lab_to_cm_frame
 from numpy.testing import assert_allclose
+
+from jitr.utils.kinematics import cm_to_lab_frame, lab_to_cm_frame
 
 
 @pytest.mark.parametrize(

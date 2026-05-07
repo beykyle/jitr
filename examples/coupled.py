@@ -1,4 +1,6 @@
 import numpy as np
+from matplotlib import pyplot as plt
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import coulomb_charged_sphere as coul
 from jitr.optical_potentials.potential_forms import (
@@ -7,7 +9,6 @@ from jitr.optical_potentials.potential_forms import (
 from jitr.optical_potentials.potential_forms import woods_saxon_potential as ws
 from jitr.reactions import ProjectileTargetSystem, wavefunction
 from jitr.utils import complex_det, constants, kinematics, mass
-from matplotlib import pyplot as plt
 
 
 def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
@@ -113,7 +114,7 @@ def coupled_channels_example():
     lines = []
     for i in range(nchannels):
         u_values = u[i](s_values)
-        (p1,) = plt.plot(s_values, np.real(u_values), label=r"$n=%d$" % i)
+        (p1,) = plt.plot(s_values, np.real(u_values), label=rf"$n={i}$")
         (p2,) = plt.plot(s_values, np.imag(u_values), ":", color=p1.get_color())
         lines.append([p1, p2])
 

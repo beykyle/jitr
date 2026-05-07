@@ -1,6 +1,7 @@
-from jitr import quadrature
-from numba import njit
 import numpy as np
+from numba import njit
+
+from jitr import quadrature
 
 channel_radii = np.array([np.pi])
 

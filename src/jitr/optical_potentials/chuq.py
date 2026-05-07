@@ -30,7 +30,7 @@ NUM_POSTERIOR_SAMPLES = 208
 NUM_PARAMS = 22
 
 
-def get_param_names():
+def get_param_names() -> list[str]:
     """
     Get the names of the parameters for the given projectile, in the
     order they are returned by the get_samples function.
@@ -38,7 +38,7 @@ def get_param_names():
     return list(Global().params.keys())
 
 
-def get_samples(posterior: str = "federal"):
+def get_samples(posterior: str = "federal") -> np.ndarray:
     """
     Get the posterior samples for the given projectile (neutron or
     proton) from the CHUQ Federal or Democratic posteriors.
@@ -77,7 +77,16 @@ def get_samples(posterior: str = "federal"):
     )
 
 
-def central(r, V, W, Wd, Rv, av, Rd, ad) -> complex:
+def central(
+    r: float | np.ndarray,
+    V: float,
+    W: float,
+    Wd: float,
+    Rv: float,
+    av: float,
+    Rd: float,
+    ad: float,
+) -> complex:
     r"""
     Form of the central term of the CHUQ potential, given by Eqs. A7-8
     of [Pruitt, et al., 2023]
@@ -107,7 +116,7 @@ def central(r, V, W, Wd, Rv, av, Rd, ad) -> complex:
     return -volume - imag_volume - surface
 
 
-def spin_orbit(r, Vso, Rso, aso) -> complex:
+def spin_orbit(r: float | np.ndarray, Vso: float, Rso: float, aso: float) -> complex:
     """
     Form of the spin-orbit term of the CHUQ potential, given by Eqs.
     A7-8 of [Pruitt, et al., 2023]
@@ -152,7 +161,7 @@ def calculate_params(
     aso: float = 0.63,
     rc: float = 1.24,
     rc_0: float = 0.12,
-):
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the CHUQ potential
@@ -240,7 +249,7 @@ def calculate_params(
     return central_params, spin_orbit_params, coulomb_params
 
 
-def coulomb_correction(A, Z, RC):
+def coulomb_correction(A: int, Z: int, RC: float) -> float:
     r"""
     Coulomb correction for proton energy
     """
@@ -321,8 +330,10 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-    def get_params(self, projectile, target, Elab):
-        # fermi energy
+    def get_params(
+        self, projectile: tuple[int, int], target: tuple[int, int], Elab: float
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """Return CHUQ central, spin-orbit, and Coulomb parameters."""
         return calculate_params(projectile, target, Elab, *list(self.params.values()))
 
 
@@ -347,8 +358,8 @@ class CHUQ(SingleChannelOpticalModel):
         self,
         reaction: Reaction,
         kinematics: ChannelKinematics,
-        *params,
-    ) -> tuple:
+        *params: float,
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
         """
         Calculate the central, spin-orbit, and Coulomb parameters for
         the Chapel-Hill '89 potential based on the provided parameters

@@ -1,3 +1,7 @@
+"""DWBA workspaces for quasi-elastic ``(p,n)`` scattering observables."""
+
+from typing import Any
+
 import numpy as np
 from scipy.special import gamma, sph_harm_y
 from sympy.physics.wigner import clebsch_gordan
@@ -38,7 +42,7 @@ class System:
         reaction: Reaction,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
-    ):
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         r"""
         Initialize the System for (p,n) quasi-elastic scattering observables.
         Parameters:
@@ -224,17 +228,17 @@ class Workspace:
 
     def tmatrix(
         self,
-        U_p_coulomb=None,
-        U_p_central=None,
-        U_p_spin_orbit=None,
-        U_n_central=None,
-        U_n_spin_orbit=None,
-        args_p_coulomb=None,
-        args_p_central=None,
-        args_p_spin_orbit=None,
-        args_n_central=None,
-        args_n_spin_orbit=None,
-    ):
+        U_p_coulomb: Any | None = None,
+        U_p_central: Any | None = None,
+        U_p_spin_orbit: Any | None = None,
+        U_n_central: Any | None = None,
+        U_n_spin_orbit: Any | None = None,
+        args_p_coulomb: tuple[Any, ...] | None = None,
+        args_p_central: tuple[Any, ...] | None = None,
+        args_p_spin_orbit: tuple[Any, ...] | None = None,
+        args_n_central: tuple[Any, ...] | None = None,
+        args_n_spin_orbit: tuple[Any, ...] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
         using the distorted wave Born approximation (DWBA).
@@ -393,17 +397,17 @@ class Workspace:
 
     def xs(
         self,
-        U_p_coulomb=None,
-        U_p_central=None,
-        U_p_spin_orbit=None,
-        U_n_central=None,
-        U_n_spin_orbit=None,
-        args_p_coulomb=None,
-        args_p_central=None,
-        args_p_spin_orbit=None,
-        args_n_central=None,
-        args_n_spin_orbit=None,
-    ):
+        U_p_coulomb: Any | None = None,
+        U_p_central: Any | None = None,
+        U_p_spin_orbit: Any | None = None,
+        U_n_central: Any | None = None,
+        U_n_spin_orbit: Any | None = None,
+        args_p_coulomb: tuple[Any, ...] | None = None,
+        args_p_central: tuple[Any, ...] | None = None,
+        args_p_spin_orbit: tuple[Any, ...] | None = None,
+        args_n_central: tuple[Any, ...] | None = None,
+        args_n_spin_orbit: tuple[Any, ...] | None = None,
+    ) -> np.ndarray:
         """
         Calculate the differential cross section for (p,n) quasi-elastic scattering
         in mb/Sr in the outgoing neutron angle using DWBA.

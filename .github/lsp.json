@@ -1,0 +1,24 @@
+{
+  "lspServers": {
+    "python": {
+      "command": "pyright-langserver",
+      "args": [
+        "--stdio"
+      ],
+      "fileExtensions": {
+        ".py": "python",
+        ".pyi": "python"
+      },
+      "initializationOptions": {
+        "python": {
+          "analysis": {
+            "autoSearchPaths": true,
+            "diagnosticMode": "openFilesOnly",
+            "typeCheckingMode": "basic",
+            "useLibraryCodeForTypes": true
+          }
+        }
+      }
+    }
+  }
+}

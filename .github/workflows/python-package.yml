@@ -11,7 +11,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -26,19 +26,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-      
-      - name: black
-        uses: lgeiger/black-action@v1.0.1
-        with:
-          args: .
-
-      - name: Check for modified files
-        id: git-check
-        run: echo "modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi)" >> $GITHUB_OUTPUT
-
-      - name: Push changes
-        if: steps.git-check.outputs.modified == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v4
 
       - name: Set up Python
         uses: actions/setup-python@v6

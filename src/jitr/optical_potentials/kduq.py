@@ -28,7 +28,7 @@ from .potential_forms import (
 NUM_POSTERIOR_SAMPLES = 416
 
 
-def get_param_names(projectile: tuple):
+def get_param_names(projectile: tuple[int, int]) -> list[str]:
     """
     Get the names of the parameters for the given projectile, in the
     order they are returned by the get_samples function.
@@ -36,7 +36,7 @@ def get_param_names(projectile: tuple):
     return list(Global(projectile).params.keys())
 
 
-def get_samples(projectile: tuple, posterior: str = "federal"):
+def get_samples(projectile: tuple[int, int], posterior: str = "federal") -> np.ndarray:
     """
     Get the posterior samples for the given projectile (neutron or
     proton) from the KDUQ Federal or Democratic posteriors.
@@ -83,41 +83,56 @@ def get_samples(projectile: tuple, posterior: str = "federal"):
     )
 
 
-def Vv(E, v1, v2, v3, v4, Ef):
+def Vv(E: float, v1: float, v2: float, v3: float, v4: float, Ef: float) -> float:
     r"""energy-dependent, volume-central strength - real term, Eq. (7)"""
     return v1 * (1 - v2 * (E - Ef) + v3 * (E - Ef) ** 2 - v4 * (E - Ef) ** 3)
 
 
-def Wv(E, w1, w2, Ef):
+def Wv(E: float, w1: float, w2: float, Ef: float) -> float:
     """energy-dependent, volume-central strength - imaginary term, Eq. (7)"""
     return w1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + w2**2)
 
 
-def Wd(E, d1, d2, d3, Ef):
+def Wd(E: float, d1: float, d2: float, d3: float, Ef: float) -> float:
     """energy-dependent, surface-central strength - imaginary term (no real
     term), Eq. (7)
     """
     return d1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + d3**2) * np.exp(-d2 * (E - Ef))
 
 
-def Vso(E, vso1, vso2, Ef):
+def Vso(E: float, vso1: float, vso2: float, Ef: float) -> float:
     """energy-dependent, spin-orbit strength --- real term, Eq. (7)"""
     return vso1 * np.exp(-vso2 * (E - Ef))
 
 
-def Wso(E, wso1, wso2, Ef):
+def Wso(E: float, wso1: float, wso2: float, Ef: float) -> float:
     """energy-dependent, spin-orbit strength --- imaginary term, Eq. (7)"""
     return wso1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + wso2**2)
 
 
-def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
+def delta_VC(
+    E: float, Vcbar: float, v1: float, v2: float, v3: float, v4: float, Ef: float
+) -> float:
     """energy dependent Coulomb correction term, Eq. 23"""
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-def central(r, Vv, Rv, av, Wv, Rwv, awv, Wd, Rd, ad) -> complex:
+def central(
+    r: float | np.ndarray,
+    Vv: float,
+    Rv: float,
+    av: float,
+    Wv: float,
+    Rwv: float,
+    awv: float,
+    Wd: float,
+    Rd: float,
+    ad: float,
+) -> complex:
     r"""
-    Koning-Delaroche central terms at a given energy, Eq. (7) in Koning and Delaroche (2003).
+    Koning-Delaroche central terms at a given energy.
+
+    This matches Eq. (7) in Koning and Delaroche (2003).
 
     Parameters:
     ----------
@@ -149,9 +164,19 @@ def central(r, Vv, Rv, av, Wv, Rwv, awv, Wd, Rd, ad) -> complex:
     )
 
 
-def spin_orbit(r, Vso, Rso, aso, Wso, Rwso, awso) -> complex:
+def spin_orbit(
+    r: float | np.ndarray,
+    Vso: float,
+    Rso: float,
+    aso: float,
+    Wso: float,
+    Rwso: float,
+    awso: float,
+) -> complex:
     r"""
-    Koning-Delaroche spin-orbit terms at a given energy, Eq. (7) in Koning and Delaroche (2003).
+    Koning-Delaroche spin-orbit terms at a given energy.
+
+    This matches Eq. (7) in Koning and Delaroche (2003).
 
     Parameters:
     ----------
@@ -345,7 +370,10 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for KDUQ!")
 
-    def get_params(self, A, Z, Elab):
+    def get_params(
+        self, A: int, Z: int, Elab: float
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """Return Koning-Delaroche central, spin-orbit, and Coulomb parameters."""
         return calculate_params(
             self.projectile, (A, Z), Elab, *list(self.params.values())
         )
@@ -395,7 +423,7 @@ def calculate_params(
     rc_0: float = 0.0,
     rc_A: float = 0.0,
     rc_A2: float = 0.0,
-) -> tuple:
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the KDUQ potential
@@ -558,8 +586,8 @@ class KDUQ(SingleChannelOpticalModel):
         self,
         reaction: Reaction,
         kinematics: ChannelKinematics,
-        *params,
-    ) -> tuple:
+        *params: float,
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
         """
         Calculate the central, spin-orbit, and Coulomb parameters for
         the Koning-Delaroche potential based on the provided parameters

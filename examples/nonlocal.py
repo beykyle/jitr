@@ -1,4 +1,5 @@
 import numpy as np
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     yamaguchi_potential,
@@ -38,12 +39,9 @@ def nonlocal_interaction_example():
     delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))
 
     print("\nYamaguchi potential test:\n delta:")
-    print("Lagrange-Legendre Mesh: {:.6f} [degrees]".format(delta))
-    print(
-        "Analytic              : {:.6f} [degrees]".format(
-            yamaguchi_swave_delta(channels[l].k[0], *params)
-        )
-    )
+    print(f"Lagrange-Legendre Mesh: {delta:.6f} [degrees]")
+    analytic_delta = yamaguchi_swave_delta(channels[l].k[0], *params)
+    print(f"Analytic              : {analytic_delta:.6f} [degrees]")
 
 
 if __name__ == "__main__":

@@ -1,56 +1,59 @@
+"""Channel-system objects used by the R-matrix solvers."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TypeAlias
+
 import numpy as np
+import numpy.typing as npt
 
-from ..utils.free_solutions import (
-    H_plus,
-    H_minus,
-    H_plus_prime,
-    H_minus_prime,
-)
+from ..utils.free_solutions import H_minus, H_minus_prime, H_plus, H_plus_prime
+
+FloatArray: TypeAlias = npt.NDArray[np.float64]
+ComplexArray: TypeAlias = npt.NDArray[np.complex128]
+CouplingFunction: TypeAlias = Callable[[int], FloatArray]
 
 
-def scalar_couplings(l):
-    r"""default case of uncoupled partial waves"""
+def scalar_couplings(l: int) -> FloatArray:
+    """Return the default single-channel coupling matrix for partial wave ``l``."""
     return np.array([[1.0]])
 
 
-def spin_half_orbit_coupling(l):
-    r"""For a spin-1/2 nucleon scattering off a spin-0 nucleus with spin-obit coupling,
-    there are maximally 2 different total angular momentum couplings: l+1/2 and l-1/2.
+def spin_half_orbit_coupling(l: int) -> FloatArray:
+    """Return ``l · sigma`` expectation values for spin-1/2 on spin-0 scattering.
 
-    Note: this follows convention of optical potentials where the coupling is
-    of l dot sigma = 2 * l dot s. This corresponds to Vso depth of about 5-8 MeV
-    for nucleon-nucleus scattering.
-
-    Parameters:
-        l (int): angular momentum
+    Args:
+        l: Orbital angular momentum.
 
     Returns:
-        couplings (np.ndarray): expectation value of l dot sigma in each j channel
+        A diagonal matrix containing the coupling strength in each ``j`` channel.
     """
     js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
     return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js])
 
 
 class Asymptotics:
-    r"""
-    Stores the asymptotic behavior in a set of partial wave channels
-    """
+    """Asymptotic solutions for a set of channels in one partial wave."""
 
-    def __init__(self, Hp, Hm, Hpp, Hmp):
+    def __init__(
+        self,
+        Hp: ComplexArray,
+        Hm: ComplexArray,
+        Hpp: ComplexArray,
+        Hmp: ComplexArray,
+    ) -> None:
         self.Hp = Hp
         self.Hm = Hm
         self.Hpp = Hpp
         self.Hmp = Hmp
         self.size = Hp.shape[0]
 
-    def decouple(self):
-        r"""
-        If coupling is diagonal, this partial wave can be decoupled
-        into individual Asymptotics objects
-        """
-        asym = []
+    def decouple(self) -> list[Asymptotics]:
+        """Split diagonal asymptotics into one-channel objects."""
+        asymptotics: list[Asymptotics] = []
         for i in range(self.size):
-            asym.append(
+            asymptotics.append(
                 Asymptotics(
                     self.Hp[i : i + 1],
                     self.Hm[i : i + 1],
@@ -58,15 +61,22 @@ class Asymptotics:
                     self.Hmp[i : i + 1],
                 )
             )
-        return asym
+        return asymptotics
 
 
 class Channels:
-    r"""
-    Stores information about a set of channels at a given partial wave
-    """
+    """Channel metadata for one partial wave."""
 
-    def __init__(self, E, k, mu, eta, a, l, couplings):
+    def __init__(
+        self,
+        E: FloatArray,
+        k: FloatArray,
+        mu: FloatArray,
+        eta: FloatArray,
+        a: float,
+        l: FloatArray,
+        couplings: FloatArray,
+    ) -> None:
         self.num_channels = E.shape[0]
         assert couplings.shape == (self.num_channels, self.num_channels)
         assert k.shape[0] == self.num_channels
@@ -81,16 +91,13 @@ class Channels:
         self.size = couplings.shape[0]
         self.couplings = couplings
 
-    def decouple(self):
-        r"""
-        If self.couplings is diagonal, this partial wave can be decoupled
-        into self.size Channels objects
-        """
+    def decouple(self) -> list[Channels]:
+        """Split diagonal channel data into one-channel objects."""
         assert (
             np.count_nonzero(self.couplings - np.diag(np.diagonal(self.couplings))) == 0
         )
-        couplings = np.diag(self.couplings)
-        channels = []
+        diagonal_couplings = np.diag(self.couplings)
+        channels: list[Channels] = []
         for i in range(self.size):
             channels.append(
                 Channels(
@@ -100,37 +107,42 @@ class Channels:
                     self.eta[i : i + 1],
                     self.a,
                     self.l[i : i + 1],
-                    np.array([[couplings[i]]]),
+                    np.array([[diagonal_couplings[i]]]),
                 )
             )
         return channels
 
 
 class ProjectileTargetSystem:
-    r"""
-    Stores physics parameters of asystem. Calculates useful parameters for each partial wave.
-    """
+    """System-level information for a projectile-target partition."""
 
     def __init__(
         self,
-        channel_radius: np.float64,
-        lmax: np.int64,
-        mass_target: np.float64 = 0,
-        mass_projectile: np.float64 = 0,
-        Ztarget: np.float64 = 0,
-        Zproj: np.float64 = 0,
-        coupling=scalar_couplings,
-        channel_levels=None,
-    ):
-        r"""
-        @params
-            channel_radius (np.float64):  dimensionless channel radius k_0 * radius
-        """
+        channel_radius: float,
+        lmax: int,
+        mass_target: float = 0.0,
+        mass_projectile: float = 0.0,
+        Ztarget: float = 0.0,
+        Zproj: float = 0.0,
+        coupling: CouplingFunction = scalar_couplings,
+        channel_levels: FloatArray | None = None,
+    ) -> None:
+        """Store channel-independent parameters for each partial wave.
 
+        Args:
+            channel_radius: Dimensionless channel radius ``k_0 r``.
+            lmax: Maximum orbital angular momentum.
+            mass_target: Target mass in MeV/c^2.
+            mass_projectile: Projectile mass in MeV/c^2.
+            Ztarget: Target charge.
+            Zproj: Projectile charge.
+            coupling: Function returning the coupling matrix for each ``l``.
+            channel_levels: Optional excitation-energy offsets for coupled channels.
+        """
         self.channel_radius = channel_radius
         self.lmax = lmax
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
-        self.couplings = [coupling(l) for l in self.l]
+        self.couplings = [coupling(int(l)) for l in self.l]
 
         if channel_levels is None:
             channel_levels = np.zeros(self.couplings[0].shape[0], dtype=np.float64)
@@ -143,19 +155,15 @@ class ProjectileTargetSystem:
 
     def get_partial_wave_channels(
         self,
-        Elab,
-        Ecm,
-        mu,
-        k,
-        eta,
-    ):
-        r"""
-        For each partial wave, returns a Channels object describing the array of channels
-        in each wave
-        """
-
-        channels = []
-        asymptotics = []
+        Elab: float | FloatArray,
+        Ecm: float | FloatArray,
+        mu: float | FloatArray,
+        k: float | FloatArray,
+        eta: float | FloatArray,
+    ) -> tuple[list[Channels], list[Asymptotics]]:
+        """Build channel and asymptotic objects for every partial wave."""
+        channels: list[Channels] = []
+        asymptotics: list[Asymptotics] = []
         for l in range(0, self.lmax + 1):
             num_channels = self.couplings[l].shape[0]
             eta_array = uniform_array_from_scalar_or_array(eta, num_channels)
@@ -206,10 +214,13 @@ class ProjectileTargetSystem:
         return channels, asymptotics
 
 
-def uniform_array_from_scalar_or_array(scalar_or_array, size):
+def uniform_array_from_scalar_or_array(
+    scalar_or_array: float | list[float] | FloatArray,
+    size: int,
+) -> FloatArray:
+    """Broadcast a scalar or list-like input to a one-dimensional array."""
     if isinstance(scalar_or_array, np.ndarray):
-        return scalar_or_array
-    elif isinstance(scalar_or_array, list):
-        return np.array(scalar_or_array)
-    else:
-        return np.ones(size) * scalar_or_array
+        return np.asarray(scalar_or_array, dtype=np.float64)
+    if isinstance(scalar_or_array, list):
+        return np.asarray(scalar_or_array, dtype=np.float64)
+    return np.full(size, scalar_or_array, dtype=np.float64)

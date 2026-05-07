@@ -1,23 +1,37 @@
+"""Quadrature kernels and transforms on Lagrange meshes."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, TypeAlias
+
 import numpy as np
+import numpy.typing as npt
 import scipy.special as sc
 
 from .quadrature import (
-    legendre,
-    laguerre,
-    LagrangeLegendreQuadrature,
+    ComplexArray,
+    FloatArray,
     LagrangeLaguerreQuadrature,
+    LagrangeLegendreQuadrature,
     generate_laguerre_quadrature,
     generate_legendre_quadrature,
+    laguerre,
+    legendre,
 )
+
+Quadrature: TypeAlias = LagrangeLaguerreQuadrature | LagrangeLegendreQuadrature
+BasisFunction: TypeAlias = Callable[[int, float, float, Quadrature], complex]
 
 
 class Kernel:
-    def __init__(
-        self,
-        nbasis: np.int32,
-        basis="Legendre",
-    ):
+    """Convenience wrapper around a quadrature rule and its basis functions."""
+
+    def __init__(self, nbasis: int, basis: str = "Legendre") -> None:
+        """Construct a kernel for the requested Lagrange basis."""
         self.overlap = np.diag(np.ones(nbasis))
+        self.quadrature: Quadrature
+        self.basis_function: BasisFunction
         if basis == "Legendre":
             x, w = generate_legendre_quadrature(nbasis)
             self.quadrature = LagrangeLegendreQuadrature(x, w)
@@ -31,143 +45,139 @@ class Kernel:
                 "Currently only Legendre and Laguerre meshes are supported"
             )
 
-        # precompute matrices of weights and abscissa for vectorized operations
         self.weight_matrix = np.outer(self.quadrature.weights, self.quadrature.weights)
+        self.Xn: FloatArray
+        self.Xm: FloatArray
         self.Xn, self.Xm = np.meshgrid(
             self.quadrature.abscissa, self.quadrature.abscissa
         )
         self.upper_mask = np.triu_indices(nbasis)
         self.lower_mask = np.tril_indices(nbasis, k=-1)
 
-    def f(self, n: np.int32, a: np.float64, s: np.float64):
+    def f(self, n: int, a: float, s: float) -> complex:
+        """Evaluate the ``n``-th Lagrange basis function."""
         return self.basis_function(n, a, s, self.quadrature)
 
-    def integrate_local(self, f, a: np.float64, args=()):
-        """
-        @returns integral of local function f(x,*args)dx from [0,a] in Gauss
-        quadrature
-        """
-        return (
-            np.sum(f(self.quadrature.abscissa * a, *args) * self.quadrature.weights) * a
-        )
+    def integrate_local(
+        self,
+        f: Callable[..., npt.ArrayLike],
+        a: float,
+        args: tuple[Any, ...] = (),
+    ) -> np.complex128:
+        """Integrate a local function on ``[0, a]`` using Gauss quadrature."""
+        values = np.asarray(f(self.quadrature.abscissa * a, *args), dtype=np.complex128)
+        return np.sum(values * self.quadrature.weights) * a
 
     def double_integrate_nonlocal(
-        self, f, a: np.float64, is_symmetric: bool = True, args=()
-    ):
-        """
-        @returns double integral nonlocal function f(x,x',*args)dxdx' from
-        [0,a] x [0,a] in Gauss quadrature
-        """
+        self,
+        f: Callable[..., npt.ArrayLike],
+        a: float,
+        is_symmetric: bool = True,
+        args: tuple[Any, ...] = (),
+    ) -> np.complex128:
+        """Integrate a nonlocal kernel on ``[0, a] × [0, a]``."""
         if is_symmetric:
-            off_diag = np.sum(
-                self.weight_matrix[self.lower_mask]
-                * f(self.Xn[self.lower_mask] * a, self.Xm[self.lower_mask] * a, *args)
+            off_diag_values = np.asarray(
+                f(self.Xn[self.lower_mask] * a, self.Xm[self.lower_mask] * a, *args),
+                dtype=np.complex128,
             )
-            diag = np.sum(
-                self.quadrature.weights**2
-                * f(self.quadrature.abscissa * a, self.quadrature.abscissa * a, *args)
+            off_diag = np.sum(self.weight_matrix[self.lower_mask] * off_diag_values)
+            diag_values = np.asarray(
+                f(self.quadrature.abscissa * a, self.quadrature.abscissa * a, *args),
+                dtype=np.complex128,
             )
-
+            diag = np.sum(self.quadrature.weights**2 * diag_values)
             return a**2 * (2 * off_diag + diag)
-        else:
-            return a**2 * np.sum(
-                self.weight_matrix * f(self.Xn * a, self.Xm * a, *args)
-            )
+
+        values = np.asarray(f(self.Xn * a, self.Xm * a, *args), dtype=np.complex128)
+        return a**2 * np.sum(self.weight_matrix * values)
 
     def fourier_bessel_transform(
-        self, l: np.int32, f, k: np.array, a: np.float64, *args
-    ):
-        """
-        performs a Fourier-Bessel transform of order l from r->k coordinates
-        with r on [0,a]
-        """
+        self,
+        l: int,  # noqa: E741
+        f: Callable[..., npt.ArrayLike],
+        k: FloatArray,
+        a: float,
+        *args: Any,
+    ) -> ComplexArray:
+        """Perform a Fourier-Bessel transform of order ``l``."""
         r = self.quadrature.abscissa * a
         kr = np.outer(k, r)
+        values = np.asarray(f(r, *args), dtype=np.complex128)
         return np.sum(
-            sc.spherical_jn(l, kr) * r**2 * f(r, *args) * self.quadrature.weights,
+            sc.spherical_jn(l, kr) * r**2 * values * self.quadrature.weights,
             axis=1,
         )
 
     def double_fourier_bessel_transform(
-        self, l: np.int32, f, k: np.float64, a: np.float64, *args
-    ):
-        """
-        performs a double Fourier-Bessel transform of f(r,r') of order l, going
-        from f(r,r')->F(k,k') coordinates with r/r' on [0,a]
-        """
-        N = self.quadrature.nbasis
+        self,
+        l: int,  # noqa: E741
+        f: Callable[..., npt.ArrayLike],
+        k: float,
+        a: float,
+        *args: Any,
+    ) -> ComplexArray:
+        """Perform a double Fourier-Bessel transform of order ``l``."""
+        n_basis = self.quadrature.nbasis
         r = self.quadrature.abscissa * a
-        jkr = sc.spherical_j(l, np.outer(k, r))
-        F_kkp = np.zeros((N, N), dtype=np.complex128)
-        F_rkp = np.zeros((N, N), dtype=np.complex128)
+        jkr = sc.spherical_jn(l, np.outer(k, r))
+        transformed_kkp = np.zeros((n_basis, n_basis), dtype=np.complex128)
+        transformed_rkp = np.zeros((n_basis, n_basis), dtype=np.complex128)
 
-        # integrate over rp at each r
-        for i in range(N):
-            F_rkp[i, :] = np.sum(
-                jkr * r**2 * f(r[i], r, *args) * self.quadrature.weights, axis=1
+        for i in range(n_basis):
+            transformed_rkp[i, :] = np.sum(
+                jkr * r**2 * np.asarray(f(r[i], r, *args)) * self.quadrature.weights,
+                axis=1,
             )
 
-        # integrate over r at each kp
-        for i in range(N):
-            F_kkp[:, i] = np.sum(
-                jkr * r**2 * F_rkp[:, i] * self.quadrature.weights, axis=1
+        for i in range(n_basis):
+            transformed_kkp[:, i] = np.sum(
+                jkr * r**2 * transformed_rkp[:, i] * self.quadrature.weights,
+                axis=1,
             )
 
-        return F_kkp * 2 / np.pi
+        return transformed_kkp * 2 / np.pi
 
     def dwba_local(
         self,
-        bra: np.array,
-        ket: np.array,
-        a: np.float64,
-        f,
-        args,
-    ):
-        r"""
-        @returns the DWBA matrix element for the local operator `interaction`,
-        between distorted wave `bra` and `ket`, which are represented as a set
-        of `self.nbasis` complex coefficients for the Lagrange functions,
-        following Eq. 29 in Descouvemont, 2016 (or 2.85 in Baye, 2015).
-
-        Note: integral is performed in s space, with ds = k dr. To get value of
-        integral over r space, result should be scaled by 1/k
-        """
+        bra: ComplexArray,
+        ket: ComplexArray,
+        a: float,
+        f: Callable[..., npt.ArrayLike],
+        args: tuple[Any, ...],
+    ) -> np.complex128:
+        """Return a DWBA matrix element for a local operator."""
         return np.sum(bra * self.matrix_local(f, a, args) * ket)
 
     def dwba_nonlocal(
         self,
-        bra: np.array,
-        ket: np.array,
-        a: np.float64,
-        f,
-        args,
+        bra: ComplexArray,
+        ket: ComplexArray,
+        a: float,
+        f: Callable[..., npt.ArrayLike],
+        args: tuple[Any, ...],
         is_symmetric: bool = True,
-    ):
-        r"""
-        @returns DWBA (complex128): matrix element for the nonlocal operator
-        `interaction`, between distorted wave `bra` and `ket`, which are
-        represented as a set of `self.nbasis` complex coefficients for the
-        Lagrange functions, generalizing Eq. 29 in Descouvemont, 2016 (or 2.85
-        in Baye, 2015).
+    ) -> np.complex128:
+        """Return a DWBA matrix element for a nonlocal operator."""
+        operator = self.matrix_nonlocal(f, a, is_symmetric=is_symmetric, args=args)
+        return np.complex128(bra.T @ operator @ ket)
 
-        Note: integral is performed in s,s' space, with ds = k dr. To get value
-        of integral over r space, result should be scaled by 1/(kk')
-        """
-        # get operator in Lagrange coords as (nbasis x nbasis) matrix
-        Vnm = self.matrix_nonlocal(f, a, is_symmetric=is_symmetric, args=args)
-        # reduce
-        return bra.T @ Vnm @ ket
+    def matrix_local(
+        self,
+        f: Callable[..., npt.ArrayLike],
+        a: float,
+        args: tuple[Any, ...] = (),
+    ) -> ComplexArray:
+        """Evaluate a diagonal local operator in the Lagrange basis."""
+        return np.asarray(f(self.quadrature.abscissa * a, *args), dtype=np.complex128)
 
-    def matrix_local(self, f, a: np.float64, args=()):
-        r"""
-        @returns matrix (np.ndarray): diagonal elements of arbitrary vectorized
-            operator f(x) in lagrange basis
-        """
-        return f(self.quadrature.abscissa * a, *args)
-
-    def matrix_nonlocal(self, f, a: np.float64, is_symmetric=True, args=()):
-        r"""
-        @returns matrix (np.ndarray): arbitrary vectorized operator f(x,xp) in
-            lagrange basis
-        """
-        return np.sqrt(self.weight_matrix) * f(self.Xn * a, self.Xm * a, *args) * a
+    def matrix_nonlocal(
+        self,
+        f: Callable[..., npt.ArrayLike],
+        a: float,
+        is_symmetric: bool = True,
+        args: tuple[Any, ...] = (),
+    ) -> ComplexArray:
+        """Evaluate a nonlocal operator in the Lagrange basis."""
+        values = np.asarray(f(self.Xn * a, self.Xm * a, *args), dtype=np.complex128)
+        return np.sqrt(self.weight_matrix) * values * a

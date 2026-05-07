@@ -1,8 +1,18 @@
+"""Quadrature rules and Lagrange-mesh basis functions."""
+
+from __future__ import annotations
+
+from typing import Any, TypeAlias
+
 import numpy as np
+import numpy.typing as npt
 import scipy.special as sc
 
+FloatArray: TypeAlias = npt.NDArray[np.float64]
+ComplexArray: TypeAlias = npt.NDArray[np.complex128]
 
-def laguerre(n: np.int32, a: np.float64, s: np.float64, quadrature):
+
+def laguerre(n: int, a: float, s: float, quadrature: Any) -> complex:
     r"""
     nth Lagrange-Laguerre function, scaled by a. Eq. 3.70 in Baye, 2015
     with alpha = 0.
@@ -24,7 +34,7 @@ def laguerre(n: np.int32, a: np.float64, s: np.float64, quadrature):
     )
 
 
-def legendre(n: np.int32, a: np.float64, s: np.float64, quadrature):
+def legendre(n: int, a: float, s: float, quadrature: Any) -> complex:
     r"""
     nth Lagrange-Legendre polynomial shifted onto [0,a_i] and regularized by
     s.  Eq. 3.122 in Baye, 2015
@@ -45,7 +55,7 @@ def legendre(n: np.int32, a: np.float64, s: np.float64, quadrature):
     )
 
 
-def generate_laguerre_quadrature(nbasis: int):
+def generate_laguerre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Laguerre
     basis. See Ch. 3.3 of Baye, 2015
@@ -53,7 +63,7 @@ def generate_laguerre_quadrature(nbasis: int):
     return np.polynomial.laguerre.laggauss(nbasis)
 
 
-def generate_legendre_quadrature(nbasis: int):
+def generate_legendre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
     r"""
     @returns zeros and weights for Gauss quadrature using the Lagrange-Legendre
     basis shifted and scaled onto [0,a]. See Ch. 3.4 of Baye, 2015
@@ -75,10 +85,10 @@ class LagrangeLaguerreQuadrature:
 
     def __init__(
         self,
-        abscissa: np.array,
-        weights: np.array,
-        overlap: np.array = None,
-    ):
+        abscissa: FloatArray,
+        weights: FloatArray,
+        overlap: FloatArray | None = None,
+    ) -> None:
         """
         Constructs the Schrödinger equation in a basis of Lagrange Laguerre
         functions
@@ -96,8 +106,8 @@ class LagrangeLaguerreQuadrature:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
-    ):
+        self, n: int, m: int, a: float, l: int  # noqa: E741
+    ) -> float:
         """
         @returns the (n,m)th matrix element for the kinetic energy operator at
         channel radius a = k*r with orbital angular momentum l
@@ -122,7 +132,7 @@ class LagrangeLaguerreQuadrature:
                 xn - xm
             ) ** 2 / a**2 - correction
 
-    def kinetic_matrix(self, a: np.float64, l: np.int32):
+    def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
         r"""
         @returns the kinetic operator matrix in the Lagrange Laguerre basis
         """
@@ -145,10 +155,10 @@ class LagrangeLegendreQuadrature:
 
     def __init__(
         self,
-        abscissa: np.array,
-        weights: np.array,
-        overlap: np.array = None,
-    ):
+        abscissa: FloatArray,
+        weights: FloatArray,
+        overlap: FloatArray | None = None,
+    ) -> None:
         """
         Constructs the Schrödinger equation in a basis of Lagrange Legendre
         functions
@@ -164,8 +174,8 @@ class LagrangeLegendreQuadrature:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: np.int32, m: np.int32, a: np.float64, l: np.int32
-    ):
+        self, n: int, m: int, a: float, l: int  # noqa: E741
+    ) -> float:
         """
         @returns the (n,m)th matrix element for the kinetic energy + Bloch
         operator at channel radius a = k*r with orbital angular momentum l
@@ -199,7 +209,7 @@ class LagrangeLegendreQuadrature:
                 / a**2
             )
 
-    def kinetic_matrix(self, a: np.float64, l: np.int32):
+    def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
         r"""
         @returns the kinetic operator matrix in the Lagrange Legendre basis
         """

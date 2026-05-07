@@ -49,6 +49,8 @@ lint = [
     "black",
     "flake8",
     "mypy",
+    "flake8-pyproject>=1.2.4",
+    "pyright",
 ]
 
 dev = [
@@ -72,15 +74,68 @@ members = [
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+extend-exclude = [".ipynb_checkpoints"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/notebooks/*.ipynb" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = false
 
 [tool.black]
 line-length = 88
 target-version = ["py310"]
+extend-exclude = "/(\\.ipynb_checkpoints|build|dist)/"
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "E741"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    ".ipynb_checkpoints",
+]
 
 [tool.mypy]
 python_version = "3.10"
 packages = ["jitr"]
 strict = false
+
+[[tool.mypy.overrides]]
+module = [
+    "mpmath",
+    "numba",
+    "numba.*",
+    "pandas",
+    "periodictable",
+    "scipy",
+    "scipy.*",
+    "sympy",
+    "sympy.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "jitr.optical_potentials.chuq",
+    "jitr.optical_potentials.kduq",
+    "jitr.optical_potentials.omp",
+    "jitr.optical_potentials.wlh",
+    "jitr.reactions.reaction",
+    "jitr.reactions.wavefunction",
+    "jitr.rmatrix.rmatrix",
+    "jitr.utils.free_solutions",
+    "jitr.xs.elastic",
+    "jitr.xs.quasielastic_pn",
+]
+ignore_errors = true

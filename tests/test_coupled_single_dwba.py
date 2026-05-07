@@ -1,4 +1,5 @@
 import numpy as np
+
 from jitr import reactions, rmatrix
 from jitr.utils.kinematics import classical_kinematics
 
