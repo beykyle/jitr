@@ -583,7 +583,7 @@ class KDUQ(SingleChannelOpticalModel):
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
-    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+    ) -> tuple[float | np.ndarray, float | np.ndarray, float | np.ndarray]:
         """Evaluate the KDUQ central, spin-orbit, and Coulomb terms."""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
             tuple(reaction.projectile),
