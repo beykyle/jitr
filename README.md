@@ -28,6 +28,10 @@ The theory generally follows:
 - [Descouvemont P. and Baye D. (2010). The R-matrix theory. Rep. Prog. Phys. 73 036301](https://iopscience.iop.org/article/10.1088/0034-4885/73/3/036301/meta)
 
 
+## Documentation
+
+The documentation site is available at <https://beykyle.github.io/lagrange-rmatrix/>. It includes installation instructions, API reference, and examples. 
+
 ## Installation and Development
 
 ### For users
