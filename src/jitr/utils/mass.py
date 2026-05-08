@@ -109,6 +109,11 @@ def binding_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     return -nuclear_mass[0] + Z * MASS_P + (A - Z) * MASS_N, nuclear_mass[1]
 
 
+def _scale_or_none(value: float | None, scale: float) -> float | None:
+    """Multiply ``value`` by ``scale``, or return ``None`` if ``value`` is ``None``."""
+    return None if value is None else value * scale
+
+
 def _combine_uncertainties(a: float | None, b: float | None) -> float | None:
     """Return quadrature sum of two uncertainties, or ``None`` if either is missing."""
     if a is None or b is None:
@@ -135,8 +140,8 @@ def neutron_fermi_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     separation_a = neutron_separation_energy(A, Z, **kwargs)
     separation_a1 = neutron_separation_energy(A + 1, Z, **kwargs)
     return -0.5 * (separation_a[0] + separation_a1[0]), _combine_uncertainties(
-        0.5 * separation_a[1] if separation_a[1] is not None else None,
-        0.5 * separation_a1[1] if separation_a1[1] is not None else None,
+        _scale_or_none(separation_a[1], 0.5),
+        _scale_or_none(separation_a1[1], 0.5),
     )
 
 
@@ -145,6 +150,6 @@ def proton_fermi_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     separation_a = proton_separation_energy(A, Z, **kwargs)
     separation_a1 = proton_separation_energy(A + 1, Z + 1, **kwargs)
     return -0.5 * (separation_a[0] + separation_a1[0]), _combine_uncertainties(
-        0.5 * separation_a[1] if separation_a[1] is not None else None,
-        0.5 * separation_a1[1] if separation_a1[1] is not None else None,
+        _scale_or_none(separation_a[1], 0.5),
+        _scale_or_none(separation_a1[1], 0.5),
     )

@@ -228,7 +228,7 @@ def test_laguerre_kernel_creation() -> None:
 
 
 def test_laguerre_integrate_exponentially_weighted() -> None:
-    r"""Laguerre ``integrate_local`` computes :math:`\int_0^\infty f(r)\,e^{-r/R}\,dr`.
+    r"""Laguerre `integrate_local` computes :math:`\int_0^\infty f(r)\,e^{-r/R}\,dr`.
 
     The Gauss-Laguerre rule computes ``radius * sum(f(x_i * radius) * w_i)``,
     which equals ``integral_0^infinity f(r) exp(-r/radius) dr``.
