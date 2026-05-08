@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..data import data_dir
 from ..reactions import Reaction
 from ..utils.constants import WAVENUMBER_PION
@@ -79,7 +80,7 @@ def central(
     Ud: float,
     Rd: float,
     ad: float,
-) -> complex:
+) -> PotentialArray:
     """
     Form of the central term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
@@ -95,17 +96,20 @@ def central(
     :param Ud: float Imaginary surface potential strength parameter
     :param Rd: float Imaginary surface potential radius parameter
     :param ad: float Imaginary surface potential diffuseness parameter"""
-    return (
+    result = (
         -Uv * woods_saxon_safe(r, Rv, av)
         - 1j * Uw * woods_saxon_safe(r, Rw, aw)
         - 1j * (-4 * ad) * Ud * woods_saxon_prime_safe(r, Rd, ad)
     )
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 class Global:
     r"""Global optical potential in WLH form."""
 
-    def __init__(self, projectile: tuple, param_fpath: Path = None):
+    def __init__(self, projectile: tuple, param_fpath: Path | None = None):
         r"""
         :param projectile: neutron or proton?
         :param param_fpath: path to json file encoding parameter values.
@@ -391,11 +395,7 @@ class WLH(SingleChannelOpticalModel):
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
-    ) -> tuple[
-        complex | npt.NDArray[np.complex128],
-        complex | npt.NDArray[np.complex128],
-        float | npt.NDArray[np.float64],
-    ]:
+    ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
         """
         Evaluate the central, spin-orbit, and Coulomb terms of the WLH
         potential on the given radial grid for the specified reaction and
@@ -417,8 +417,8 @@ class WLH(SingleChannelOpticalModel):
                   potential evaluated on the radial grid
         :rtype: tuple[U_central, U_spin_orbit, U_coulomb]"""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
-            tuple(reaction.projectile),
-            tuple(reaction.target),
+            tuple(reaction.projectile),  # type: ignore[arg-type]
+            tuple(reaction.target),  # type: ignore[arg-type]
             kinematics.Elab,
             *params,
         )

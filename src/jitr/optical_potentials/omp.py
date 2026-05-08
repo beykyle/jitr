@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-import numpy.typing as npt
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..reactions import reaction
 from ..utils import kinematics
 from ..utils.constants import WAVENUMBER_PION
@@ -14,11 +14,6 @@ from .potential_forms import (
     woods_saxon_prime_safe,
     woods_saxon_safe,
 )
-
-FloatArray = npt.NDArray[np.float64]
-ComplexArray = npt.NDArray[np.complex128]
-GridInput = float | FloatArray
-TermArray = complex | ComplexArray
 
 
 class SingleChannelOpticalModel:
@@ -30,26 +25,26 @@ class SingleChannelOpticalModel:
 
     def evaluate(
         self,
-        rgrid: GridInput,
+        rgrid: ArrayOrScalar,
         reaction: reaction.Reaction,
         kinematics: kinematics.ChannelKinematics,
         *params: float,
-    ) -> tuple[TermArray, TermArray, TermArray]:
+    ) -> tuple[PotentialArray, PotentialArray, PotentialArray | ArrayOrScalar]:
         """Evaluate central, spin-orbit, and Coulomb terms on ``rgrid``."""
         raise NotImplementedError("Subclasses must implement the evaluate method.")
 
     def __call__(
         self,
-        rgrid: GridInput,
+        rgrid: ArrayOrScalar,
         reaction: reaction.Reaction,
         kinematics: kinematics.ChannelKinematics,
         *params: float,
-    ) -> tuple[TermArray, TermArray, TermArray]:
+    ) -> tuple[PotentialArray, PotentialArray, PotentialArray | ArrayOrScalar]:
         return self.evaluate(rgrid, reaction, kinematics, *params)
 
 
 def central(
-    r: GridInput,
+    r: ArrayOrScalar,
     Vv: float,
     Rv: float,
     av: float,
@@ -60,21 +55,27 @@ def central(
     Vd: float,
     Rd: float,
     ad: float,
-) -> TermArray:
+) -> PotentialArray:
     """Evaluate the default Woods-Saxon central potential."""
-    return (
+    result = (
         -Vv * woods_saxon_safe(r, Rv, av)
         - 1j * Wv * woods_saxon_safe(r, Rw, aw)
         - (-4 * ad) * Vd * woods_saxon_prime_safe(r, Rd, ad)
         - 1j * (-4 * ad) * Wd * woods_saxon_prime_safe(r, Rd, ad)
     )
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 def spin_orbit(
-    r: GridInput, Vso: float, Wso: float, Rso: float, aso: float
-) -> TermArray:
+    r: ArrayOrScalar, Vso: float, Wso: float, Rso: float, aso: float
+) -> PotentialArray:
     """Evaluate the default Thomas-form spin-orbit potential."""
-    return (Vso + 1j * Wso) / WAVENUMBER_PION**2 * thomas_safe(r, Rso, aso)
+    result = (Vso + 1j * Wso) / WAVENUMBER_PION**2 * thomas_safe(r, Rso, aso)
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 class LocalOpticalPotential(SingleChannelOpticalModel):
@@ -102,17 +103,17 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
 
     def radius_factor(self, reaction_model: reaction.Reaction) -> float:
         """Return the radius scaling factor for the current reaction."""
-        target_mass = reaction_model.target.A
-        projectile_mass = reaction_model.projectile.A
+        target_mass = reaction_model.target.A  # type: ignore[attr-defined]
+        projectile_mass = reaction_model.projectile.A  # type: ignore[attr-defined]
         if self.scale_radii_by_At_and_Ap:
             return target_mass ** (1 / 3) + projectile_mass ** (1 / 3)
         return target_mass ** (1 / 3)
 
-    def evaluate(
+    def evaluate(  # type: ignore[override]
         self,
-        rgrid: GridInput,
+        rgrid: ArrayOrScalar,
         reaction_model: reaction.Reaction,
-        kinematics_model: kinematics.ChannelKinematics,
+        kinematics_model: kinematics.ChannelKinematics,  # noqa: ARG002
         Vv: float,
         rv: float,
         av: float,
@@ -128,17 +129,18 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
         rso: float,
         aso: float,
         rC: float,
-    ) -> tuple[TermArray, TermArray, TermArray]:
+    ) -> tuple[PotentialArray, PotentialArray, PotentialArray | ArrayOrScalar]:
         """Evaluate the local optical-potential terms on ``rgrid``."""
-        del kinematics_model
-
         radius_factor = self.radius_factor(reaction_model)
         Rv = rv * radius_factor
         Rw = rw * radius_factor
         Rd = rd * radius_factor
         Rso = rso * radius_factor
         RC = rC * radius_factor
-        zz = reaction_model.target.Z * reaction_model.projectile.Z
+        zz = (
+            reaction_model.target.Z  # type: ignore[attr-defined]
+            * reaction_model.projectile.Z  # type: ignore[attr-defined]
+        )
 
         central_term = central(rgrid, Vv, Rv, av, Wv, Rw, aw, Wd, Vd, Rd, ad)
         spin_orbit_term = spin_orbit(rgrid, Vso, Wso, Rso, aso)

@@ -149,10 +149,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "jitr.optical_potentials.chuq",
-    "jitr.optical_potentials.kduq",
-    "jitr.optical_potentials.omp",
-    "jitr.optical_potentials.wlh",
     "jitr.reactions.reaction",
     "jitr.reactions.wavefunction",
     "jitr.rmatrix.rmatrix",

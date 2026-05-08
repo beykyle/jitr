@@ -1,7 +1,7 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
-Documentation site: <https://beykyle.github.io/lagrange-rmatrix/>
+Documentation site: <https://beykyle.github.io/jitr/>
 
 <p align="center">
 <img src="./assets/jitr_logo.png" alt="drawing" width="300" /> 
@@ -30,7 +30,7 @@ The theory generally follows:
 
 ## Documentation
 
-The documentation site is available at <https://beykyle.github.io/lagrange-rmatrix/>. It includes installation instructions, API reference, and examples. 
+The documentation site is available at <https://beykyle.github.io/jitr/>. It includes installation instructions, API reference, and examples. 
 
 ## Installation and Development
 
@@ -124,7 +124,7 @@ The docs site uses Sphinx and MyST-NB, and it includes the repository notebooks 
 uv run --group docs sphinx-build -W -b html -c docs . docs/_build/html
 ```
 
-The published site is available at <https://beykyle.github.io/lagrange-rmatrix/>.
+The published site is available at <https://beykyle.github.io/jitr/>.
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
 

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import WAVENUMBER_PION
@@ -120,7 +121,7 @@ def central(
     Wd: float,
     Rd: float,
     ad: float,
-) -> complex:
+) -> PotentialArray:
     r"""
     Koning-Delaroche central terms at a given energy.
 
@@ -136,11 +137,14 @@ def central(
     :param Wd: float The imaginary surface depth.
     :param Rd: float The imaginary surface radius parameter.
     :param ad: float The imaginary surface diffuseness parameter."""
-    return (
+    result = (
         -Vv * woods_saxon_safe(r, Rv, av)
         - 1j * Wv * woods_saxon_safe(r, Rwv, awv)
         - 1j * (-4 * ad) * Wd * woods_saxon_prime_safe(r, Rd, ad)
     )
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 def spin_orbit(
@@ -151,7 +155,7 @@ def spin_orbit(
     Wso: float,
     Rwso: float,
     awso: float,
-) -> complex:
+) -> PotentialArray:
     r"""
     Koning-Delaroche spin-orbit terms at a given energy.
 
@@ -164,15 +168,18 @@ def spin_orbit(
     :param Wso: float The imaginary spin-orbit depth.
     :param Rwso: float The imaginary spin-orbit radius parameter.
     :param awso: float The imaginary spin-orbit diffuseness parameter."""
-    return Vso / WAVENUMBER_PION**2 * thomas_safe(
+    result = Vso / WAVENUMBER_PION**2 * thomas_safe(
         r, Rso, aso
     ) + 1j * Wso / WAVENUMBER_PION**2 * thomas_safe(r, Rwso, awso)
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 class Global:
     r"""Global Koning-Delaroche parameters"""
 
-    def __init__(self, projectile: tuple, param_fpath: Path = None):
+    def __init__(self, projectile: tuple, param_fpath: Path | None = None):
         r"""
         :param projectile: tuple A tuple representing the projectile, with
                            format (Ap, Zp), where Ap is the mass number and Zp
@@ -534,11 +541,11 @@ class KDUQ(SingleChannelOpticalModel):
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
-    ) -> tuple[float | np.ndarray, float | np.ndarray, float | np.ndarray]:
+    ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
         """Evaluate the KDUQ central, spin-orbit, and Coulomb terms."""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
-            tuple(reaction.projectile),
-            tuple(reaction.target),
+            tuple(reaction.projectile),  # type: ignore[arg-type]
+            tuple(reaction.target),  # type: ignore[arg-type]
             kinematics.Elab,
             *params,
         )

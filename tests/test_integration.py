@@ -7,6 +7,11 @@ from jitr import quadrature
 CHANNEL_RADIUS = np.pi
 KERNEL = quadrature.Kernel(80, basis="Legendre")
 
+# A single Laguerre kernel shared by all Laguerre tests.
+LAGUERRE_NBASIS = 60
+LAGUERRE_RADIUS = 1.0
+LAGUERRE_KERNEL = quadrature.Kernel(LAGUERRE_NBASIS, basis="Laguerre")
+
 
 def local_polynomial(x: np.ndarray, a: float, b: float) -> np.ndarray:
     return a + b * x**2
@@ -203,3 +208,85 @@ def test_transforms_reject_invalid_shapes() -> None:
             np.ones((2, 2)),
             CHANNEL_RADIUS,
         )
+
+
+# ---------------------------------------------------------------------------
+# Laguerre quadrature tests
+# ---------------------------------------------------------------------------
+
+
+def test_laguerre_kernel_creation() -> None:
+    """LagrangeLaguerreQuadrature is constructed correctly."""
+    q = LAGUERRE_KERNEL.quadrature
+    assert q.nbasis == LAGUERRE_NBASIS
+    assert len(q.abscissa) == LAGUERRE_NBASIS
+    assert len(q.weights) == LAGUERRE_NBASIS
+    # Abscissa must be strictly positive.
+    assert np.all(q.abscissa > 0)
+    # Weights must be strictly positive.
+    assert np.all(q.weights > 0)
+
+
+def test_laguerre_integrate_exponentially_weighted() -> None:
+    r"""Laguerre ``integrate_local`` computes :math:`\int_0^\infty f(r)\,e^{-r/R}\,dr`.
+
+    The Gauss-Laguerre rule computes ``radius * sum(f(x_i * radius) * w_i)``,
+    which equals ``integral_0^infinity f(r) exp(-r/radius) dr``.
+    """
+    R = LAGUERRE_RADIUS
+    r_grid = LAGUERRE_KERNEL.radial_grid(R)
+
+    # ∫_0^∞ e^{-r/R} dr = R
+    np.testing.assert_allclose(
+        LAGUERRE_KERNEL.integrate_local(np.ones_like(r_grid), R), R, rtol=1e-10
+    )
+    # ∫_0^∞ r e^{-r/R} dr = R²
+    np.testing.assert_allclose(
+        LAGUERRE_KERNEL.integrate_local(r_grid, R), R**2, rtol=1e-10
+    )
+    # ∫_0^∞ r² e^{-r/R} dr = 2 R³
+    np.testing.assert_allclose(
+        LAGUERRE_KERNEL.integrate_local(r_grid**2, R), 2.0 * R**3, rtol=1e-10
+    )
+
+
+def test_laguerre_kinetic_matrix_is_symmetric() -> None:
+    """Lagrange-Laguerre kinetic matrix is real and symmetric."""
+    T = LAGUERRE_KERNEL.quadrature.kinetic_matrix(1.0, 0)
+    T_real = T.real
+    np.testing.assert_allclose(T_real, T_real.T, atol=1e-12)
+    # Imaginary part should be negligible.
+    np.testing.assert_allclose(T.imag, 0.0, atol=1e-12)
+
+
+def test_laguerre_qho_eigenvalues() -> None:
+    r"""Laguerre mesh reproduces the 3D harmonic-oscillator (l=0) eigenvalues.
+
+    The radial Schrödinger equation for the 3D isotropic QHO with l=0
+    (natural units, :math:`\hbar = m = \omega = 1`) is
+
+    .. math::
+
+        \left[-\frac{d^2}{dr^2} + r^2\right] u(r) = 2E\, u(r)
+
+    The analytic eigenvalues are :math:`2E_n = 4n + 3` for
+    :math:`n = 0, 1, 2, \ldots`.  The Lagrange-Laguerre matrix approximation
+    of this eigenvalue problem should reproduce the lowest eigenvalues to
+    better than 1 %.
+    """
+    q = LAGUERRE_KERNEL.quadrature
+    x = q.abscissa  # dimensionless radial coordinates for a=1
+
+    # Kinetic matrix: matrix elements of -d²/dr², a=1, l=0.
+    T = q.kinetic_matrix(1.0, 0).real
+
+    # Potential matrix (diagonal): V(r) = r²
+    V = np.diag(x**2)
+
+    # Solve the eigenvalue problem.
+    eigenvalues = np.sort(np.linalg.eigvalsh(T + V))
+
+    # Analytic eigenvalues: 2E_n = 4n + 3 for n = 0, 1, 2, 3, 4
+    analytic = np.array([4 * n + 3 for n in range(5)], dtype=float)
+
+    np.testing.assert_allclose(eigenvalues[:5], analytic, rtol=0.01)

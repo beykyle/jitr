@@ -225,11 +225,11 @@ class Workspace:
 
     def tmatrix(
         self,
-        U_p_coulomb: npt.ArrayLike | None = None,
-        U_p_central: npt.ArrayLike | None = None,
-        U_p_spin_orbit: npt.ArrayLike | None = None,
-        U_n_central: npt.ArrayLike | None = None,
-        U_n_spin_orbit: npt.ArrayLike | None = None,
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike,
+        U_n_central: npt.ArrayLike,
+        U_n_spin_orbit: npt.ArrayLike,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
@@ -262,15 +262,6 @@ class Workspace:
 
         # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
-        if (
-            U_p_coulomb is None
-            or U_p_central is None
-            or U_p_spin_orbit is None
-            or U_n_central is None
-            or U_n_spin_orbit is None
-        ):
-            raise ValueError("All proton and neutron potential arrays are required")
-
         proton_central = self._local_potential(U_p_central, "U_p_central")
         proton_spin_orbit = self._local_potential(U_p_spin_orbit, "U_p_spin_orbit")
         proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
@@ -375,11 +366,11 @@ class Workspace:
 
     def xs(
         self,
-        U_p_coulomb: npt.ArrayLike | None = None,
-        U_p_central: npt.ArrayLike | None = None,
-        U_p_spin_orbit: npt.ArrayLike | None = None,
-        U_n_central: npt.ArrayLike | None = None,
-        U_n_spin_orbit: npt.ArrayLike | None = None,
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike,
+        U_n_central: npt.ArrayLike,
+        U_n_spin_orbit: npt.ArrayLike,
     ) -> np.ndarray:
         """
         Calculate the differential cross section for (p,n) quasi-elastic

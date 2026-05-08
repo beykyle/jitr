@@ -9,7 +9,7 @@ import pandas as pd
 
 from .constants import AMU, MASS_E, MASS_N, MASS_P
 
-MassResult = tuple[float, float]
+MassResult = tuple[float, float | None]
 
 # Mass table database initialized at import time from ``utils.__init__``.
 __MASS_MODELS__: list[str] = []
@@ -81,11 +81,20 @@ def mass_db_row(A: int, Z: int) -> pd.DataFrame:
 
 
 def mass_excess(A: int, Z: int, model: str = "ame2020") -> MassResult:
-    """Return the mass excess and uncertainty in MeV."""
+    """Return the mass excess and uncertainty in MeV.
+
+    The uncertainty is ``None`` when the mass table does not include an
+    uncertainty for the requested model, or when the nuclide is not found.
+    """
     row = mass_db_row(A, Z)
     if row.empty:
-        return np.nan, np.nan
-    return float(row[model].iloc[0]), float(row[f"err_{model}"].iloc[0])
+        return np.nan, None
+    value = float(row[model].iloc[0])
+    raw_err = row[f"err_{model}"].iloc[0]
+    err: float | None = (
+        None if (raw_err is None or np.isnan(raw_err)) else float(raw_err)
+    )
+    return value, err
 
 
 def mass(A: int, Z: int, **kwargs: str) -> MassResult:
@@ -100,26 +109,34 @@ def binding_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     return -nuclear_mass[0] + Z * MASS_P + (A - Z) * MASS_N, nuclear_mass[1]
 
 
+def _combine_uncertainties(a: float | None, b: float | None) -> float | None:
+    """Return quadrature sum of two uncertainties, or ``None`` if either is missing."""
+    if a is None or b is None:
+        return None
+    return float(np.sqrt(a**2 + b**2))
+
+
 def neutron_separation_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     """Return the one-neutron separation energy and uncertainty in MeV."""
     mf = mass(A - 1, Z, **kwargs)
     m0 = mass(A, Z, **kwargs)
-    return mf[0] + MASS_N - m0[0], np.sqrt(mf[1] ** 2 + m0[1] ** 2)
+    return mf[0] + MASS_N - m0[0], _combine_uncertainties(mf[1], m0[1])
 
 
 def proton_separation_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     """Return the one-proton separation energy and uncertainty in MeV."""
     mf = mass(A - 1, Z - 1, **kwargs)
     m0 = mass(A, Z, **kwargs)
-    return mf[0] + MASS_P - m0[0], np.sqrt(mf[1] ** 2 + m0[1] ** 2)
+    return mf[0] + MASS_P - m0[0], _combine_uncertainties(mf[1], m0[1])
 
 
 def neutron_fermi_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     """Return the neutron Fermi-energy estimate and uncertainty in MeV."""
     separation_a = neutron_separation_energy(A, Z, **kwargs)
     separation_a1 = neutron_separation_energy(A + 1, Z, **kwargs)
-    return -0.5 * (separation_a[0] + separation_a1[0]), 0.5 * np.sqrt(
-        separation_a[1] ** 2 + separation_a1[1] ** 2
+    return -0.5 * (separation_a[0] + separation_a1[0]), _combine_uncertainties(
+        0.5 * separation_a[1] if separation_a[1] is not None else None,
+        0.5 * separation_a1[1] if separation_a1[1] is not None else None,
     )
 
 
@@ -127,6 +144,7 @@ def proton_fermi_energy(A: int, Z: int, **kwargs: str) -> MassResult:
     """Return the proton Fermi-energy estimate and uncertainty in MeV."""
     separation_a = proton_separation_energy(A, Z, **kwargs)
     separation_a1 = proton_separation_energy(A + 1, Z + 1, **kwargs)
-    return -0.5 * (separation_a[0] + separation_a1[0]), 0.5 * np.sqrt(
-        separation_a[1] ** 2 + separation_a1[1] ** 2
+    return -0.5 * (separation_a[0] + separation_a1[0]), _combine_uncertainties(
+        0.5 * separation_a[1] if separation_a[1] is not None else None,
+        0.5 * separation_a1[1] if separation_a1[1] is not None else None,
     )

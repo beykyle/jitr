@@ -2,21 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
-
 import numpy as np
-import numpy.typing as npt
 from scipy import special as sc
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..utils.constants import ALPHA, HBARC
-
-ArrayOrScalar: TypeAlias = float | npt.NDArray[np.float64]
-ComplexArrayOrScalar: TypeAlias = complex | npt.NDArray[np.complex128]
 
 MAX_ARG = np.log(1 / 1e-16)
 
 
-def perey_buck_nonlocal(r: float, rp: float, *params: float) -> complex:
+def perey_buck_nonlocal(r: float, rp: float, *params: float) -> PotentialArray:
     """Return the Perey-Buck nonlocal kernel factor."""
     beta, ell = params
     z = 2 * np.pi * r * rp / beta**2
@@ -24,7 +19,7 @@ def perey_buck_nonlocal(r: float, rp: float, *params: float) -> complex:
     return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
 
 
-def woods_saxon_potential(r: ArrayOrScalar, *params: float) -> ComplexArrayOrScalar:
+def woods_saxon_potential(r: ArrayOrScalar, *params: float) -> PotentialArray:
     """Return a Woods-Saxon potential with complex depth ``V + iW``."""
     V, W, R, a = params
     potential = (V + 1j * W) * woods_saxon_safe(r, R, a)
@@ -33,7 +28,7 @@ def woods_saxon_potential(r: ArrayOrScalar, *params: float) -> ComplexArrayOrSca
     return complex(potential)
 
 
-def woods_saxon_prime(r: ArrayOrScalar, *params: float) -> ComplexArrayOrScalar:
+def woods_saxon_prime(r: ArrayOrScalar, *params: float) -> PotentialArray:
     """Return the radial derivative of a Woods-Saxon potential."""
     V, W, R, a = params
     potential = (V + 1j * W) * woods_saxon_prime_safe(r, R, a)
@@ -95,7 +90,7 @@ def thomas_safe(r: ArrayOrScalar, R: float, a: float) -> ArrayOrScalar:
 
 def surface_peaked_gaussian_potential(
     r: ArrayOrScalar, *params: float
-) -> ComplexArrayOrScalar:
+) -> PotentialArray:
     """Return a simple surface-peaked Gaussian potential."""
     V, W, R, a = params
     potential = (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)

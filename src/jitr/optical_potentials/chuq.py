@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import ALPHA, HBARC
@@ -79,7 +80,7 @@ def central(
     av: float,
     Rd: float,
     ad: float,
-) -> complex:
+) -> PotentialArray:
     r"""
     Form of the central term of the CHUQ potential, given by Eqs. A7-8
     of [Pruitt, et al., 2023]
@@ -95,10 +96,15 @@ def central(
     volume = V * woods_saxon_safe(r, Rv, av)
     imag_volume = 1j * W * woods_saxon_safe(r, Rd, ad)
     surface = -(4j * ad * Wd) * woods_saxon_prime_safe(r, Rd, ad)
-    return -volume - imag_volume - surface
+    result = -volume - imag_volume - surface
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
-def spin_orbit(r: float | np.ndarray, Vso: float, Rso: float, aso: float) -> complex:
+def spin_orbit(
+    r: float | np.ndarray, Vso: float, Rso: float, aso: float
+) -> PotentialArray:
     """
     Form of the spin-orbit term of the CHUQ potential, given by Eqs.
     A7-8 of [Pruitt, et al., 2023]
@@ -107,7 +113,10 @@ def spin_orbit(r: float | np.ndarray, Vso: float, Rso: float, aso: float) -> com
     :param Vso: float The depth of the spin-orbit potential.
     :param Rso: float The radius of the spin-orbit potential.
     :param aso: float The diffuseness of the spin-orbit potential."""
-    return 2 * Vso * thomas_safe(r, Rso, aso)
+    result = 2 * Vso * thomas_safe(r, Rso, aso)
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
 
 
 def calculate_params(
@@ -219,7 +228,7 @@ def coulomb_correction(A: int, Z: int, RC: float) -> float:
 class Global:
     r"""Global optical potential in CHUQ form."""
 
-    def __init__(self, param_fpath: Path = None):
+    def __init__(self, param_fpath: Path | None = None):
         r"""
         :param param_fpath: path to json file encoding parameter values.
                             Defaults to data/WLH_mean.json"""
@@ -313,11 +322,11 @@ class CHUQ(SingleChannelOpticalModel):
         reaction: Reaction,
         kinematics: ChannelKinematics,
         *params: float,
-    ) -> tuple[float | np.ndarray, float | np.ndarray, float | np.ndarray]:
+    ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
         """Evaluate the CHUQ central, spin-orbit, and Coulomb terms."""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
-            tuple(reaction.projectile),
-            tuple(reaction.target),
+            tuple(reaction.projectile),  # type: ignore[arg-type]
+            tuple(reaction.target),  # type: ignore[arg-type]
             kinematics.Elab,
             *params,
         )
