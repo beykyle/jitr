@@ -24,7 +24,6 @@ dependencies = [
     "sympy",
     "periodictable",
     "numba",
-    "sympy",
     "pandas",
 ]
 
