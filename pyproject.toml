@@ -24,7 +24,6 @@ dependencies = [
     "sympy",
     "periodictable",
     "numba",
-    "sympy",
     "pandas",
 ]
 
@@ -73,11 +72,6 @@ version_file = "src/jitr/__version__.py"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
-
-[tool.uv.workspace]
-members = [
-    "jitr",
-]
 
 [tool.ruff]
 line-length = 88
