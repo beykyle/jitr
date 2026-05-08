@@ -99,11 +99,20 @@ class Kernel:
 
         return radius**2 * np.sum(self.weight_matrix * values_array)
 
+    def _validate_k_grid(self, k: npt.ArrayLike) -> FloatArray:
+        """Return a one-dimensional momentum grid."""
+        k_grid = np.asarray(k, dtype=np.float64)
+        if k_grid.ndim == 0:
+            return k_grid.reshape(1)
+        if k_grid.ndim != 1:
+            raise ValueError("momentum grid must be a scalar or one-dimensional array")
+        return k_grid
+
     def fourier_bessel_transform(
         self,
         l: int,  # noqa: E741
         values: npt.ArrayLike,
-        k: FloatArray,
+        k: npt.ArrayLike,
         radius: float,
     ) -> ComplexArray:
         """Perform a Fourier-Bessel transform of order ``l``."""
@@ -114,17 +123,21 @@ class Kernel:
                 "local values for a Fourier-Bessel transform must have shape "
                 f"{r.shape}"
             )
-        kr = np.outer(k, r)
-        return np.sum(
-            sc.spherical_jn(l, kr) * r**2 * values_array * self.quadrature.weights,
-            axis=1,
+        k_grid = self._validate_k_grid(k)
+        kr = np.outer(k_grid, r)
+        weighted_integrand = (
+            sc.spherical_jn(l, kr)
+            * r[np.newaxis, :] ** 2
+            * values_array[np.newaxis, :]
+            * self.quadrature.weights[np.newaxis, :]
         )
+        return radius * np.sum(weighted_integrand, axis=1)
 
     def double_fourier_bessel_transform(
         self,
         l: int,  # noqa: E741
         values: npt.ArrayLike,
-        k: float,
+        k: npt.ArrayLike,
         radius: float,
     ) -> ComplexArray:
         """Perform a double Fourier-Bessel transform of order ``l``."""
@@ -137,23 +150,14 @@ class Kernel:
             )
 
         r = self.radial_grid(radius)
-        jkr = sc.spherical_jn(l, np.outer(k, r))
-        transformed_rkp = np.zeros_like(values_array, dtype=np.complex128)
-        transformed_kkp = np.zeros_like(values_array, dtype=np.complex128)
-
-        for i in range(self.quadrature.nbasis):
-            transformed_rkp[i, :] = np.sum(
-                jkr * r**2 * values_array[i, :] * self.quadrature.weights,
-                axis=1,
-            )
-
-        for i in range(self.quadrature.nbasis):
-            transformed_kkp[:, i] = np.sum(
-                jkr * r**2 * transformed_rkp[:, i] * self.quadrature.weights,
-                axis=1,
-            )
-
-        return transformed_kkp * 2 / np.pi
+        k_grid = self._validate_k_grid(k)
+        jkr = sc.spherical_jn(l, np.outer(k_grid, r))
+        weighted_basis = (
+            jkr * r[np.newaxis, :] ** 2 * self.quadrature.weights[np.newaxis, :]
+        )
+        return (
+            (2.0 / np.pi) * radius**2 * weighted_basis @ values_array @ weighted_basis.T
+        )
 
     def dwba_local(
         self,
