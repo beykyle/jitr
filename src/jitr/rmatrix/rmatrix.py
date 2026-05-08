@@ -146,6 +146,11 @@ class Solver:
                         "1D local potentials are only valid for one channel"
                     )
                 local_terms = local_terms.reshape(1, 1, n_basis)
+            elif local_terms.shape[:2] != (nch, nch):
+                raise ValueError(
+                    f"local_potential leading dimensions {local_terms.shape[:2]} "
+                    f"do not match nch={nch}; expected shape ({nch}, {nch}, {n_basis})"
+                )
             for i in range(nch):
                 for j in range(nch):
                     interaction[
@@ -160,6 +165,12 @@ class Solver:
                         "2D nonlocal potentials are only valid for one channel"
                     )
                 nonlocal_terms = nonlocal_terms.reshape(1, 1, n_basis, n_basis)
+            elif nonlocal_terms.shape[:2] != (nch, nch):
+                raise ValueError(
+                    f"nonlocal_potential leading dimensions {nonlocal_terms.shape[:2]} "
+                    f"do not match nch={nch}; "
+                    f"expected shape ({nch}, {nch}, {n_basis}, {n_basis})"
+                )
             interaction += (
                 nonlocal_terms.swapaxes(1, 2).reshape(size, size, order="C") / k0
             )
