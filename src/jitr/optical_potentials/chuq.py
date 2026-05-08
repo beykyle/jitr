@@ -47,21 +47,14 @@ def get_samples(posterior: str = "federal") -> np.ndarray:
     (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602) for
     details on the CHUQ posteriors.
 
-    Parameters:
-    ----------
-    posterior : str
-        Which CHUQ posterior to return samples from. Must be either
-        "federal" or "democratic". Defaults to "federal".
-
-    Returns:
-    -------
-    np.ndarray
-        An array of shape (NUM_POSTERIOR_SAMPLES, num_params) containing
-        the posterior samples for the given projectile, where num_params
-        is the number of parameters in the Chapel-Hill potential,
-        and the parameters are ordered according to the order set by
-        the get_param_names function.
-    """
+    :param posterior: str Which CHUQ posterior to return samples from. Must be
+                      either "federal" or "democratic". Defaults to "federal".
+    :returns: An array of shape (NUM_POSTERIOR_SAMPLES, num_params) containing the
+              posterior samples for the given projectile, where num_params is the
+              number of parameters in the Chapel-Hill potential, and the parameters
+              are ordered according to the order set by the get_param_names
+              function.
+    :rtype: np.ndarray"""
     if posterior == "federal":
         directory = "CHUQFederal"
     elif posterior == "democratic":
@@ -91,25 +84,14 @@ def central(
     Form of the central term of the CHUQ potential, given by Eqs. A7-8
     of [Pruitt, et al., 2023]
 
-    Parameters:
-    ----------
-    r : float or np.ndarray
-        The radius at which to evaluate the potential.
-    V : float
-        The depth of the real central potential.
-    W : float
-        The depth of the imaginary volume potential.
-    Wd : float
-        The depth of the imaginary surface potential.
-    Rv : float
-        The radius of the real central potential.
-    av : float
-        The diffuseness of the real central potential.
-    Rd : float
-        The radius of the imaginary potential.
-    ad : float
-        The diffuseness of the imaginary potential.
-    """
+    :param r: float or np.ndarray The radius at which to evaluate the potential.
+    :param V: float The depth of the real central potential.
+    :param W: float The depth of the imaginary volume potential.
+    :param Wd: float The depth of the imaginary surface potential.
+    :param Rv: float The radius of the real central potential.
+    :param av: float The diffuseness of the real central potential.
+    :param Rd: float The radius of the imaginary potential.
+    :param ad: float The diffuseness of the imaginary potential."""
     volume = V * woods_saxon_safe(r, Rv, av)
     imag_volume = 1j * W * woods_saxon_safe(r, Rd, ad)
     surface = -(4j * ad * Wd) * woods_saxon_prime_safe(r, Rd, ad)
@@ -121,17 +103,10 @@ def spin_orbit(r: float | np.ndarray, Vso: float, Rso: float, aso: float) -> com
     Form of the spin-orbit term of the CHUQ potential, given by Eqs.
     A7-8 of [Pruitt, et al., 2023]
 
-    Parameters:
-    ----------
-    r : float or np.ndarray
-        The radius at which to evaluate the potential.
-    Vso : float
-        The depth of the spin-orbit potential.
-    Rso : float
-        The radius of the spin-orbit potential.
-    aso : float
-        The diffuseness of the spin-orbit potential.
-    """
+    :param r: float or np.ndarray The radius at which to evaluate the potential.
+    :param Vso: float The depth of the spin-orbit potential.
+    :param Rso: float The radius of the spin-orbit potential.
+    :param aso: float The diffuseness of the spin-orbit potential."""
     return 2 * Vso * thomas_safe(r, Rso, aso)
 
 
@@ -167,53 +142,38 @@ def calculate_params(
     coulomb_charged_sphere functions corresponding to the CHUQ potential
     for a given projectile, target, lab energy, and the CHUQ parameters.
 
-    Parameters:
-    ----------
-    projectile : tuple
-        A tuple containing the mass number and charge of the projectile.
-    target : tuple
-        A tuple containing the mass number and charge of the target.
-    Elab : float
-        The laboratory energy of the projectile in MeV.
-    V0, Ve, ..., rc_0: float
-        Parameters for the Chapel-Hill optical model potential.
-        See Table V and the Appendix
-        of [Pruitt, et al., 2023]
-        (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
-        for details.
-
-        See also Table 3. of the original CH89 paper [Varner, et al., 1991]
-        (https://www.sciencedirect.com/science/article/pii/037015739190039O?via%3Dihub).
-
-        Note: there is a typo in Eq. A4 of the CHUQ paper, there should be a
-        plus/minus sign in front of Wst, not a plus. See Table 3 of the
-        original CH89 paper for the correct sign.
-
-    Returns:
-    -------
-        central_params : tuple
-            A tuple containing the parameters for the central part
-            of the potential, in the form (V0, Wv, Ws, R0, a0, Rw,
-            aw), where V0 is the depth of the real central
-            potential, Wv is the depth of the imaginary volume
-            potential, Ws is the depth of the imaginary surface
-            potential, R0 is the radius of the real central
-            potential, a0 is the diffuseness of the real central
-            potential, Rw is the radius of the imaginary potential,
-            and aw is the diffuseness of the imaginary potential.
-        spin_orbit_params : tuple
-            A tuple containing the parameters for the spin-orbit
-            part of the potential, in the form (Vso, Rso, aso),
-            where Vso is the depth of the spin-orbit potential,
-            Rso is the radius of the spin-orbit potential, and aso
-            is the diffuseness of the spin-orbit potential.
-        coulomb_params : tuple
-            A tuple containing the parameters for the Coulomb
-            potential,
-            in the form (Z*Zp, RC), where Z is the charge of the
-            target, Zp is the charge of the projectile, and RC is
-            the Coulomb radius.
-    """
+    :param projectile: tuple A tuple containing the mass number and charge of the
+                       projectile.
+    :param target: tuple A tuple containing the mass number and charge of the
+                   target.
+    :param Elab: float The laboratory energy of the projectile in MeV.
+    :param V0, Ve, ..., rc_0: float Parameters for the Chapel-Hill optical model
+                              potential. See Table V and the Appendix of [Pruitt, et
+                              al., 2023]
+                              (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
+                              for details. See also Table 3. of the original CH89
+                              paper [Varner, et al., 1991]
+                              (https://www.sciencedirect.com/science/article/pii/037015739190039O?via%3Dihub).
+                              Note: there is a typo in Eq. A4 of the CHUQ paper,
+                              there should be a plus/minus sign in front of Wst, not
+                              a plus. See Table 3 of the original CH89 paper for the
+                              correct sign.
+    :returns: central_params: tuple A tuple containing the parameters for the
+              central part of the potential, in the form (V0, Wv, Ws, R0, a0, Rw,
+              aw), where V0 is the depth of the real central potential, Wv is the
+              depth of the imaginary volume potential, Ws is the depth of the
+              imaginary surface potential, R0 is the radius of the real central
+              potential, a0 is the diffuseness of the real central potential, Rw is
+              the radius of the imaginary potential, and aw is the diffuseness of
+              the imaginary potential.; spin_orbit_params: tuple A tuple containing
+              the parameters for the spin-orbit part of the potential, in the form
+              (Vso, Rso, aso), where Vso is the depth of the spin-orbit potential,
+              Rso is the radius of the spin-orbit potential, and aso is the
+              diffuseness of the spin-orbit potential.; coulomb_params: tuple A
+              tuple containing the parameters for the Coulomb potential, in the form
+              (Z*Zp, RC), where Z is the charge of the target, Zp is the charge of
+              the projectile, and RC is the Coulomb radius.
+    :rtype: tuple[central_params, spin_orbit_params, coulomb_params]"""
     A, Z = target
     Ap, Zp = projectile
     is_proton = Zp == 1
@@ -261,10 +221,8 @@ class Global:
 
     def __init__(self, param_fpath: Path = None):
         r"""
-        Parameters:
-            param_fpath : path to json file encoding parameter values.
-                Defaults to data/WLH_mean.json
-        """
+        :param param_fpath: path to json file encoding parameter values.
+                            Defaults to data/WLH_mean.json"""
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
                 "./../../data/CH89_default.json"

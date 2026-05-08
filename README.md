@@ -1,6 +1,8 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
 
+Documentation site: <https://beykyle.github.io/lagrange-rmatrix/>
+
 <p align="center">
 <img src="./assets/jitr_logo.png" alt="drawing" width="300" /> 
 </p>
@@ -122,6 +124,16 @@ The example notebooks are tested with `pytest` and `nbval`:
 ```bash
 uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
+
+### Build the documentation website
+
+The docs site uses Sphinx and MyST-NB, and it includes the repository notebooks directly:
+
+```bash
+uv run --group docs sphinx-build -W -b html -c docs . docs/_build/html
+```
+
+The published site is available at <https://beykyle.github.io/lagrange-rmatrix/>.
 
 Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
 

@@ -21,21 +21,14 @@ class System:
     This system contains the entrance and exit channels, which are defined by the
     projectile and target masses, charges, and the channel radius.
 
-    Attributes:
-    ----------
-    channel_radius_fm : float
-        The channel radius in femtometers.
-    lmax : int
-        The maximum angular momentum quantum number.
-    l : np.ndarray
-        An array of angular momentum quantum numbers from 0 to lmax.
-    entrance : ProjectileTargetSystem
-        The entrance channel system, which includes the projectile and target masses,
-        charges, and the channel radius.
-    exit : ProjectileTargetSystem
-        The exit channel system, which includes the product and residual masses,
-        charges, and the channel radius.
-    """
+    :ivar channel_radius_fm: float The channel radius in femtometers.
+    :ivar lmax: int The maximum angular momentum quantum number.
+    :ivar l: np.ndarray An array of angular momentum quantum numbers from 0 to lmax.
+    :ivar entrance: ProjectileTargetSystem The entrance channel system, which
+                    includes the projectile and target masses, charges, and the
+                    channel radius.
+    :ivar exit: ProjectileTargetSystem The exit channel system, which includes the
+                product and residual masses, charges, and the channel radius."""
 
     def __init__(
         self,
@@ -47,20 +40,14 @@ class System:
     ) -> None:
         r"""
         Initialize the System for (p,n) quasi-elastic scattering observables.
-        Parameters:
-        ----------
-        channel_radius_fm : float
-            The channel radius in femtometers.
-        lmax : int
-            The maximum angular momentum quantum number.
-        reaction : Reaction
-            The reaction object containing information about the target, projectile,
-            residual, and product.
-        kinematics_entrance : ChannelKinematics
-            The kinematics for the entrance channel.
-        kinematics_exit : ChannelKinematics
-            The kinematics for the exit channel.
-        """
+        :param channel_radius_fm: float The channel radius in femtometers.
+        :param lmax: int The maximum angular momentum quantum number.
+        :param reaction: Reaction The reaction object containing information
+                         about the target, projectile, residual, and product.
+        :param kinematics_entrance: ChannelKinematics The kinematics for the
+                                    entrance channel.
+        :param kinematics_exit: ChannelKinematics The kinematics for the exit
+                                channel."""
 
         self.channel_radius_fm = channel_radius_fm
         self.lmax = lmax
@@ -107,26 +94,20 @@ class Workspace:
     ) -> None:
         r"""
         Initialize the Workspace for (p,n) quasi-elastic scattering observables.
-        Parameters:
-        ----------
-        reaction : Reaction
-            The reaction object containing information about the target, projectile,
-            residual, and product.
-        kinematics_entrance : ChannelKinematics
-            The kinematics for the entrance channel.
-        kinematics_exit : ChannelKinematics
-            The kinematics for the exit channel.
-        solver : Solver
-            The solver used to compute the distorted waves and interaction matrices.
-        angles : np.array
-            The angles in radians at which to compute the differential cross section.
-        lmax : int
-            The maximum angular momentum quantum number.
-        channel_radius_fm : float
-            The channel radius in femtometers.
-        tmatrix_abs_tol : float
-            The absolute tolerance for the transition matrix elements.
-        """
+        :param reaction: Reaction The reaction object containing information
+                         about the target, projectile, residual, and product.
+        :param kinematics_entrance: ChannelKinematics The kinematics for the
+                                    entrance channel.
+        :param kinematics_exit: ChannelKinematics The kinematics for the exit
+                                channel.
+        :param solver: Solver The solver used to compute the distorted waves and
+                       interaction matrices.
+        :param angles: np.array The angles in radians at which to compute the
+                       differential cross section.
+        :param lmax: int The maximum angular momentum quantum number.
+        :param channel_radius_fm: float The channel radius in femtometers.
+        :param tmatrix_abs_tol: float The absolute tolerance for the transition
+                                matrix elements."""
 
         # params
         self.lmax = lmax
@@ -253,37 +234,28 @@ class Workspace:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
         using the distorted wave Born approximation (DWBA).
-        Parameters:
-        ----------
-        U_p_coulomb : callable
-            The Coulomb interaction for the proton.
-        U_p_central : callable
-            The central interaction for the proton.
-        U_p_spin_orbit : callable
-            The spin-orbit interaction for the proton.
-        U_n_central : callable
-            The central interaction for the neutron.
-        U_n_spin_orbit : callable
-            The spin-orbit interaction for the neutron.
-        args_p_coulomb : tuple
-            parameters for the proton Coulomb interaction.
-        args_p_central : tuple
-            parameters for the proton central interaction.
-        args_p_spin_orbit : tuple
-            parameters for the proton spin-orbit interaction.
-        args_n_central : tuple
-            parameters for the neutron central interaction.
-        args_n_spin_orbit : tuple
-            parameters for the neutron spin-orbit interaction.
-        Returns:
-        -------
-        Tpn : np.ndarray
-            The transition matrix for the (p,n) reaction.
-        Sn : np.ndarray
-            The S-matrix for the neutron elastic exit channel.
-        Sp : np.ndarray
-            The S-matrix for the proton elastic entrance channel.
-        """
+        :param U_p_coulomb: callable The Coulomb interaction for the proton.
+        :param U_p_central: callable The central interaction for the proton.
+        :param U_p_spin_orbit: callable The spin-orbit interaction for the
+                               proton.
+        :param U_n_central: callable The central interaction for the neutron.
+        :param U_n_spin_orbit: callable The spin-orbit interaction for the
+                               neutron.
+        :param args_p_coulomb: tuple parameters for the proton Coulomb
+                               interaction.
+        :param args_p_central: tuple parameters for the proton central
+                               interaction.
+        :param args_p_spin_orbit: tuple parameters for the proton spin-orbit
+                                  interaction.
+        :param args_n_central: tuple parameters for the neutron central
+                               interaction.
+        :param args_n_spin_orbit: tuple parameters for the neutron spin-orbit
+                                  interaction.
+        :returns: Tpn: np.ndarray The transition matrix for the (p,n) reaction.;
+                  Sn: np.ndarray The S-matrix for the neutron elastic exit
+                  channel.; Sp: np.ndarray The S-matrix for the proton elastic
+                  entrance channel.
+        :rtype: tuple[Tpn, Sn, Sp]"""
         Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
@@ -410,36 +382,29 @@ class Workspace:
         U_n_spin_orbit: npt.ArrayLike | None = None,
     ) -> np.ndarray:
         """
-        Calculate the differential cross section for (p,n) quasi-elastic scattering
+        Calculate the differential cross section for (p,n) quasi-elastic
+        scattering
         in mb/Sr in the outgoing neutron angle using DWBA.
-        Parameters:
-        ----------
-        U_p_coulomb : callable
-            The Coulomb interaction for the proton.
-        U_p_central : callable
-            The central interaction for the proton.
-        U_p_spin_orbit : callable
-            The spin-orbit interaction for the proton.
-        U_n_central : callable
-            The central interaction for the neutron.
-        U_n_spin_orbit : callable
-            The spin-orbit interaction for the neutron.
-        args_p_coulomb : tuple
-            parameters for the proton Coulomb interaction.
-        args_p_central : tuple
-            parameters for the proton central interaction.
-        args_p_spin_orbit : tuple
-            parameters for the proton spin-orbit interaction.
-        args_n_central : tuple
-            parameters for the neutron central interaction.
-        args_n_spin_orbit : tuple
-            parameters for the neutron spin-orbit interaction.
-
-        Returns:
-        -------
-        xs : np.ndarray
-            The differential cross section for the (p,n) reaction in mb/Sr.
-        """
+        :param U_p_coulomb: callable The Coulomb interaction for the proton.
+        :param U_p_central: callable The central interaction for the proton.
+        :param U_p_spin_orbit: callable The spin-orbit interaction for the
+                               proton.
+        :param U_n_central: callable The central interaction for the neutron.
+        :param U_n_spin_orbit: callable The spin-orbit interaction for the
+                               neutron.
+        :param args_p_coulomb: tuple parameters for the proton Coulomb
+                               interaction.
+        :param args_p_central: tuple parameters for the proton central
+                               interaction.
+        :param args_p_spin_orbit: tuple parameters for the proton spin-orbit
+                                  interaction.
+        :param args_n_central: tuple parameters for the neutron central
+                               interaction.
+        :param args_n_spin_orbit: tuple parameters for the neutron spin-orbit
+                                  interaction.
+        :returns: np.ndarray The differential cross section for the (p,n)
+                  reaction in mb/Sr.
+        :rtype: xs"""
 
         Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
         Tlj, Sn, Sp = self.tmatrix(

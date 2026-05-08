@@ -16,18 +16,17 @@ class Particle:
     """
     Represents a particle with rest mass and charge.
 
-    Attributes:
-        m0 (float): The rest mass of the particle.
-    """
+    :ivar m0: The rest mass of the particle.
+    :vartype m0: float"""
 
     def __init__(self, m0, q):
         """
         Initializes a Particle instance.
 
-        Params:
-            m0 (float): The rest mass of the particle.
-            q (float): The electric charge of the particle.
-        """
+        :param m0: The rest mass of the particle.
+        :type m0: float
+        :param q: The electric charge of the particle.
+        :type q: float"""
         self.m0 = m0
         self.q = q
 
@@ -35,39 +34,34 @@ class Particle:
         """
         Returns the LaTeX representation of the particle.
 
-        Returns:
-            str: LaTeX string.
-        """
+        :returns: LaTeX string.
+        :rtype: str"""
         pass
 
     def __str__(self):
         """
         Returns the string representation of the particle.
 
-        Returns:
-            str: String representation.
-        """
+        :returns: String representation.
+        :rtype: str"""
         return self.__repr__()
 
     def __eq__(self, other):
         """
         Checks equality with another particle.
 
-        Params:
-            other (Particle): Another particle to compare.
-
-        Returns:
-            bool: True if equal, False otherwise.
-        """
+        :param other: Another particle to compare.
+        :type other: Particle
+        :returns: True if equal, False otherwise.
+        :rtype: bool"""
         pass
 
     def __repr__(self):
         """
         Returns the symbolic representation of the particle.
 
-        Returns:
-            str: Symbolic representation.
-        """
+        :returns: Symbolic representation.
+        :rtype: str"""
         pass
 
     @classmethod
@@ -94,22 +88,24 @@ class Nucleus(Particle):
     Represents a Nucleus with atomic mass number A and atomic number Z.
     Nucleons can also be represented as a Nucleus.
 
-    Attributes:
-        A (int): Atomic mass number.
-        Z (int): Atomic number.
-        Efn (float): Neutron Fermi energy.
-        Efp (float): Proton Fermi energy.
-    """
+    :ivar A: Atomic mass number.
+    :vartype A: int
+    :ivar Z: Atomic number.
+    :vartype Z: int
+    :ivar Efn: Neutron Fermi energy.
+    :vartype Efn: float
+    :ivar Efp: Proton Fermi energy.
+    :vartype Efp: float"""
 
     def __init__(self, A: int, Z: int, mass_kwargs: dict | None = None):
         """
         Initializes a Nucleus instance.
 
-        Params:
-            A (int): Atomic mass number (must be greater than 0).
-            Z (int): Atomic number (must be greater than or equal to 0).
-            mass_kwargs: Additional keyword arguments for mass calculations.
-        """
+        :param A: Atomic mass number (must be greater than 0).
+        :type A: int
+        :param Z: Atomic number (must be greater than or equal to 0).
+        :type Z: int
+        :param mass_kwargs: Additional keyword arguments for mass calculations."""
 
         if mass_kwargs is None:
             mass_kwargs = {}
@@ -136,12 +132,10 @@ class Nucleus(Particle):
         """
         Adds two particles together.
 
-        Params:
-            other (Nucleus): Another particle to add.
-
-        Returns:
-            Nucleus: New particle resulting from the addition.
-        """
+        :param other: Another particle to add.
+        :type other: Nucleus
+        :returns: New particle resulting from the addition.
+        :rtype: Nucleus"""
         if isinstance(other, Nucleus):
             return Nucleus(
                 self.A + other.A, self.Z + other.Z, mass_kwargs=self.mass_kwargs
@@ -159,12 +153,10 @@ class Nucleus(Particle):
         """
         Subtracts one particle from another.
 
-        Params:
-            other (Nucleus): Another particle to subtract.
-
-        Returns:
-            Nucleus: New particle resulting from the subtraction.
-        """
+        :param other: Another particle to subtract.
+        :type other: Nucleus
+        :returns: New particle resulting from the subtraction.
+        :rtype: Nucleus"""
         if isinstance(other, Nucleus):
             return Nucleus(
                 self.A - other.A, self.Z - other.Z, mass_kwargs=self.mass_kwargs
@@ -182,21 +174,18 @@ class Nucleus(Particle):
         """
         Returns the LaTeX representation of the particle.
 
-        Returns:
-            str: LaTeX string.
-        """
+        :returns: LaTeX string.
+        :rtype: str"""
         return get_latex(self.A, self.Z)
 
     def __eq__(self, other):
         """
         Checks equality with another particle.
 
-        Params:
-            other (Particle): Another particle to compare.
-
-        Returns:
-            bool: True if equal, False otherwise.
-        """
+        :param other: Another particle to compare.
+        :type other: Particle
+        :returns: True if equal, False otherwise.
+        :rtype: bool"""
         if isinstance(other, Nucleus):
             return self.A == other.A and self.Z == other.Z
         elif isinstance(other, tuple):
@@ -208,18 +197,16 @@ class Nucleus(Particle):
         """
         Returns the symbolic representation of the particle.
 
-        Returns:
-            str: Symbolic representation.
-        """
+        :returns: Symbolic representation.
+        :rtype: str"""
         return get_symbol(self.A, self.Z)
 
     def __iter__(self):
         """
         Allows unpacking of a Nucleus instance into (A, Z).
 
-        Returns:
-            iterator: An iterator over the atomic mass number and atomic number.
-        """
+        :returns: An iterator over the atomic mass number and atomic number.
+        :rtype: iterator"""
         return iter((self.A, self.Z))
 
 
@@ -287,20 +274,25 @@ class Positron(Particle):
 class Reaction:
     """Represents a 2-body nuclear reaction of the form A + a -> b + B.
 
-    Attributes:
-        target (Particle): The target particle.
-        projectile (Particle): The projectile particle.
-        product (Particle):
-        residual (Particle or None): The residual particle, or None for 'abs'
-            or 'tot' processes.
-        compound_system (Particle): The compound system formed by target and
-            projectile.
-        process (str):
-        Q (float or None): The Q-value of the reaction. If Q is None,
-            that means it is unspecified for the given process.
-        reaction_string (str): The string representation of the reaction.
-        reaction_latex (str): The LaTeX representation of the reaction.
-    """
+    :ivar target: The target particle.
+    :vartype target: Particle
+    :ivar projectile: The projectile particle.
+    :vartype projectile: Particle
+    :ivar product:
+    :vartype product: Particle
+    :ivar residual: The residual particle, or None for 'abs' or 'tot' processes.
+    :vartype residual: Particle or None
+    :ivar compound_system: The compound system formed by target and projectile.
+    :vartype compound_system: Particle
+    :ivar process:
+    :vartype process: str
+    :ivar Q: The Q-value of the reaction. If Q is None, that means it is unspecified
+             for the given process.
+    :vartype Q: float or None
+    :ivar reaction_string: The string representation of the reaction.
+    :vartype reaction_string: str
+    :ivar reaction_latex: The LaTeX representation of the reaction.
+    :vartype reaction_latex: str"""
 
     def __init__(
         self,
@@ -313,22 +305,23 @@ class Reaction:
     ):
         """Initializes a Reaction instance.
 
-        Args:
-            target (Particle): The target particle.
-            projectile (Particle): The projectile particle.
-            product (Particle):
-            process (str): The product particle or a string
-                denoting the process. Currently supported are 'tot', 'el',
-                'inl', 'abs', 'x', 'sct', 'non', and 'f'. Process types
-                are defined in the EXFOR manual:
-                https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
-            residual (Particle or None): The residual particle, or None for
-                'abs' or 'tot' processes.
-
-        Raises:
-            ValueError: If isospin is not conserved or if invalid product/
-            residual types are provided.
-        """
+        :param target: The target particle.
+        :type target: Particle
+        :param projectile: The projectile particle.
+        :type projectile: Particle
+        :param product:
+        :type product: Particle
+        :param process: The product particle or a string denoting the process.
+                        Currently supported are 'tot', 'el', 'inl', 'abs', 'x',
+                        'sct', 'non', and 'f'. Process types are defined in the
+                        EXFOR manual:
+                        https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
+        :type process: str
+        :param residual: The residual particle, or None for 'abs' or 'tot'
+                         processes.
+        :type residual: Particle or None
+        :raises ValueError: If isospin is not conserved or if invalid product/
+                            residual types are provided."""
         if mass_kwargs is None:
             mass_kwargs = {}
 
@@ -468,12 +461,10 @@ class Reaction:
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
 
-        Params:
-            Elab (float): The laboratory energy of the projectile.
-
-        Returns:
-            ChannelKinematics: the kinematics
-        """
+        :param Elab: The laboratory energy of the projectile.
+        :type Elab: float
+        :returns: the kinematics
+        :rtype: ChannelKinematics"""
         return semi_relativistic_kinematics(
             self.target.m0,
             self.projectile.m0,
@@ -486,12 +477,10 @@ class Reaction:
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
 
-        Params:
-            Ecm (float): The kinetic energy in the center-of-mass frame.
-
-        Returns:
-            ChannelKinematics: the kinematics
-        """
+        :param Ecm: The kinetic energy in the center-of-mass frame.
+        :type Ecm: float
+        :returns: the kinematics
+        :rtype: ChannelKinematics"""
         Elab = Ecm * (self.target.m0 + self.projectile.m0) / self.target.m0
         result = semi_relativistic_kinematics(
             self.target.m0,
@@ -513,16 +502,16 @@ class Reaction:
         Exit channel kinematics given entrance channel kinematics and
             excitation energies.
 
-        Params:
-            entrance (ChannelKinematics): The entrance channel kinematics.
-            residual_excitation_energy (float): The excitation energy
-                of the residual nucleus.
-            product_excitation_energy (float): The excitation energy of the
-                product nucleus.
-
-        Returns:
-            ChannelKinematics: the kinematics in the exit channel
-        """
+        :param entrance: The entrance channel kinematics.
+        :type entrance: ChannelKinematics
+        :param residual_excitation_energy: The excitation energy of the residual
+                                           nucleus.
+        :type residual_excitation_energy: float
+        :param product_excitation_energy: The excitation energy of the product
+                                          nucleus.
+        :type product_excitation_energy: float
+        :returns: the kinematics in the exit channel
+        :rtype: ChannelKinematics"""
         Ecm = (
             entrance.Ecm
             + self.Q
@@ -541,11 +530,12 @@ class Reaction:
         """
         Convert angles from the center-of-mass frame to the laboratory frame
         (target rest frame).
-        Args:
-            theta_cm (np.ndarray): Angles in the center-of-mass frame in degrees.
-            Ecm (float): Center-of-mass energy.
-            Q (float): Q-value of the reaction.
-        """
+        :param theta_cm: Angles in the center-of-mass frame in degrees.
+        :type theta_cm: np.ndarray
+        :param Ecm: Center-of-mass energy.
+        :type Ecm: float
+        :param Q: Q-value of the reaction.
+        :type Q: float"""
         if self.product is None or self.residual is None:
             raise ValueError(
                 "to_lab_frame() requires both product and residual to be defined. "
@@ -566,11 +556,12 @@ class Reaction:
         """
         Convert angles from the laboratory (target rest frame) frame to the
         center-of-mass frame.
-        Args:
-            theta_lab (np.ndarray): Angles in the laboratory frame in degrees.
-            Elab (float): Laboratory energy.
-            Q (float): Q-value of the reaction.
-        """
+        :param theta_lab: Angles in the laboratory frame in degrees.
+        :type theta_lab: np.ndarray
+        :param Elab: Laboratory energy.
+        :type Elab: float
+        :param Q: Q-value of the reaction.
+        :type Q: float"""
         if self.product is None or self.residual is None:
             raise ValueError(
                 "to_cm_frame() requires both product and residual to be defined. "
@@ -591,9 +582,8 @@ class Reaction:
         """
         Returns the symbolic representation of the Reaction.
 
-        Returns:
-            str: Symbolic representation.
-        """
+        :returns: Symbolic representation.
+        :rtype: str"""
         return self.reaction_string
 
     def __str__(self):
@@ -602,12 +592,10 @@ class Reaction:
     def __eq__(self, other):
         """Checks equality with another Reaction instance.
 
-        Args:
-            other (Reaction): The other Reaction instance to compare.
-
-        Returns:
-            bool: True if equal, False otherwise.
-        """
+        :param other: The other Reaction instance to compare.
+        :type other: Reaction
+        :returns: True if equal, False otherwise.
+        :rtype: bool"""
         if not isinstance(other, Reaction):
             return False
         return (
@@ -629,11 +617,9 @@ class ElasticReaction(Reaction):
     """
     Represents an elastic reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param kwargs: Additional keyword arguments."""
 
     def __init__(self, target, projectile, **kwargs):
         super().__init__(
@@ -645,11 +631,9 @@ class InelasticReaction(Reaction):
     """
     Represents an inelastic reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments for Reaction.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param kwargs: Additional keyword arguments for Reaction."""
 
     def __init__(self, target, projectile, **kwargs):
         super().__init__(
@@ -661,11 +645,9 @@ class TotalReaction(Reaction):
     """
     Represents a total reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments for Reaction.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param kwargs: Additional keyword arguments for Reaction."""
 
     def __init__(self, target, projectile, **kwargs):
         super().__init__(
@@ -677,11 +659,9 @@ class AbsorptionReaction(Reaction):
     """
     Represents an absorption reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments for Reaction.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param kwargs: Additional keyword arguments for Reaction."""
 
     def __init__(self, target, projectile, **kwargs):
         residual = Nucleus(
@@ -696,12 +676,10 @@ class InclusiveReaction(Reaction):
     """
     Represents an inclusive reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        residual: The residual nucleus.
-        kwargs: Additional keyword arguments for Reaction.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param residual: The residual nucleus.
+    :param kwargs: Additional keyword arguments for Reaction."""
 
     def __init__(self, target, projectile, residual, **kwargs):
         super().__init__(
@@ -713,11 +691,9 @@ class GammaCaptureReaction(Reaction):
     """
     Represents a gamma capture reaction.
 
-    Params:
-        target: The target nucleus.
-        projectile: The projectile nucleus.
-        kwargs: Additional keyword arguments for Reaction.
-    """
+    :param target: The target nucleus.
+    :param projectile: The projectile nucleus.
+    :param kwargs: Additional keyword arguments for Reaction."""
 
     def __init__(self, target, projectile, **kwargs):
         residual = Nucleus(
@@ -732,13 +708,11 @@ def get_latex(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the LaTeX representation of a nucleus.
 
-    Params:
-        A: Mass number.
-        Z: Atomic number.
-        Ex: Excitation energy (optional).
-    Returns:
-        LaTeX string.
-    """
+    :param A: Mass number.
+    :param Z: Atomic number.
+    :param Ex: Excitation energy (optional).
+    :returns:
+    :rtype: LaTeX string."""
     if (A, Z) == (1, 0):
         return "n"
     elif (A, Z) == (1, 1):
@@ -761,13 +735,11 @@ def get_symbol(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the symbol representation of a nucleus.
 
-    Params:
-        A: Mass number.
-        Z: Atomic number.
-        Ex: Excitation energy (optional).
-    Returns:
-        Symbol string.
-    """
+    :param A: Mass number.
+    :param Z: Atomic number.
+    :param Ex: Excitation energy (optional).
+    :returns:
+    :rtype: Symbol string."""
     if (A, Z) == (1, 0):
         return "n"
     elif (A, Z) == (1, 1):

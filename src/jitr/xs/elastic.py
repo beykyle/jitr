@@ -21,13 +21,11 @@ ComplexArray = npt.NDArray[np.complex128]
 class ElasticXS:
     """Container for elastic-scattering observables.
 
-    Attributes:
-        dsdo: Differential cross section in mb/sr.
-        Ay: Analyzing power.
-        Q: Spin-rotation function.
-        t: Total cross section in mb.
-        rxn: Reaction cross section in mb.
-    """
+    :ivar dsdo: Differential cross section in mb/sr.
+    :ivar Ay: Analyzing power.
+    :ivar Q: Spin-rotation function.
+    :ivar t: Total cross section in mb.
+    :ivar rxn: Reaction cross section in mb."""
 
     dsdo: np.ndarray
     Ay: np.ndarray
