@@ -417,8 +417,8 @@ class WLH(SingleChannelOpticalModel):
                   potential evaluated on the radial grid
         :rtype: tuple[U_central, U_spin_orbit, U_coulomb]"""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
-            tuple(reaction.projectile),  # type: ignore[arg-type]
-            tuple(reaction.target),  # type: ignore[arg-type]
+            (reaction.projectile.A, reaction.projectile.Z),
+            (reaction.target.A, reaction.target.Z),
             kinematics.Elab,
             *params,
         )

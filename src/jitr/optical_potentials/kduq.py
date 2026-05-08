@@ -544,8 +544,8 @@ class KDUQ(SingleChannelOpticalModel):
     ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
         """Evaluate the KDUQ central, spin-orbit, and Coulomb terms."""
         central_params, spin_orbit_params, coulomb_params = calculate_params(
-            tuple(reaction.projectile),  # type: ignore[arg-type]
-            tuple(reaction.target),  # type: ignore[arg-type]
+            (reaction.projectile.A, reaction.projectile.Z),
+            (reaction.target.A, reaction.target.Z),
             kinematics.Elab,
             *params,
         )

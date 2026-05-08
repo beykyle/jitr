@@ -47,7 +47,7 @@ class IntegralWorkspace:
         smatrix_abs_tol: float = 1e-6,
     ) -> None:
         """Build the workspace from reaction and kinematic information."""
-        if reaction.process.lower() != "el":
+        if reaction.process is None or reaction.process.lower() != "el":
             raise ValueError("Reaction must be elastic!")
 
         self.smatrix_abs_tol = smatrix_abs_tol
@@ -236,10 +236,12 @@ class DifferentialWorkspace:
         self.P_1_l_costheta = lpmv(1, self.ls, np.cos(self.angles))
 
         self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
-        self.sigma_l = self.coulomb_phase_shift(self.ls)
+        self.sigma_l = self.coulomb_phase_shift(self.ls.astype(np.float64))
         if self.Zz > 0:
-            self.rutherford = self.rutherford_xs(self.angles)
-            self.f_c = self.coulomb_amplitude(self.angles, self.sigma_l[0])
+            self.rutherford: FloatArray | None = self.rutherford_xs(self.angles)
+            self.f_c: FloatArray | ComplexArray = self.coulomb_amplitude(
+                self.angles, self.sigma_l[0]
+            )
         else:
             self.f_c = np.zeros_like(angles)
             self.rutherford = None
@@ -257,10 +259,11 @@ class DifferentialWorkspace:
     def coulomb_amplitude(self, angles: FloatArray, sigma_0: float) -> ComplexArray:
         """Return the Coulomb scattering amplitude."""
         sin2 = np.sin(angles / 2.0)
-        return (
+        return np.asarray(
             -self.kinematics.eta
             / (2 * self.kinematics.k * sin2**2)
-            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2))
+            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2)),
+            dtype=np.complex128,
         )
 
     def coulomb_phase_shift(self, ls: FloatArray) -> FloatArray:
@@ -325,22 +328,24 @@ def differential_elastic_xs(
     ls: np.ndarray,
     P_l_costheta: np.ndarray,
     P_1_l_costheta: np.ndarray,
-    f_c: np.ndarray = 0,
-    sigma_l: np.ndarray = 0,
+    f_c: npt.ArrayLike = 0,
+    sigma_l: npt.ArrayLike = 0,
     eps: float = 1e-30,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
     """Return differential and integral elastic observables.
 
     The returned tuple contains ``(dσ/dΩ, A_y, Q, σ_total, σ_reaction)``.
     """
-    a = np.zeros_like(angles, dtype=np.complex128) + f_c
+    _sigma_l = np.broadcast_to(np.asarray(sigma_l, dtype=np.float64), (splus.shape[0],))
+    _f_c = np.asarray(f_c, dtype=np.complex128)
+    a = np.zeros_like(angles, dtype=np.complex128) + _f_c
     b = np.zeros_like(angles, dtype=np.complex128)
 
     xsrxn = 0.0
     xst = 0.0
 
     for l in range(splus.shape[0]):
-        phase = np.exp(2j * sigma_l[l]) / (2j * k)
+        phase = np.exp(2j * _sigma_l[l]) / (2j * k)
 
         a += (
             P_l_costheta[l, :]

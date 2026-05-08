@@ -103,8 +103,8 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
 
     def radius_factor(self, reaction_model: reaction.Reaction) -> float:
         """Return the radius scaling factor for the current reaction."""
-        target_mass = reaction_model.target.A  # type: ignore[attr-defined]
-        projectile_mass = reaction_model.projectile.A  # type: ignore[attr-defined]
+        target_mass = reaction_model.target.A
+        projectile_mass = reaction_model.projectile.A
         if self.scale_radii_by_At_and_Ap:
             return target_mass ** (1 / 3) + projectile_mass ** (1 / 3)
         return target_mass ** (1 / 3)
@@ -137,10 +137,7 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
         Rd = rd * radius_factor
         Rso = rso * radius_factor
         RC = rC * radius_factor
-        zz = (
-            reaction_model.target.Z  # type: ignore[attr-defined]
-            * reaction_model.projectile.Z  # type: ignore[attr-defined]
-        )
+        zz = reaction_model.target.Z * reaction_model.projectile.Z
 
         central_term = central(rgrid, Vv, Rv, av, Wv, Rw, aw, Wd, Vd, Rd, ad)
         spin_orbit_term = spin_orbit(rgrid, Vso, Wso, Rso, aso)

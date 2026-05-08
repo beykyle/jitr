@@ -63,6 +63,10 @@ class System:
             coupling=spin_half_orbit_coupling,
         )
 
+        if reaction.residual is None or reaction.product is None:
+            raise ValueError(
+                "Reaction must define both residual and product for (p,n) scattering"
+            )
         self.exit = ProjectileTargetSystem(
             channel_radius=self.channel_radius_fm * kinematics_exit.k,
             lmax=self.lmax,

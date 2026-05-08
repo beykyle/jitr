@@ -152,7 +152,5 @@ module = [
     "jitr.reactions.wavefunction",
     "jitr.rmatrix.rmatrix",
     "jitr.utils.free_solutions",
-    "jitr.xs.elastic",
-    "jitr.xs.quasielastic_pn",
 ]
 ignore_errors = true
