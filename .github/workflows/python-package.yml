@@ -56,7 +56,7 @@ jobs:
         run: uv run pytest
 
       - name: Run notebook tests
-        run: uv run --group examples pytest --nbval-lax examples/notebooks/
+        run: uv run --group examples pytest --nbval-lax --current-env examples/notebooks/
 
       - name: Build package
         run: uv build
