@@ -149,7 +149,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "jitr.reactions.reaction",
     "jitr.reactions.wavefunction",
     "jitr.rmatrix.rmatrix",
     "jitr.utils.free_solutions",

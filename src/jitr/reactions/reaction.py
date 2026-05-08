@@ -1,5 +1,9 @@
 """Reaction-system models and helpers for common nuclear processes."""
 
+from __future__ import annotations
+
+from collections.abc import Iterator
+
 import numpy as np
 import periodictable
 
@@ -16,70 +20,105 @@ class Particle:
     """
     Represents a particle with rest mass and charge.
 
-    :ivar m0: The rest mass of the particle.
-    :vartype m0: float"""
+    :ivar m0: The rest mass of the particle in MeV/c^2.
+    :vartype m0: float
+    :ivar q: The electric charge of the particle.
+    :vartype q: float
+    :ivar Z: Integer charge number (alias for ``int(q)``).
+    :vartype Z: int
+    :ivar A: Mass number (0 for non-nuclear particles).
+    :vartype A: int
+    """
 
-    def __init__(self, m0, q):
+    m0: float
+    q: float
+    Z: int
+    A: int
+
+    def __init__(self, m0: float, q: float) -> None:
         """
         Initializes a Particle instance.
 
-        :param m0: The rest mass of the particle.
+        :param m0: The rest mass of the particle in MeV/c^2.
         :type m0: float
         :param q: The electric charge of the particle.
-        :type q: float"""
+        :type q: float
+        """
         self.m0 = m0
         self.q = q
+        self.Z = int(q)
+        self.A = 0  # non-nuclear particles have A = 0
 
     def latex(self) -> str:
         """
         Returns the LaTeX representation of the particle.
 
         :returns: LaTeX string.
-        :rtype: str"""
-        pass
+        :rtype: str
+        """
+        raise NotImplementedError
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns the string representation of the particle.
 
         :returns: String representation.
-        :rtype: str"""
+        :rtype: str
+        """
         return self.__repr__()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Checks equality with another particle.
 
         :param other: Another particle to compare.
-        :type other: Particle
         :returns: True if equal, False otherwise.
-        :rtype: bool"""
-        pass
+        :rtype: bool
+        """
+        raise NotImplementedError
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Returns the symbolic representation of the particle.
 
         :returns: Symbolic representation.
-        :rtype: str"""
-        pass
+        :rtype: str
+        """
+        raise NotImplementedError
+
+    def __add__(self, other: Particle | tuple[int, int]) -> Particle:
+        """Add two particles; implemented in concrete subclasses."""
+        raise NotImplementedError
+
+    def __sub__(self, other: Particle | tuple[int, int]) -> Particle:
+        """Subtract a particle; implemented in concrete subclasses."""
+        raise NotImplementedError
 
     @classmethod
-    def parse(cls, p: object, **kwargs: object) -> object:
-        """Parse a particle-like object into a concrete particle instance."""
-        if p is None:
-            return None
-        elif isinstance(p, tuple):
-            return Nucleus(*p, **kwargs)
-        elif isinstance(p, Nucleus):
-            return p
-        elif isinstance(p, Gamma):
+    def parse(
+        cls,
+        p: object,
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> Particle:
+        """Parse a particle-like object into a concrete particle instance.
+
+        :param p: A ``Particle`` instance, a ``(A, Z)`` tuple, or a string.
+        :param mass_kwargs: Keyword arguments forwarded to the mass database.
+        :raises NotImplementedError: When ``p`` is a string (not yet supported).
+        :raises ValueError: When ``p`` cannot be interpreted as a particle.
+        :returns: A concrete ``Particle`` instance.
+        """
+        if isinstance(p, tuple):
+            A, Z = int(p[0]), int(p[1])
+            return Nucleus(A, Z, mass_kwargs=mass_kwargs)
+        elif isinstance(p, Particle):
             return p
         elif isinstance(p, str):
-            return NotImplemented
-            # TODO parse from str
+            raise NotImplementedError(
+                "Parsing a particle from a string is not yet supported."
+            )
         else:
-            return ValueError(f"Can't parse a particle from a {type(p)}")
+            raise ValueError(f"Can't parse a particle from a {type(p)}")
 
 
 # TODO add GS spin and excited states from ENSDF
@@ -92,12 +131,24 @@ class Nucleus(Particle):
     :vartype A: int
     :ivar Z: Atomic number.
     :vartype Z: int
-    :ivar Efn: Neutron Fermi energy.
+    :ivar Efn: Neutron Fermi energy in MeV.
     :vartype Efn: float
-    :ivar Efp: Proton Fermi energy.
-    :vartype Efp: float"""
+    :ivar Efp: Proton Fermi energy in MeV.
+    :vartype Efp: float
+    """
 
-    def __init__(self, A: int, Z: int, mass_kwargs: dict | None = None):
+    A: int
+    Z: int
+    Efn: float
+    Efp: float
+    mass_kwargs: dict[str, str]
+
+    def __init__(
+        self,
+        A: int,
+        Z: int,
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         """
         Initializes a Nucleus instance.
 
@@ -105,13 +156,12 @@ class Nucleus(Particle):
         :type A: int
         :param Z: Atomic number (must be greater than or equal to 0).
         :type Z: int
-        :param mass_kwargs: Additional keyword arguments for mass calculations."""
-
+        :param mass_kwargs: Keyword arguments forwarded to the mass database
+            (e.g. ``{"model": "ame2020"}``).
+        """
         if mass_kwargs is None:
             mass_kwargs = {}
 
-        self.A = A
-        self.Z = Z
         self.mass_kwargs = mass_kwargs
 
         if A > 1:
@@ -124,18 +174,20 @@ class Nucleus(Particle):
             raise ValueError(f"Cannot construct a nucleus with A={A} and Z={Z}")
 
         super().__init__(m0, Z)
+        # Override the generic A=0 set by Particle.__init__; Z is already correct.
+        self.A = A
 
         self.Efn = mass.neutron_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
         self.Efp = mass.proton_fermi_energy(self.A, self.Z, **mass_kwargs)[0]
 
-    def __add__(self, other):
+    def __add__(self, other: Particle | tuple[int, int]) -> Nucleus:
         """
         Adds two particles together.
 
         :param other: Another particle to add.
-        :type other: Nucleus
-        :returns: New particle resulting from the addition.
-        :rtype: Nucleus"""
+        :returns: New Nucleus resulting from the addition.
+        :rtype: Nucleus
+        """
         if isinstance(other, Nucleus):
             return Nucleus(
                 self.A + other.A, self.Z + other.Z, mass_kwargs=self.mass_kwargs
@@ -149,14 +201,14 @@ class Nucleus(Particle):
         else:
             raise ValueError(f"Cannot add {type(other)} to a Nucleus")
 
-    def __sub__(self, other):
+    def __sub__(self, other: Particle | tuple[int, int]) -> Nucleus:
         """
-        Subtracts one particle from another.
+        Subtracts a particle from this nucleus.
 
         :param other: Another particle to subtract.
-        :type other: Nucleus
-        :returns: New particle resulting from the subtraction.
-        :rtype: Nucleus"""
+        :returns: New Nucleus resulting from the subtraction.
+        :rtype: Nucleus
+        """
         if isinstance(other, Nucleus):
             return Nucleus(
                 self.A - other.A, self.Z - other.Z, mass_kwargs=self.mass_kwargs
@@ -168,24 +220,25 @@ class Nucleus(Particle):
         elif isinstance(other, Gamma):
             return self
         else:
-            raise ValueError(f"Cannot add {type(other)} to a Nucleus")
+            raise ValueError(f"Cannot subtract {type(other)} from a Nucleus")
 
     def latex(self) -> str:
         """
-        Returns the LaTeX representation of the particle.
+        Returns the LaTeX representation of the nucleus.
 
         :returns: LaTeX string.
-        :rtype: str"""
+        :rtype: str
+        """
         return get_latex(self.A, self.Z)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Checks equality with another particle.
 
         :param other: Another particle to compare.
-        :type other: Particle
         :returns: True if equal, False otherwise.
-        :rtype: bool"""
+        :rtype: bool
+        """
         if isinstance(other, Nucleus):
             return self.A == other.A and self.Z == other.Z
         elif isinstance(other, tuple):
@@ -193,20 +246,22 @@ class Nucleus(Particle):
         else:
             return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
-        Returns the symbolic representation of the particle.
+        Returns the symbolic representation of the nucleus.
 
         :returns: Symbolic representation.
-        :rtype: str"""
+        :rtype: str
+        """
         return get_symbol(self.A, self.Z)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[int]:
         """
         Allows unpacking of a Nucleus instance into (A, Z).
 
         :returns: An iterator over the atomic mass number and atomic number.
-        :rtype: iterator"""
+        :rtype: Iterator[int]
+        """
         return iter((self.A, self.Z))
 
 
@@ -217,7 +272,7 @@ class Gamma(Particle):
     Inherits from Particle with m0=0 and q=0
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes a Gamma object
         """
@@ -226,8 +281,11 @@ class Gamma(Particle):
     def latex(self) -> str:
         return r"\gamma"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "gamma"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Gamma)
 
 
 class Electron(Particle):
@@ -237,7 +295,7 @@ class Electron(Particle):
     Inherits from Particle
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes an Electron
         """
@@ -246,8 +304,11 @@ class Electron(Particle):
     def latex(self) -> str:
         return r"e^{-}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "e-"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Electron)
 
 
 class Positron(Particle):
@@ -257,17 +318,20 @@ class Positron(Particle):
     Inherits from Particle
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
-        Initializes an possitron
+        Initializes a positron
         """
         super().__init__(constants.MASS_E, +1)
 
     def latex(self) -> str:
         return r"e^{+}"
 
-    def __repr__(self):
-        return "e+:"
+    def __repr__(self) -> str:
+        return "e+"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Positron)
 
 
 # TODO support multiple processes/products, e.g. (n,2NF) or (N,3N)
@@ -278,50 +342,71 @@ class Reaction:
     :vartype target: Particle
     :ivar projectile: The projectile particle.
     :vartype projectile: Particle
-    :ivar product:
-    :vartype product: Particle
+    :ivar product: The light product, or None for absorption/total processes.
+    :vartype product: Particle or None
     :ivar residual: The residual particle, or None for 'abs' or 'tot' processes.
     :vartype residual: Particle or None
     :ivar compound_system: The compound system formed by target and projectile.
     :vartype compound_system: Particle
-    :ivar process:
-    :vartype process: str
-    :ivar Q: The Q-value of the reaction. If Q is None, that means it is unspecified
-             for the given process.
+    :ivar process: Short process label (e.g. ``'el'``, ``'abs'``), or ``None``.
+    :vartype process: str or None
+    :ivar Q: The Q-value of the reaction in MeV. ``None`` when unspecified.
     :vartype Q: float or None
     :ivar reaction_string: The string representation of the reaction.
     :vartype reaction_string: str
     :ivar reaction_latex: The LaTeX representation of the reaction.
-    :vartype reaction_latex: str"""
+    :vartype reaction_latex: str
+    :ivar Ef: Effective Fermi energy in MeV, or ``None`` for non-nuclear reactions.
+    :vartype Ef: float or None
+    :ivar threshold: Cluster separation energy threshold in MeV, or ``None``.
+    :vartype threshold: float or None
+    :ivar compound_system_threshold: Compound-system separation energy in MeV, or ``None``.
+    :vartype compound_system_threshold: float or None
+    """
+
+    target: Particle
+    projectile: Particle
+    compound_system: Particle
+    product: Particle | None
+    residual: Particle | None
+    process: str | None
+    Q: float | None
+    reaction_string: str
+    reaction_latex: str
+    Ef: float | None
+    threshold: float | None
+    compound_system_threshold: float | None
 
     def __init__(
         self,
-        target: Particle,
-        projectile: Particle,
-        product: Particle = None,
-        residual: Particle = None,
-        process: str = None,
-        mass_kwargs: dict | None = None,
-    ):
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        product: Particle | tuple[int, int] | None = None,
+        residual: Particle | tuple[int, int] | None = None,
+        process: str | None = None,
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         """Initializes a Reaction instance.
 
         :param target: The target particle.
         :type target: Particle
         :param projectile: The projectile particle.
         :type projectile: Particle
-        :param product:
-        :type product: Particle
-        :param process: The product particle or a string denoting the process.
-                        Currently supported are 'tot', 'el', 'inl', 'abs', 'x',
-                        'sct', 'non', and 'f'. Process types are defined in the
-                        EXFOR manual:
-                        https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
-        :type process: str
+        :param product: The light product particle, or ``None``.
+        :type product: Particle or None
+        :param process: Short process label. Currently supported are ``'tot'``,
+            ``'el'``, ``'inl'``, ``'abs'``, ``'x'``, ``'sct'``, ``'non'``, and
+            ``'f'``. Process types are defined in the EXFOR manual:
+            https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
+        :type process: str or None
         :param residual: The residual particle, or None for 'abs' or 'tot'
                          processes.
         :type residual: Particle or None
+        :param mass_kwargs: Keyword arguments forwarded to the mass database
+            (e.g. ``{"model": "ame2020"}``).
         :raises ValueError: If isospin is not conserved or if invalid product/
-                            residual types are provided."""
+                            residual types are provided.
+        """
         if mass_kwargs is None:
             mass_kwargs = {}
 
@@ -335,7 +420,7 @@ class Reaction:
         if residual is not None:
             residual = Particle.parse(residual, mass_kwargs=mass_kwargs)
 
-        # parse the process string and ensuure the reactants are consistent
+        # parse the process string and ensure the reactants are consistent
         residual_in_string = True
         if process is not None:
             self.process = process.lower()
@@ -349,7 +434,7 @@ class Reaction:
                     )
                 self.product = self.projectile
                 self.residual = self.target
-                self.Q = 0
+                self.Q = 0.0
                 residual_in_string = False
             elif self.process in ["abs", "f"]:
                 if product or residual != self.compound_system:
@@ -399,6 +484,8 @@ class Reaction:
                 + f"{self.process.lower()})"
             )
             if residual_in_string:
+                # residual_in_string=True only for 'x' process, where residual is set
+                assert self.residual is not None
                 self.reaction_string += f"{self.residual}"
                 self.reaction_latex += f"{self.residual.latex()}"
         else:
@@ -412,8 +499,10 @@ class Reaction:
             self.product = product
             self.residual = residual
             if self.product is None:
+                assert self.residual is not None
                 self.product = self.compound_system - self.residual
             if self.residual is None:
+                assert self.product is not None
                 self.residual = self.compound_system - self.product
 
             # most general form for Q
@@ -464,7 +553,8 @@ class Reaction:
         :param Elab: The laboratory energy of the projectile.
         :type Elab: float
         :returns: the kinematics
-        :rtype: ChannelKinematics"""
+        :rtype: ChannelKinematics
+        """
         return semi_relativistic_kinematics(
             self.target.m0,
             self.projectile.m0,
@@ -511,7 +601,19 @@ class Reaction:
                                           nucleus.
         :type product_excitation_energy: float
         :returns: the kinematics in the exit channel
-        :rtype: ChannelKinematics"""
+        :rtype: ChannelKinematics
+        """
+        if self.Q is None:
+            raise ValueError(
+                "kinematics_exit() requires a defined Q-value. "
+                f"This reaction ({self.reaction_string}) has Q=None."
+            )
+        if self.residual is None or self.product is None:
+            raise ValueError(
+                "kinematics_exit() requires both product and residual to be defined. "
+                f"This reaction ({self.reaction_string}) does not have a defined "
+                "product and/or residual."
+            )
         Ecm = (
             entrance.Ecm
             + self.Q
@@ -578,24 +680,25 @@ class Reaction:
             Q,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Returns the symbolic representation of the Reaction.
 
         :returns: Symbolic representation.
-        :rtype: str"""
+        :rtype: str
+        """
         return self.reaction_string
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__repr__()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Checks equality with another Reaction instance.
 
         :param other: The other Reaction instance to compare.
-        :type other: Reaction
         :returns: True if equal, False otherwise.
-        :rtype: bool"""
+        :rtype: bool
+        """
         if not isinstance(other, Reaction):
             return False
         return (
@@ -619,11 +722,22 @@ class ElasticReaction(Reaction):
 
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
-    :param kwargs: Additional keyword arguments."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, **kwargs):
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(
-            target, projectile, product=None, residual=None, process="el", **kwargs
+            target,
+            projectile,
+            product=None,
+            residual=None,
+            process="el",
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -633,11 +747,22 @@ class InelasticReaction(Reaction):
 
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
-    :param kwargs: Additional keyword arguments for Reaction."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, **kwargs):
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(
-            target, projectile, product=None, residual=None, process="inl", **kwargs
+            target,
+            projectile,
+            product=None,
+            residual=None,
+            process="inl",
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -647,11 +772,22 @@ class TotalReaction(Reaction):
 
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
-    :param kwargs: Additional keyword arguments for Reaction."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, **kwargs):
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(
-            target, projectile, product=None, residual=None, process="tot", **kwargs
+            target,
+            projectile,
+            product=None,
+            residual=None,
+            process="tot",
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -661,14 +797,25 @@ class AbsorptionReaction(Reaction):
 
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
-    :param kwargs: Additional keyword arguments for Reaction."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, **kwargs):
-        residual = Nucleus(
-            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
-        ) + Nucleus(*projectile, mass_kwargs=kwargs.get("mass_kwargs", None))
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
+        _target = Particle.parse(target, mass_kwargs=mass_kwargs)
+        _projectile = Particle.parse(projectile, mass_kwargs=mass_kwargs)
+        residual = _target + _projectile
         super().__init__(
-            target, projectile, residual=residual, product=None, process="abs", **kwargs
+            target,
+            projectile,
+            residual=residual,
+            product=None,
+            process="abs",
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -679,11 +826,23 @@ class InclusiveReaction(Reaction):
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
     :param residual: The residual nucleus.
-    :param kwargs: Additional keyword arguments for Reaction."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, residual, **kwargs):
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        residual: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(
-            target, projectile, product=None, residual=residual, process="x", **kwargs
+            target,
+            projectile,
+            product=None,
+            residual=residual,
+            process="x",
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -693,14 +852,24 @@ class GammaCaptureReaction(Reaction):
 
     :param target: The target nucleus.
     :param projectile: The projectile nucleus.
-    :param kwargs: Additional keyword arguments for Reaction."""
+    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    """
 
-    def __init__(self, target, projectile, **kwargs):
-        residual = Nucleus(
-            *target, mass_kwargs=kwargs.get("mass_kwargs", None)
-        ) + Nucleus(*projectile, mass_kwargs=kwargs.get("mass_kwargs", None))
+    def __init__(
+        self,
+        target: Particle | tuple[int, int],
+        projectile: Particle | tuple[int, int],
+        mass_kwargs: dict[str, str] | None = None,
+    ) -> None:
+        _target = Particle.parse(target, mass_kwargs=mass_kwargs)
+        _projectile = Particle.parse(projectile, mass_kwargs=mass_kwargs)
+        residual = _target + _projectile
         super().__init__(
-            target, projectile, residual=residual, product=Gamma(), **kwargs
+            target,
+            projectile,
+            residual=residual,
+            product=Gamma(),
+            mass_kwargs=mass_kwargs,
         )
 
 
@@ -767,9 +936,9 @@ def these_things_are_all_nuclei(*things_that_might_be_nuclei: object) -> bool:
 
 
 def cluster_separation_energy(
-    target: Nucleus,
-    projectile: Nucleus,
-    **mass_kwargs: object,
+    target: Particle,
+    projectile: Particle,
+    **mass_kwargs: str,
 ) -> float:
     """Return the separation energy for removing ``projectile`` from ``target``."""
     mf = mass.mass(
