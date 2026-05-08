@@ -65,11 +65,6 @@ version_file = "src/jitr/__version__.py"
 testpaths = ["tests"]
 addopts = "-ra"
 
-[tool.uv.workspace]
-members = [
-    "jitr",
-]
-
 [tool.ruff]
 line-length = 88
 target-version = "py310"
