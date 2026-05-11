@@ -336,7 +336,7 @@ def differential_elastic_xs(
 
     The returned tuple contains ``(dσ/dΩ, A_y, Q, σ_total, σ_reaction)``.
     """
-    _sigma_l = np.broadcast_to(np.asarray(sigma_l, dtype=np.float64), (splus.shape[0],))
+    _sigma_l = np.asarray(sigma_l, dtype=np.float64)
     _f_c = np.asarray(f_c, dtype=np.complex128)
     a = np.zeros_like(angles, dtype=np.complex128) + _f_c
     b = np.zeros_like(angles, dtype=np.complex128)
