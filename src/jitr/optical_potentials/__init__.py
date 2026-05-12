@@ -1,6 +1,6 @@
 """Optical-potential models and helper potential forms."""
 
-from . import chuq, kduq, wlh
+from . import chuq, dispersion, dom, kduq, wlh
 from .omp import LocalOpticalPotential, SingleChannelOpticalModel
 from .potential_forms import (
     coulomb_charged_sphere,
@@ -27,6 +27,8 @@ __all__ = [
     "SingleChannelOpticalModel",
     "chuq",
     "coulomb_charged_sphere",
+    "dom",
+    "dispersion",
     "kduq",
     "perey_buck_nonlocal",
     "regular_inverse_r",

@@ -80,6 +80,14 @@ def mass_db_row(A: int, Z: int) -> pd.DataFrame:
     return __MASS_DB__[(__MASS_DB__["A"] == A) & (__MASS_DB__["Z"] == Z)]
 
 
+def mass_models() -> list[str]:
+    """Return the list of available mass models."""
+    if __MASS_MODELS__ is None:
+        init_mass_db()
+    assert __MASS_MODELS__ is not None
+    return __MASS_MODELS__
+
+
 def mass_excess(A: int, Z: int, model: str = "ame2020") -> MassResult:
     """Return the mass excess and uncertainty in MeV.
 
