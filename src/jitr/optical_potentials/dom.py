@@ -53,8 +53,8 @@ PARAM_NAMES: tuple[str, ...] = (
 def get_param_names() -> list[str]:
     """Return the DOM parameter names in ``calculate_params`` order.
 
-    :returns: Ordered list of DOM parameter names.
-    :rtype: list[str]
+    Returns:
+        Ordered list of DOM parameter names.
     """
 
     return list(PARAM_NAMES)
@@ -79,20 +79,22 @@ def central(
     The real part contains the standard Woods-Saxon volume term plus analytic
     dispersive corrections tied to the imaginary volume and surface strengths.
 
-    :param r: Radial coordinate or grid in fm.
-    :param V: Real volume depth in MeV.
-    :param R: Real volume radius in fm.
-    :param a: Real volume diffuseness in fm.
-    :param Wv: Imaginary volume depth in MeV.
-    :param Delta_Vv: Dispersive correction to the real volume depth in MeV.
-    :param Rw: Imaginary volume radius in fm.
-    :param aw: Imaginary volume diffuseness in fm.
-    :param Ws: Imaginary surface depth in MeV.
-    :param Delta_Vs: Dispersive correction to the real surface depth in MeV.
-    :param Rd: Surface radius in fm.
-    :param ad: Surface diffuseness in fm.
-    :returns: Complex central potential evaluated on ``r``.
-    :rtype: complex | numpy.ndarray
+    Args:
+        r: Radial coordinate or grid in fm.
+        V: Real volume depth in MeV.
+        R: Real volume radius in fm.
+        a: Real volume diffuseness in fm.
+        Wv: Imaginary volume depth in MeV.
+        Delta_Vv: Dispersive correction to the real volume depth in MeV.
+        Rw: Imaginary volume radius in fm.
+        aw: Imaginary volume diffuseness in fm.
+        Ws: Imaginary surface depth in MeV.
+        Delta_Vs: Dispersive correction to the real surface depth in MeV.
+        Rd: Surface radius in fm.
+        ad: Surface diffuseness in fm.
+
+    Returns:
+        Complex central potential evaluated on ``r``.
     """
 
     volume = V * woods_saxon_safe(r, R, a)
@@ -111,13 +113,15 @@ def spin_orbit(
 ) -> PotentialArray:
     r"""Evaluate the local DOM spin-orbit term.
 
-    :param r: Radial coordinate or grid in fm.
-    :param Vso: Real spin-orbit depth in MeV.
-    :param Wso: Imaginary spin-orbit depth in MeV.
-    :param Rso: Spin-orbit radius in fm.
-    :param aso: Spin-orbit diffuseness in fm.
-    :returns: Complex Thomas-form spin-orbit potential.
-    :rtype: complex | numpy.ndarray
+    Args:
+        r: Radial coordinate or grid in fm.
+        Vso: Real spin-orbit depth in MeV.
+        Wso: Imaginary spin-orbit depth in MeV.
+        Rso: Spin-orbit radius in fm.
+        aso: Spin-orbit diffuseness in fm.
+
+    Returns:
+        Complex Thomas-form spin-orbit potential.
     """
 
     result = 2 * (Vso + 1j * Wso) * thomas_safe(r, Rso, aso)
@@ -131,11 +135,13 @@ def central_plus_coulomb(
 ) -> PotentialArray:
     """Evaluate the total central-plus-Coulomb potential for proton scattering.
 
-    :param r: Radial coordinate or grid in fm.
-    :param central_params: Arguments for :func:`central`.
-    :param coulomb_params: Arguments for :func:`coulomb_charged_sphere`.
-    :returns: Complex central potential plus Coulomb term.
-    :rtype: complex | numpy.ndarray
+    Args:
+        r: Radial coordinate or grid in fm.
+        central_params: Arguments for :func:`central`.
+        coulomb_params: Arguments for :func:`coulomb_charged_sphere`.
+
+    Returns:
+        Complex central potential plus Coulomb term.
     """
 
     result = central(r, *central_params) + coulomb_charged_sphere(r, *coulomb_params)
@@ -145,10 +151,13 @@ def central_plus_coulomb(
 def V_depth(DeltaE: ArrayOrScalar, V0: float, v01: float) -> ArrayOrScalar:
     """Return the real volume depth parameterisation.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param V0: Zero-offset real depth in MeV.
-    :param v01: Exponential slope in MeV^-1.
-    :returns: Real volume depth at ``DeltaE``.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        V0: Zero-offset real depth in MeV.
+        v01: Exponential slope in MeV^-1.
+
+    Returns:
+        Real volume depth at ``DeltaE``.
     """
 
     return V0 * np.exp(-v01 * DeltaE)
@@ -157,10 +166,13 @@ def V_depth(DeltaE: ArrayOrScalar, V0: float, v01: float) -> ArrayOrScalar:
 def Vso_depth(DeltaE: ArrayOrScalar, Vso: float, v01: float) -> ArrayOrScalar:
     """Return the real spin-orbit depth parameterisation.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Vso: Zero-offset spin-orbit depth in MeV.
-    :param v01: Exponential slope in MeV^-1.
-    :returns: Real spin-orbit depth at ``DeltaE``.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Vso: Zero-offset spin-orbit depth in MeV.
+        v01: Exponential slope in MeV^-1.
+
+    Returns:
+        Real spin-orbit depth at ``DeltaE``.
     """
 
     return Vso * np.exp(-v01 * DeltaE)
@@ -169,10 +181,13 @@ def Vso_depth(DeltaE: ArrayOrScalar, Vso: float, v01: float) -> ArrayOrScalar:
 def Wv_depth(DeltaE: ArrayOrScalar, Wv0: float, wv1: float) -> ArrayOrScalar:
     """Return the imaginary volume depth parameterisation.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Wv0: Saturation depth in MeV.
-    :param wv1: Energy scale in MeV.
-    :returns: Imaginary volume depth at ``DeltaE``.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Wv0: Saturation depth in MeV.
+        wv1: Energy scale in MeV.
+
+    Returns:
+        Imaginary volume depth at ``DeltaE``.
     """
 
     return Wv0 * DeltaE**2 / (DeltaE**2 + wv1**2)
@@ -181,10 +196,13 @@ def Wv_depth(DeltaE: ArrayOrScalar, Wv0: float, wv1: float) -> ArrayOrScalar:
 def Wso_depth(DeltaE: ArrayOrScalar, Wso: float, wso1: float) -> ArrayOrScalar:
     """Return the imaginary spin-orbit depth parameterisation.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Wso: Saturation depth in MeV.
-    :param wso1: Energy scale in MeV.
-    :returns: Imaginary spin-orbit depth at ``DeltaE``.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Wso: Saturation depth in MeV.
+        wso1: Energy scale in MeV.
+
+    Returns:
+        Imaginary spin-orbit depth at ``DeltaE``.
     """
 
     return Wso * DeltaE**2 / (DeltaE**2 + wso1**2)
@@ -198,11 +216,14 @@ def Ws_depth(
 ) -> ArrayOrScalar:
     """Return the imaginary surface depth parameterisation.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Ws0: Surface-depth scale in MeV.
-    :param ws1: Quartic energy scale in MeV.
-    :param ws2: Exponential damping scale in MeV^-1.
-    :returns: Imaginary surface depth at ``DeltaE``.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Ws0: Surface-depth scale in MeV.
+        ws1: Quartic energy scale in MeV.
+        ws2: Exponential damping scale in MeV^-1.
+
+    Returns:
+        Imaginary surface depth at ``DeltaE``.
     """
 
     return Ws0 * DeltaE**4 / (DeltaE**4 + ws1**4) * np.exp(-ws2 * np.abs(DeltaE))
@@ -211,10 +232,13 @@ def Ws_depth(
 def Delta_Vv_depth(DeltaE: ArrayOrScalar, Wv0: float, wv1: float) -> ArrayOrScalar:
     """Return the analytic dispersion correction to the volume depth.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Wv0: Saturation imaginary volume depth in MeV.
-    :param wv1: Energy scale in MeV.
-    :returns: Real dispersive correction to the volume depth.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Wv0: Saturation imaginary volume depth in MeV.
+        wv1: Energy scale in MeV.
+
+    Returns:
+        Real dispersive correction to the volume depth.
     """
 
     return Wv0 * wv1 * DeltaE / (DeltaE**2 + wv1**2)
@@ -227,10 +251,13 @@ def Delta_Vso_depth(
 ) -> ArrayOrScalar:
     """Return the analytic dispersion correction to the spin-orbit depth.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Wso: Saturation imaginary spin-orbit depth in MeV.
-    :param wso1: Energy scale in MeV.
-    :returns: Real dispersive correction to the spin-orbit depth.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Wso: Saturation imaginary spin-orbit depth in MeV.
+        wso1: Energy scale in MeV.
+
+    Returns:
+        Real dispersive correction to the spin-orbit depth.
     """
 
     return Wso * wso1 * DeltaE / (DeltaE**2 + wso1**2)
@@ -244,11 +271,14 @@ def Delta_Vs_depth(
 ) -> ArrayOrScalar:
     """Return the analytic surface-dispersion correction.
 
-    :param DeltaE: Energy offset from the Fermi energy in MeV.
-    :param Ws0: Surface-depth scale in MeV.
-    :param ws1: Quartic energy scale in MeV.
-    :param ws2: Exponential damping scale in MeV^-1.
-    :returns: Analytic surface-dispersion correction.
+    Args:
+        DeltaE: Energy offset from the Fermi energy in MeV.
+        Ws0: Surface-depth scale in MeV.
+        ws1: Quartic energy scale in MeV.
+        ws2: Exponential damping scale in MeV^-1.
+
+    Returns:
+        Analytic surface-dispersion correction.
     """
 
     return delta_Vs_analytic(DeltaE, Ws0, ws1, ws2)
@@ -281,31 +311,33 @@ def calculate_params(
 ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """Assemble central, Coulomb, and spin-orbit DOM parameters.
 
-    :param projectile: Projectile ``(A, Z)`` tuple. Must be a nucleon.
-    :param target: Target ``(A, Z)`` tuple.
-    :param Ecm: Center-of-mass energy in MeV.
-    :param Ef: Fermi energy in MeV.
-    :param v0: Real volume depth scale in MeV.
-    :param v1: Real depth exponential slope in MeV^-1.
-    :param rv: Real volume reduced radius in fm.
-    :param av: Real volume diffuseness in fm.
-    :param wv0: Imaginary volume depth scale in MeV.
-    :param wv1: Imaginary volume energy scale in MeV.
-    :param rw: Imaginary volume reduced radius in fm.
-    :param aw: Imaginary volume diffuseness in fm.
-    :param ws0: Imaginary surface depth scale in MeV.
-    :param ws1: Imaginary surface quartic energy scale in MeV.
-    :param ws2: Imaginary surface exponential damping scale in MeV^-1.
-    :param rd: Surface reduced radius in fm.
-    :param ad: Surface diffuseness in fm.
-    :param vso0: Real spin-orbit depth scale in MeV.
-    :param wso0: Imaginary spin-orbit depth scale in MeV.
-    :param wso1: Imaginary spin-orbit energy scale in MeV.
-    :param rso: Spin-orbit reduced radius in fm.
-    :param aso: Spin-orbit diffuseness in fm.
-    :param rC: Coulomb reduced radius in fm.
-    :returns: ``((central_params, coulomb_params), spin_orbit_params)``.
-    :rtype: tuple
+    Args:
+        projectile: Projectile ``(A, Z)`` tuple. Must be a nucleon.
+        target: Target ``(A, Z)`` tuple.
+        Ecm: Center-of-mass energy in MeV.
+        Ef: Fermi energy in MeV.
+        v0: Real volume depth scale in MeV.
+        v1: Real depth exponential slope in MeV^-1.
+        rv: Real volume reduced radius in fm.
+        av: Real volume diffuseness in fm.
+        wv0: Imaginary volume depth scale in MeV.
+        wv1: Imaginary volume energy scale in MeV.
+        rw: Imaginary volume reduced radius in fm.
+        aw: Imaginary volume diffuseness in fm.
+        ws0: Imaginary surface depth scale in MeV.
+        ws1: Imaginary surface quartic energy scale in MeV.
+        ws2: Imaginary surface exponential damping scale in MeV^-1.
+        rd: Surface reduced radius in fm.
+        ad: Surface diffuseness in fm.
+        vso0: Real spin-orbit depth scale in MeV.
+        wso0: Imaginary spin-orbit depth scale in MeV.
+        wso1: Imaginary spin-orbit energy scale in MeV.
+        rso: Spin-orbit reduced radius in fm.
+        aso: Spin-orbit diffuseness in fm.
+        rC: Coulomb reduced radius in fm.
+
+    Returns:
+        ``((central_params, coulomb_params), spin_orbit_params)``.
     """
 
     A, Z = target
@@ -353,10 +385,12 @@ def calculate_params(
 def coulomb_correction(Zz: int, RC: float) -> float:
     r"""Return the proton Coulomb energy correction.
 
-    :param Zz: Product of projectile and target charge numbers.
-    :param RC: Coulomb radius in fm.
-    :returns: Coulomb energy correction in MeV.
-    :rtype: float
+    Args:
+        Zz: Product of projectile and target charge numbers.
+        RC: Coulomb radius in fm.
+
+    Returns:
+        Coulomb energy correction in MeV.
     """
 
     return 6.0 * Zz * ALPHA * HBARC / (5 * RC)
@@ -377,12 +411,14 @@ def delta_Vs_analytic(
 
        W_s(E) = W_{s0}\,\frac{E^4}{E^4 + w_{s1}^4}\,\exp(-w_{s2}|E|).
 
-    :param delta_E: Energy offset from the Fermi energy in MeV.
-    :param Ws0: Surface-depth scale in MeV.
-    :param ws1: Quartic energy scale in MeV.
-    :param ws2: Exponential damping scale in MeV^-1.
-    :returns: Surface-dispersion correction evaluated at ``delta_E``.
-    :rtype: float | numpy.ndarray
+    Args:
+        delta_E: Energy offset from the Fermi energy in MeV.
+        Ws0: Surface-depth scale in MeV.
+        ws1: Quartic energy scale in MeV.
+        ws2: Exponential damping scale in MeV^-1.
+
+    Returns:
+        Surface-dispersion correction evaluated at ``delta_E``.
     """
 
     dE = np.atleast_1d(np.asarray(delta_E, dtype=float))
@@ -426,11 +462,13 @@ def extract_params(
 ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """Extract DOM parameters from explicit reaction and kinematics inputs.
 
-    :param reaction: Reaction carrying projectile and target information.
-    :param kinematics: Channel kinematics for the current energy point.
-    :param params: DOM parameters in :func:`get_param_names` order.
-    :returns: ``(central_params, spin_orbit_params, coulomb_params)``.
-    :rtype: tuple
+    Args:
+        reaction: Reaction carrying projectile and target information.
+        kinematics: Channel kinematics for the current energy point.
+        *params: DOM parameters in :func:`get_param_names` order.
+
+    Returns:
+        ``(central_params, spin_orbit_params, coulomb_params)``.
     """
     Ef = reaction.Ef if reaction.Ef is not None else 0.0
     return calculate_params(
@@ -460,12 +498,14 @@ class DOM(SingleChannelOpticalModel):
     ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
         """Evaluate the DOM central, spin-orbit, and Coulomb terms.
 
-        :param rgrid: Radial coordinate or grid in fm.
-        :param reaction: Reaction carrying projectile and target information.
-        :param kinematics: Channel kinematics for the current energy point.
-        :param params: DOM parameters in :func:`get_param_names` order.
-        :returns: ``(central_term, spin_orbit_term, coulomb_term)``.
-        :rtype: tuple
+        Args:
+            rgrid: Radial coordinate or grid in fm.
+            reaction: Reaction carrying projectile and target information.
+            kinematics: Channel kinematics for the current energy point.
+            *params: DOM parameters in :func:`get_param_names` order.
+
+        Returns:
+            ``(central_term, spin_orbit_term, coulomb_term)``.
         """
 
         if len(params) != self.n_params:

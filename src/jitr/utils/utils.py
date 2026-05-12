@@ -36,11 +36,14 @@ def block(
 ) -> np.ndarray:
     """Extract a sub-block from a block-structured matrix.
 
-    :param matrix: Input matrix containing equally sized blocks.
-    :param block_index: ``(row, column)`` index of the desired block.
-    :param block_size: Shape of each block as ``(rows, columns)``.
-    :returns:
-    :rtype: The requested submatrix view."""
+    Args:
+        matrix: Input matrix containing equally sized blocks.
+        block_index: ``(row, column)`` index of the desired block.
+        block_size: Shape of each block as ``(rows, columns)``.
+
+    Returns:
+        The requested submatrix view.
+    """
     i, j = block_index
     n, m = block_size
     return matrix[i * n : i * n + n, j * m : j * m + m]

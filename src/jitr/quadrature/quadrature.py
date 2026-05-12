@@ -57,7 +57,7 @@ def legendre(n: int, a: float, s: float, quadrature: Any) -> complex:
 
 def generate_laguerre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
     r"""
-    @returns zeros and weights for Gauss quadrature using the Lagrange-Laguerre
+    Return zeros and weights for Gauss quadrature using the Lagrange-Laguerre
     basis. See Ch. 3.3 of Baye, 2015
     """
     return np.polynomial.laguerre.laggauss(nbasis)
@@ -65,7 +65,7 @@ def generate_laguerre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
 
 def generate_legendre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
     r"""
-    @returns zeros and weights for Gauss quadrature using the Lagrange-Legendre
+    Return zeros and weights for Gauss quadrature using the Lagrange-Legendre
     basis shifted and scaled onto [0,a]. See Ch. 3.4 of Baye, 2015
     """
     x, w = np.polynomial.legendre.leggauss(nbasis)
@@ -90,8 +90,8 @@ class LagrangeLaguerreQuadrature:
         overlap: FloatArray | None = None,
     ) -> None:
         """
-        Constructs the Schrödinger equation in a basis of Lagrange Laguerre
-        functions
+        Construct the Schrödinger equation in a basis of Lagrange Laguerre
+        functions.
         """
         self.nbasis = len(abscissa)
         assert len(abscissa) == len(weights)
@@ -109,8 +109,8 @@ class LagrangeLaguerreQuadrature:
         self, n: int, m: int, a: float, l: int  # noqa: E741
     ) -> float:
         """
-        @returns the (n,m)th matrix element for the kinetic energy operator at
-        channel radius a = k*r with orbital angular momentum l
+        Return the (n,m)th matrix element for the kinetic energy operator at
+        channel radius a = k*r with orbital angular momentum l.
         """
         assert n <= self.nbasis and n >= 1
         assert m <= self.nbasis and m >= 1
@@ -134,7 +134,7 @@ class LagrangeLaguerreQuadrature:
 
     def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
         r"""
-        @returns the kinetic operator matrix in the Lagrange Laguerre basis
+        Return the kinetic operator matrix in the Lagrange Laguerre basis.
         """
         F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):
@@ -160,8 +160,8 @@ class LagrangeLegendreQuadrature:
         overlap: FloatArray | None = None,
     ) -> None:
         """
-        Constructs the Schrödinger equation in a basis of Lagrange Legendre
-        functions
+        Construct the Schrödinger equation in a basis of Lagrange Legendre
+        functions.
         """
         self.nbasis = len(abscissa)
         assert len(abscissa) == len(weights)
@@ -177,8 +177,8 @@ class LagrangeLegendreQuadrature:
         self, n: int, m: int, a: float, l: int  # noqa: E741
     ) -> float:
         """
-        @returns the (n,m)th matrix element for the kinetic energy + Bloch
-        operator at channel radius a = k*r with orbital angular momentum l
+        Return the (n,m)th matrix element for the kinetic energy + Bloch
+        operator at channel radius a = k*r with orbital angular momentum l.
         """
         assert n <= self.nbasis and n >= 1
         assert m <= self.nbasis and m >= 1
@@ -211,7 +211,7 @@ class LagrangeLegendreQuadrature:
 
     def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
         r"""
-        @returns the kinetic operator matrix in the Lagrange Legendre basis
+        Return the kinetic operator matrix in the Lagrange Legendre basis.
         """
         F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
         for n in range(1, self.nbasis + 1):

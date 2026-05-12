@@ -16,11 +16,13 @@ FloatArray = npt.NDArray[np.float64]
 class ChannelKinematics:
     """Kinematic quantities for a single reaction channel.
 
-    :ivar Elab: Laboratory-frame kinetic energy in MeV.
-    :ivar Ecm: Center-of-mass kinetic energy in MeV.
-    :ivar mu: Reduced mass in MeV/c^2.
-    :ivar k: Center-of-mass wavenumber in fm^-1.
-    :ivar eta: Sommerfeld parameter."""
+    Attributes:
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Ecm: Center-of-mass kinetic energy in MeV.
+        mu: Reduced mass in MeV/c^2.
+        k: Center-of-mass wavenumber in fm^-1.
+        eta: Sommerfeld parameter.
+    """
 
     Elab: float
     Ecm: float
@@ -44,12 +46,15 @@ def semi_relativistic_kinematics(
     Uses the approximation from Ingemarsson (1974) for a projectile scattering
     from a fixed target.
 
-    :param mass_target: Target rest mass in MeV/c^2.
-    :param mass_projectile: Projectile rest mass in MeV/c^2.
-    :param Elab: Laboratory-frame kinetic energy in MeV.
-    :param Zz: Product of projectile and target charges.
-    :returns: class:`ChannelKinematics` instance.
-    :rtype: A populated"""
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
+
+    Returns:
+        A populated :class:`ChannelKinematics` instance.
+    """
     m_t = mass_target
     m_p = mass_projectile
 
@@ -76,12 +81,15 @@ def classical_kinematics(
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a laboratory energy.
 
-    :param mass_target: Target rest mass in MeV/c^2.
-    :param mass_projectile: Projectile rest mass in MeV/c^2.
-    :param Elab: Laboratory-frame kinetic energy in MeV.
-    :param Zz: Product of projectile and target charges.
-    :returns: class:`ChannelKinematics` instance.
-    :rtype: A populated"""
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
+
+    Returns:
+        A populated :class:`ChannelKinematics` instance.
+    """
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Ecm = mass_target / (mass_target + mass_projectile) * Elab
     k = np.sqrt(2 * Ecm * mu) / HBARC
@@ -97,12 +105,15 @@ def classical_kinematics_cm(
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a center-of-mass energy.
 
-    :param mass_target: Target rest mass in MeV/c^2.
-    :param mass_projectile: Projectile rest mass in MeV/c^2.
-    :param Ecm: Center-of-mass kinetic energy in MeV.
-    :param Zz: Product of projectile and target charges.
-    :returns: class:`ChannelKinematics` instance.
-    :rtype: A populated"""
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Ecm: Center-of-mass kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
+
+    Returns:
+        A populated :class:`ChannelKinematics` instance.
+    """
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Elab = (mass_target + mass_projectile) / mass_target * Ecm
     k = np.sqrt(2 * Ecm * mu) / HBARC
@@ -136,15 +147,18 @@ def cm_to_lab_frame(
 ) -> FloatArray:
     """Convert center-of-mass angles to laboratory angles.
 
-    :param angles_cm_deg: Input angles in degrees.
-    :param ma: Mass of projectile ``a``.
-    :param mb: Mass of target ``b``.
-    :param mc: Mass of ejectile ``c``.
-    :param md: Mass of recoil ``d``.
-    :param E: Laboratory-frame energy in MeV.
-    :param Q: Reaction Q-value in MeV.
-    :returns:
-    :rtype: A NumPy array of laboratory-frame angles in degrees."""
+    Args:
+        angles_cm_deg: Input angles in degrees.
+        ma: Mass of projectile ``a``.
+        mb: Mass of target ``b``.
+        mc: Mass of ejectile ``c``.
+        md: Mass of recoil ``d``.
+        E: Laboratory-frame energy in MeV.
+        Q: Reaction Q-value in MeV.
+
+    Returns:
+        A NumPy array of laboratory-frame angles in degrees.
+    """
     _validate_angles(angles_cm_deg, "angles_cm_deg")
     rho = _rho(ma, mb, mc, md, E, Q)
     theta_cm = np.deg2rad(np.asarray(angles_cm_deg, dtype=float))
@@ -166,15 +180,18 @@ def lab_to_cm_frame(
 ) -> FloatArray:
     """Convert laboratory angles to center-of-mass angles.
 
-    :param angles_lab_deg: Input angles in degrees.
-    :param ma: Mass of projectile ``a``.
-    :param mb: Mass of target ``b``.
-    :param mc: Mass of ejectile ``c``.
-    :param md: Mass of recoil ``d``.
-    :param E: Laboratory-frame energy in MeV.
-    :param Q: Reaction Q-value in MeV.
-    :returns:
-    :rtype: A NumPy array of center-of-mass angles in degrees."""
+    Args:
+        angles_lab_deg: Input angles in degrees.
+        ma: Mass of projectile ``a``.
+        mb: Mass of target ``b``.
+        mc: Mass of ejectile ``c``.
+        md: Mass of recoil ``d``.
+        E: Laboratory-frame energy in MeV.
+        Q: Reaction Q-value in MeV.
+
+    Returns:
+        A NumPy array of center-of-mass angles in degrees.
+    """
     _validate_angles(angles_lab_deg, "angles_lab_deg")
     rho = _rho(ma, mb, mc, md, E, Q)
     theta_lab = np.deg2rad(np.asarray(angles_lab_deg, dtype=float))

@@ -36,7 +36,7 @@ def solve_smatrix_with_inverse(
     nbasis: int32,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     r"""
-    @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
+    Return the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
     all in Lagrange-Legendre coordinates, as well as the derivative of
     asymptotic channel Wavefunctions evaluated at the channel radius. Everything
     returned as block-matrices and block vectors in channel space.
@@ -70,7 +70,7 @@ def solution_coeffs_with_inverse(
     nbasis: int32,
 ) -> np.ndarray:
     r"""
-    @returns the multichannel wavefunction coefficients, in Lagrange- Legendre
+    Return the multichannel wavefunction coefficients, in Lagrange-Legendre
     coordinates.
 
     This follows: Descouvemont, P. (2016).  An R-matrix package for

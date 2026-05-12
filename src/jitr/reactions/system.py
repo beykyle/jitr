@@ -23,10 +23,12 @@ def scalar_couplings(l: int) -> FloatArray:
 def spin_half_orbit_coupling(l: int) -> FloatArray:
     """Return ``l · sigma`` expectation values for spin-1/2 on spin-0 scattering.
 
-    :param l: Orbital angular momentum.
-    :returns:
-    :rtype: A diagonal matrix containing the coupling strength in each ``j``
-            channel."""
+    Args:
+        l: Orbital angular momentum.
+
+    Returns:
+        A diagonal matrix containing the coupling strength in each ``j`` channel.
+    """
     js = [l + 1.0 / 2] if l == 0 else [l + 1.0 / 2, l - 1.0 / 2]
     return np.diag([(j * (j + 1) - l * (l + 1) - 0.5 * (0.5 + 1)) for j in js])
 
@@ -127,15 +129,17 @@ class ProjectileTargetSystem:
     ) -> None:
         """Store channel-independent parameters for each partial wave.
 
-        :param channel_radius: Dimensionless channel radius ``k_0 r``.
-        :param lmax: Maximum orbital angular momentum.
-        :param mass_target: Target mass in MeV/c^2.
-        :param mass_projectile: Projectile mass in MeV/c^2.
-        :param Ztarget: Target charge.
-        :param Zproj: Projectile charge.
-        :param coupling: Function returning the coupling matrix for each ``l``.
-        :param channel_levels: Optional excitation-energy offsets for coupled
-                               channels."""
+        Args:
+            channel_radius: Dimensionless channel radius ``k_0 r``.
+            lmax: Maximum orbital angular momentum.
+            mass_target: Target mass in MeV/c^2.
+            mass_projectile: Projectile mass in MeV/c^2.
+            Ztarget: Target charge.
+            Zproj: Projectile charge.
+            coupling: Function returning the coupling matrix for each ``l``.
+            channel_levels: Optional excitation-energy offsets for coupled
+                channels.
+        """
         self.channel_radius = channel_radius
         self.lmax = lmax
         self.l = np.arange(0, lmax + 1, dtype=np.int64)

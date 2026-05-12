@@ -20,14 +20,11 @@ class Particle:
     """
     Represents a particle with rest mass and charge.
 
-    :ivar m0: The rest mass of the particle in MeV/c^2.
-    :vartype m0: float
-    :ivar q: The electric charge of the particle.
-    :vartype q: float
-    :ivar Z: Integer charge number (alias for ``int(q)``).
-    :vartype Z: int
-    :ivar A: Mass number (0 for non-nuclear particles).
-    :vartype A: int
+    Attributes:
+        m0: The rest mass of the particle in MeV/c^2.
+        q: The electric charge of the particle.
+        Z: Integer charge number (alias for ``int(q)``).
+        A: Mass number (0 for non-nuclear particles).
     """
 
     m0: float
@@ -39,10 +36,9 @@ class Particle:
         """
         Initializes a Particle instance.
 
-        :param m0: The rest mass of the particle in MeV/c^2.
-        :type m0: float
-        :param q: The electric charge of the particle.
-        :type q: float
+        Args:
+            m0: The rest mass of the particle in MeV/c^2.
+            q: The electric charge of the particle.
         """
         self.m0 = m0
         self.q = q
@@ -53,8 +49,8 @@ class Particle:
         """
         Returns the LaTeX representation of the particle.
 
-        :returns: LaTeX string.
-        :rtype: str
+        Returns:
+            LaTeX string.
         """
         raise NotImplementedError
 
@@ -62,8 +58,8 @@ class Particle:
         """
         Returns the string representation of the particle.
 
-        :returns: String representation.
-        :rtype: str
+        Returns:
+            String representation.
         """
         return self.__repr__()
 
@@ -71,9 +67,11 @@ class Particle:
         """
         Checks equality with another particle.
 
-        :param other: Another particle to compare.
-        :returns: True if equal, False otherwise.
-        :rtype: bool
+        Args:
+            other: Another particle to compare.
+
+        Returns:
+            True if equal, False otherwise.
         """
         raise NotImplementedError
 
@@ -81,8 +79,8 @@ class Particle:
         """
         Returns the symbolic representation of the particle.
 
-        :returns: Symbolic representation.
-        :rtype: str
+        Returns:
+            Symbolic representation.
         """
         raise NotImplementedError
 
@@ -102,11 +100,16 @@ class Particle:
     ) -> Particle:
         """Parse a particle-like object into a concrete particle instance.
 
-        :param p: A ``Particle`` instance, a ``(A, Z)`` tuple, or a string.
-        :param mass_kwargs: Keyword arguments forwarded to the mass database.
-        :raises NotImplementedError: When ``p`` is a string (not yet supported).
-        :raises ValueError: When ``p`` cannot be interpreted as a particle.
-        :returns: A concrete ``Particle`` instance.
+        Args:
+            p: A ``Particle`` instance, a ``(A, Z)`` tuple, or a string.
+            mass_kwargs: Keyword arguments forwarded to the mass database.
+
+        Raises:
+            NotImplementedError: When ``p`` is a string (not yet supported).
+            ValueError: When ``p`` cannot be interpreted as a particle.
+
+        Returns:
+            A concrete ``Particle`` instance.
         """
         if isinstance(p, tuple):
             A, Z = int(p[0]), int(p[1])
@@ -127,14 +130,11 @@ class Nucleus(Particle):
     Represents a Nucleus with atomic mass number A and atomic number Z.
     Nucleons can also be represented as a Nucleus.
 
-    :ivar A: Atomic mass number.
-    :vartype A: int
-    :ivar Z: Atomic number.
-    :vartype Z: int
-    :ivar Efn: Neutron Fermi energy in MeV.
-    :vartype Efn: float
-    :ivar Efp: Proton Fermi energy in MeV.
-    :vartype Efp: float
+    Attributes:
+        A: Atomic mass number.
+        Z: Atomic number.
+        Efn: Neutron Fermi energy in MeV.
+        Efp: Proton Fermi energy in MeV.
     """
 
     A: int
@@ -152,12 +152,11 @@ class Nucleus(Particle):
         """
         Initializes a Nucleus instance.
 
-        :param A: Atomic mass number (must be greater than 0).
-        :type A: int
-        :param Z: Atomic number (must be greater than or equal to 0).
-        :type Z: int
-        :param mass_kwargs: Keyword arguments forwarded to the mass database
-            (e.g. ``{"model": "ame2020"}``).
+        Args:
+            A: Atomic mass number (must be greater than 0).
+            Z: Atomic number (must be greater than or equal to 0).
+            mass_kwargs: Keyword arguments forwarded to the mass database
+                (e.g. ``{"model": "ame2020"}``).
         """
         if mass_kwargs is None:
             mass_kwargs = {}
@@ -184,9 +183,11 @@ class Nucleus(Particle):
         """
         Adds two particles together.
 
-        :param other: Another particle to add.
-        :returns: New Nucleus resulting from the addition.
-        :rtype: Nucleus
+        Args:
+            other: Another particle to add.
+
+        Returns:
+            New Nucleus resulting from the addition.
         """
         if isinstance(other, Nucleus):
             return Nucleus(
@@ -205,9 +206,11 @@ class Nucleus(Particle):
         """
         Subtracts a particle from this nucleus.
 
-        :param other: Another particle to subtract.
-        :returns: New Nucleus resulting from the subtraction.
-        :rtype: Nucleus
+        Args:
+            other: Another particle to subtract.
+
+        Returns:
+            New Nucleus resulting from the subtraction.
         """
         if isinstance(other, Nucleus):
             return Nucleus(
@@ -226,8 +229,8 @@ class Nucleus(Particle):
         """
         Returns the LaTeX representation of the nucleus.
 
-        :returns: LaTeX string.
-        :rtype: str
+        Returns:
+            LaTeX string.
         """
         return get_latex(self.A, self.Z)
 
@@ -235,9 +238,11 @@ class Nucleus(Particle):
         """
         Checks equality with another particle.
 
-        :param other: Another particle to compare.
-        :returns: True if equal, False otherwise.
-        :rtype: bool
+        Args:
+            other: Another particle to compare.
+
+        Returns:
+            True if equal, False otherwise.
         """
         if isinstance(other, Nucleus):
             return self.A == other.A and self.Z == other.Z
@@ -250,8 +255,8 @@ class Nucleus(Particle):
         """
         Returns the symbolic representation of the nucleus.
 
-        :returns: Symbolic representation.
-        :rtype: str
+        Returns:
+            Symbolic representation.
         """
         return get_symbol(self.A, self.Z)
 
@@ -259,8 +264,8 @@ class Nucleus(Particle):
         """
         Allows unpacking of a Nucleus instance into (A, Z).
 
-        :returns: An iterator over the atomic mass number and atomic number.
-        :rtype: Iterator[int]
+        Returns:
+            An iterator over the atomic mass number and atomic number.
         """
         return iter((self.A, self.Z))
 
@@ -338,30 +343,20 @@ class Positron(Particle):
 class Reaction:
     """Represents a 2-body nuclear reaction of the form A + a -> b + B.
 
-    :ivar target: The target particle.
-    :vartype target: Particle
-    :ivar projectile: The projectile particle.
-    :vartype projectile: Particle
-    :ivar product: The light product, or None for absorption/total processes.
-    :vartype product: Particle or None
-    :ivar residual: The residual particle, or None for 'abs' or 'tot' processes.
-    :vartype residual: Particle or None
-    :ivar compound_system: The compound system formed by target and projectile.
-    :vartype compound_system: Particle
-    :ivar process: Short process label (e.g. ``'el'``, ``'abs'``), or ``None``.
-    :vartype process: str or None
-    :ivar Q: The Q-value of the reaction in MeV. ``None`` when unspecified.
-    :vartype Q: float or None
-    :ivar reaction_string: The string representation of the reaction.
-    :vartype reaction_string: str
-    :ivar reaction_latex: The LaTeX representation of the reaction.
-    :vartype reaction_latex: str
-    :ivar Ef: Effective Fermi energy in MeV, or ``None`` for non-nuclear reactions.
-    :vartype Ef: float or None
-    :ivar threshold: Cluster separation energy threshold in MeV, or ``None``.
-    :vartype threshold: float or None
-    :ivar compound_system_threshold: Compound-system separation energy in MeV, or ``None``.
-    :vartype compound_system_threshold: float or None
+    Attributes:
+        target: The target particle.
+        projectile: The projectile particle.
+        product: The light product, or None for absorption/total processes.
+        residual: The residual particle, or None for 'abs' or 'tot' processes.
+        compound_system: The compound system formed by target and projectile.
+        process: Short process label (e.g. ``'el'``, ``'abs'``), or ``None``.
+        Q: The Q-value of the reaction in MeV. ``None`` when unspecified.
+        reaction_string: The string representation of the reaction.
+        reaction_latex: The LaTeX representation of the reaction.
+        Ef: Effective Fermi energy in MeV, or ``None`` for non-nuclear reactions.
+        threshold: Cluster separation energy threshold in MeV, or ``None``.
+        compound_system_threshold: Compound-system separation energy in MeV, or
+            ``None``.
     """
 
     target: Particle
@@ -388,24 +383,21 @@ class Reaction:
     ) -> None:
         """Initializes a Reaction instance.
 
-        :param target: The target particle.
-        :type target: Particle
-        :param projectile: The projectile particle.
-        :type projectile: Particle
-        :param product: The light product particle, or ``None``.
-        :type product: Particle or None
-        :param process: Short process label. Currently supported are ``'tot'``,
-            ``'el'``, ``'inl'``, ``'abs'``, ``'x'``, ``'sct'``, ``'non'``, and
-            ``'f'``. Process types are defined in the EXFOR manual:
-            https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
-        :type process: str or None
-        :param residual: The residual particle, or None for 'abs' or 'tot'
-                         processes.
-        :type residual: Particle or None
-        :param mass_kwargs: Keyword arguments forwarded to the mass database
-            (e.g. ``{"model": "ame2020"}``).
-        :raises ValueError: If isospin is not conserved or if invalid product/
-                            residual types are provided.
+        Args:
+            target: The target particle.
+            projectile: The projectile particle.
+            product: The light product particle, or ``None``.
+            process: Short process label. Currently supported are ``'tot'``,
+                ``'el'``, ``'inl'``, ``'abs'``, ``'x'``, ``'sct'``, ``'non'``, and
+                ``'f'``. Process types are defined in the EXFOR manual:
+                https://www-nds.iaea.org/nrdc/nrdc_doc/bnl-ncs-063380-200105.pdf
+            residual: The residual particle, or None for 'abs' or 'tot' processes.
+            mass_kwargs: Keyword arguments forwarded to the mass database
+                (e.g. ``{"model": "ame2020"}``).
+
+        Raises:
+            ValueError: If isospin is not conserved or if invalid product/
+                residual types are provided.
         """
         if mass_kwargs is None:
             mass_kwargs = {}
@@ -550,10 +542,11 @@ class Reaction:
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
 
-        :param Elab: The laboratory energy of the projectile.
-        :type Elab: float
-        :returns: the kinematics
-        :rtype: ChannelKinematics
+        Args:
+            Elab: The laboratory energy of the projectile.
+
+        Returns:
+            The entrance channel kinematics.
         """
         return semi_relativistic_kinematics(
             self.target.m0,
@@ -567,10 +560,12 @@ class Reaction:
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
 
-        :param Ecm: The kinetic energy in the center-of-mass frame.
-        :type Ecm: float
-        :returns: the kinematics
-        :rtype: ChannelKinematics"""
+        Args:
+            Ecm: The kinetic energy in the center-of-mass frame.
+
+        Returns:
+            The entrance channel kinematics.
+        """
         Elab = Ecm * (self.target.m0 + self.projectile.m0) / self.target.m0
         result = semi_relativistic_kinematics(
             self.target.m0,
@@ -592,16 +587,15 @@ class Reaction:
         Exit channel kinematics given entrance channel kinematics and
             excitation energies.
 
-        :param entrance: The entrance channel kinematics.
-        :type entrance: ChannelKinematics
-        :param residual_excitation_energy: The excitation energy of the residual
-                                           nucleus.
-        :type residual_excitation_energy: float
-        :param product_excitation_energy: The excitation energy of the product
-                                          nucleus.
-        :type product_excitation_energy: float
-        :returns: the kinematics in the exit channel
-        :rtype: ChannelKinematics
+        Args:
+            entrance: The entrance channel kinematics.
+            residual_excitation_energy: The excitation energy of the residual
+                nucleus.
+            product_excitation_energy: The excitation energy of the product
+                nucleus.
+
+        Returns:
+            The kinematics in the exit channel.
         """
         if self.Q is None:
             raise ValueError(
@@ -632,12 +626,12 @@ class Reaction:
         """
         Convert angles from the center-of-mass frame to the laboratory frame
         (target rest frame).
-        :param theta_cm: Angles in the center-of-mass frame in degrees.
-        :type theta_cm: np.ndarray
-        :param Ecm: Center-of-mass energy.
-        :type Ecm: float
-        :param Q: Q-value of the reaction.
-        :type Q: float"""
+
+        Args:
+            theta_cm: Angles in the center-of-mass frame in degrees.
+            Ecm: Center-of-mass energy.
+            Q: Q-value of the reaction.
+        """
         if self.product is None or self.residual is None:
             raise ValueError(
                 "to_lab_frame() requires both product and residual to be defined. "
@@ -658,12 +652,12 @@ class Reaction:
         """
         Convert angles from the laboratory (target rest frame) frame to the
         center-of-mass frame.
-        :param theta_lab: Angles in the laboratory frame in degrees.
-        :type theta_lab: np.ndarray
-        :param Elab: Laboratory energy.
-        :type Elab: float
-        :param Q: Q-value of the reaction.
-        :type Q: float"""
+
+        Args:
+            theta_lab: Angles in the laboratory frame in degrees.
+            Elab: Laboratory energy.
+            Q: Q-value of the reaction.
+        """
         if self.product is None or self.residual is None:
             raise ValueError(
                 "to_cm_frame() requires both product and residual to be defined. "
@@ -684,8 +678,8 @@ class Reaction:
         """
         Returns the symbolic representation of the Reaction.
 
-        :returns: Symbolic representation.
-        :rtype: str
+        Returns:
+            Symbolic representation.
         """
         return self.reaction_string
 
@@ -695,9 +689,11 @@ class Reaction:
     def __eq__(self, other: object) -> bool:
         """Checks equality with another Reaction instance.
 
-        :param other: The other Reaction instance to compare.
-        :returns: True if equal, False otherwise.
-        :rtype: bool
+        Args:
+            other: The other Reaction instance to compare.
+
+        Returns:
+            True if equal, False otherwise.
         """
         if not isinstance(other, Reaction):
             return False
@@ -720,9 +716,10 @@ class ElasticReaction(Reaction):
     """
     Represents an elastic reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -745,9 +742,10 @@ class InelasticReaction(Reaction):
     """
     Represents an inelastic reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -770,9 +768,10 @@ class TotalReaction(Reaction):
     """
     Represents a total reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -795,9 +794,10 @@ class AbsorptionReaction(Reaction):
     """
     Represents an absorption reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -823,10 +823,11 @@ class InclusiveReaction(Reaction):
     """
     Represents an inclusive reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param residual: The residual nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        residual: The residual nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -850,9 +851,10 @@ class GammaCaptureReaction(Reaction):
     """
     Represents a gamma capture reaction.
 
-    :param target: The target nucleus.
-    :param projectile: The projectile nucleus.
-    :param mass_kwargs: Keyword arguments forwarded to the mass database.
+    Args:
+        target: The target nucleus.
+        projectile: The projectile nucleus.
+        mass_kwargs: Keyword arguments forwarded to the mass database.
     """
 
     def __init__(
@@ -877,11 +879,14 @@ def get_latex(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the LaTeX representation of a nucleus.
 
-    :param A: Mass number.
-    :param Z: Atomic number.
-    :param Ex: Excitation energy (optional).
-    :returns:
-    :rtype: LaTeX string."""
+    Args:
+        A: Mass number.
+        Z: Atomic number.
+        Ex: Excitation energy (optional).
+
+    Returns:
+        LaTeX string.
+    """
     if (A, Z) == (1, 0):
         return "n"
     elif (A, Z) == (1, 1):
@@ -904,11 +909,14 @@ def get_symbol(A: int, Z: int, Ex: float | None = None) -> str:
     """
     Returns the symbol representation of a nucleus.
 
-    :param A: Mass number.
-    :param Z: Atomic number.
-    :param Ex: Excitation energy (optional).
-    :returns:
-    :rtype: Symbol string."""
+    Args:
+        A: Mass number.
+        Z: Atomic number.
+        Ex: Excitation energy (optional).
+
+    Returns:
+        Symbol string.
+    """
     if (A, Z) == (1, 0):
         return "n"
     elif (A, Z) == (1, 1):

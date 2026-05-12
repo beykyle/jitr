@@ -42,8 +42,10 @@ def get_samples(projectile: tuple[int, int]) -> np.ndarray:
     Get the parameter samples for the WLH potential for the given
     projectile.
 
-    :param projectile: tuple (A, Z) of the projectile. Should be (1, 0) for neutron
-                       and (1, 1) for proton."""
+    Args:
+        projectile: tuple (A, Z) of the projectile. Should be (1, 0) for
+            neutron and (1, 1) for proton.
+    """
     return np.array(
         [
             list(
@@ -63,11 +65,12 @@ def spin_orbit(
     Form of the spin-orbit term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
 
-    :param r: float or np.ndarray Radial coordinate(s) at which to evaluate the
-              potential
-    :param Uso: float Spin-orbit strength parameter
-    :param Rso: float Spin-orbit radius parameter
-    :param aso: float Spin-orbit diffuseness parameter"""
+    Args:
+        r: Radial coordinate(s) at which to evaluate the potential.
+        Uso: Spin-orbit strength parameter.
+        Rso: Spin-orbit radius parameter.
+        aso: Spin-orbit diffuseness parameter.
+    """
     result = (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
     return _as_potential_array(result)
 
@@ -88,17 +91,18 @@ def central(
     Form of the central term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
 
-    :param r: float or np.ndarray Radial coordinate(s) at which to evaluate the
-              potential
-    :param Uv: float Real volume potential strength parameter
-    :param Rv: float Real volume potential radius parameter
-    :param av: float Real volume potential diffuseness parameter
-    :param Uw: float Imaginary volume potential strength parameter
-    :param Rw: float Imaginary volume potential radius parameter
-    :param aw: float Imaginary volume potential diffuseness parameter
-    :param Ud: float Imaginary surface potential strength parameter
-    :param Rd: float Imaginary surface potential radius parameter
-    :param ad: float Imaginary surface potential diffuseness parameter"""
+    Args:
+        r: Radial coordinate(s) at which to evaluate the potential.
+        Uv: Real volume potential strength parameter.
+        Rv: Real volume potential radius parameter.
+        av: Real volume potential diffuseness parameter.
+        Uw: Imaginary volume potential strength parameter.
+        Rw: Imaginary volume potential radius parameter.
+        aw: Imaginary volume potential diffuseness parameter.
+        Ud: Imaginary surface potential strength parameter.
+        Rd: Imaginary surface potential radius parameter.
+        ad: Imaginary surface potential diffuseness parameter.
+    """
     result = (
         -Uv * woods_saxon_safe(r, Rv, av)
         - 1j * Uw * woods_saxon_safe(r, Rw, aw)
@@ -112,9 +116,11 @@ class Global:
 
     def __init__(self, projectile: tuple, param_fpath: Path | None = None):
         r"""
-        :param projectile: neutron or proton?
-        :param param_fpath: path to json file encoding parameter values.
-                            Defaults to data/WLH_mean.json"""
+        Args:
+            projectile: Neutron or proton as ``(A, Z)`` tuple.
+            param_fpath: Path to JSON file encoding parameter values.
+                Defaults to ``data/WLH_mean.json``.
+        """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
                 "./../../data/WLH_mean.json"
@@ -298,22 +304,21 @@ def calculate_params(
     coulomb_charged_sphere functions corresponding to the WLH potential
     for a given projectile, target, lab energy, and the WLH parameters.
 
-    :param projectile: tuple (A, Z) of the projectile
-    :param target: tuple (A, Z) of the target
-    :param Elab: float Laboratory energy in MeV
-    :param uv0, uv1, ..., aso1: float Parameters of the WLH potential. See
-                                [Whitehead et al., 2021]
-                                (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
-                                for details.
-    :returns: central_params: tuple (uv, Rv, av, uw, Rw, aw, ud, Rd, ad) where uv,
-              rv, av are the real volume potential parameters, uw, rw, aw are the
-              imaginary volume potential parameters, and ud, rd, ad are the
-              imaginary surface potential parameters; spin_orbit_params: tuple (uso,
-              Rso, aso) where uso is the spin-orbit strength, and Rso, aso are the
-              spin-orbit radius and diffuseness parameters; coulomb_params: tuple
-              (Z*Zp, RC), where Z is the charge of the target, Zp is the charge of
-              the projectile, and RC is the Coulomb radius.
-    :rtype: tuple[central_params, spin_orbit_params, coulomb_params]"""
+    Args:
+        projectile: tuple (A, Z) of the projectile.
+        target: tuple (A, Z) of the target.
+        Elab: Laboratory energy in MeV.
+        uv0, uv1, ..., aso1: Parameters of the WLH potential. See
+            `Whitehead et al., 2021
+            <https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502>`_
+            for details.
+
+    Returns:
+        ``(central_params, spin_orbit_params, coulomb_params)`` where
+        ``central_params`` is ``(uv, Rv, av, uw, Rw, aw, ud, Rd, ad)``,
+        ``spin_orbit_params`` is ``(uso, Rso, aso)``, and
+        ``coulomb_params`` is ``(Z*Zp, RC)``.
+    """
 
     A, Z = target
     Ap, Zp = projectile
@@ -402,21 +407,18 @@ class WLH(SingleChannelOpticalModel):
         potential on the given radial grid for the specified reaction and
         kinematics, using the provided potential parameters.
 
+        Args:
+            rgrid: Radial coordinate or grid in fm.
+            reaction: Reaction for which to calculate the parameters.
+            kinematics: Kinematics of the reaction channel.
+            *params: Parameters of the WLH potential. See
+                `Whitehead et al., 2021
+                <https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502>`_
+                for details.
 
-        :param reaction: Reaction The reaction for which to calculate the
-                         parameters.
-        :param kinematics: ChannelKinematics The kinematics of the reaction
-                           channel.s
-        :param uv0, uv1, ..., aso1: float Parameters of the WLH potential. See
-                                    [Whitehead et al., 2021]
-                                    (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
-                                    for details.
-        :returns: U_central: np.ndarray Central term of the optical potential
-                  evaluated on the radial grid; U_spin_orbit: np.ndarray
-                  Spin-orbit term of the optical potential evaluated on the
-                  radial grid; U_coulomb: np.ndarray Coulomb term of the optical
-                  potential evaluated on the radial grid
-        :rtype: tuple[U_central, U_spin_orbit, U_coulomb]"""
+        Returns:
+            ``(U_central, U_spin_orbit, U_coulomb)`` evaluated on the radial grid.
+        """
         central_params, spin_orbit_params, coulomb_params = calculate_params(
             (reaction.projectile.A, reaction.projectile.Z),
             (reaction.target.A, reaction.target.Z),

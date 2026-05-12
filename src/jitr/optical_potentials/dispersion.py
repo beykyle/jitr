@@ -38,13 +38,17 @@ def build_quadrature(
 ) -> tuple[FloatArray, FloatArray, float]:
     """Construct piecewise Gauss-Legendre quadrature nodes and weights.
 
-    :param segments: Sequence of ``(a, b, n)`` segment descriptors covering the
-        integration interval.
-    :raises ValueError: If any segment has ``b <= a`` or ``n < 1``.
-    :returns: ``(x_quad, w_quad, E_cut)`` where ``x_quad`` are the quadrature
+    Args:
+        segments: Sequence of ``(a, b, n)`` segment descriptors covering the
+            integration interval.
+
+    Raises:
+        ValueError: If any segment has ``b <= a`` or ``n < 1``.
+
+    Returns:
+        ``(x_quad, w_quad, E_cut)`` where ``x_quad`` are the quadrature
         nodes, ``w_quad`` are the weights, and ``E_cut`` is the outer cutoff
         inferred from the segment endpoints.
-    :rtype: tuple[numpy.ndarray, numpy.ndarray, float]
     """
 
     nodes: list[FloatArray] = []
@@ -106,13 +110,16 @@ class DispersionSolver:
     is handled by subtraction of ``W(r, E)`` from the integrand and an analytic
     logarithmic boundary term.
 
-    :param r_grid: Radial mesh in fm.
-    :param E: Target energy in MeV.
-    :param segments: Piecewise Gauss-Legendre quadrature segments.
-    :param min_node_distance: Minimum tolerated distance between ``E`` and any
-        quadrature node.
-    :raises ValueError: If ``r_grid`` is not one-dimensional, if ``E`` lies
-        outside the quadrature interval, or if ``E`` is too close to a node.
+    Args:
+        r_grid: Radial mesh in fm.
+        E: Target energy in MeV.
+        segments: Piecewise Gauss-Legendre quadrature segments.
+        min_node_distance: Minimum tolerated distance between ``E`` and any
+            quadrature node.
+
+    Raises:
+        ValueError: If ``r_grid`` is not one-dimensional, if ``E`` lies
+            outside the quadrature interval, or if ``E`` is too close to a node.
     """
 
     def __init__(
@@ -199,14 +206,18 @@ class DispersionSolver:
     def __call__(self, W_grid: np.ndarray, W_at_E: np.ndarray) -> FloatArray:
         """Evaluate the dispersion correction on the stored radial grid.
 
-        :param W_grid: Array with shape ``(n_radial, n_nodes)`` containing
-            ``W(r_grid[i], x_quad[k])``.
-        :param W_at_E: Array with shape ``(n_radial,)`` containing
-            ``W(r_grid[i], E)``.
-        :raises ValueError: If the input shapes do not match the solver
-            configuration.
-        :returns: Dispersion correction ``ΔV(r_grid, E)``.
-        :rtype: numpy.ndarray
+        Args:
+            W_grid: Array with shape ``(n_radial, n_nodes)`` containing
+                ``W(r_grid[i], x_quad[k])``.
+            W_at_E: Array with shape ``(n_radial,)`` containing
+                ``W(r_grid[i], E)``.
+
+        Raises:
+            ValueError: If the input shapes do not match the solver
+                configuration.
+
+        Returns:
+            Dispersion correction ``ΔV(r_grid, E)``.
         """
 
         W_grid_array = np.ascontiguousarray(W_grid, dtype=np.float64)
@@ -240,15 +251,16 @@ def dispersion_correction_reference(
 ) -> FloatArray:
     """Evaluate a high-accuracy SciPy Cauchy-weighted reference solution.
 
-    :param W_func: Scalar callable returning ``W(r, x)``.
-    :param r_grid: Radial points at which to evaluate the dispersion
-        correction.
-    :param E: Target energy in MeV.
-    :param E_cut: Outer integration cutoff in MeV.
-    :param quad_kwargs: Extra keyword arguments forwarded to
-        :func:`scipy.integrate.quad`.
-    :returns: Reference dispersion correction on ``r_grid``.
-    :rtype: numpy.ndarray
+    Args:
+        W_func: Scalar callable returning ``W(r, x)``.
+        r_grid: Radial points at which to evaluate the dispersion correction.
+        E: Target energy in MeV.
+        E_cut: Outer integration cutoff in MeV.
+        **quad_kwargs: Extra keyword arguments forwarded to
+            :func:`scipy.integrate.quad`.
+
+    Returns:
+        Reference dispersion correction on ``r_grid``.
     """
 
     from scipy import integrate
