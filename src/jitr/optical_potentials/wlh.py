@@ -18,7 +18,7 @@ from ..data import data_dir
 from ..reactions import Reaction
 from ..utils.constants import WAVENUMBER_PION
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel
+from .omp import SingleChannelOpticalModel, _as_potential_array
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -56,7 +56,9 @@ def get_samples(projectile: tuple[int, int]) -> np.ndarray:
     )
 
 
-def spin_orbit(r: float | np.ndarray, Uso: float, Rso: float, aso: float) -> complex:
+def spin_orbit(
+    r: float | np.ndarray, Uso: float, Rso: float, aso: float
+) -> PotentialArray:
     """
     Form of the spin-orbit term in the WLH potential. See Eq. (2) of
     Whitehead et al., 2021.
@@ -66,7 +68,8 @@ def spin_orbit(r: float | np.ndarray, Uso: float, Rso: float, aso: float) -> com
     :param Uso: float Spin-orbit strength parameter
     :param Rso: float Spin-orbit radius parameter
     :param aso: float Spin-orbit diffuseness parameter"""
-    return (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
+    result = (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
+    return _as_potential_array(result)
 
 
 def central(
@@ -101,9 +104,7 @@ def central(
         - 1j * Uw * woods_saxon_safe(r, Rw, aw)
         - 1j * (-4 * ad) * Ud * woods_saxon_prime_safe(r, Rd, ad)
     )
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 class Global:

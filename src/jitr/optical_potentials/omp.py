@@ -43,6 +43,14 @@ class SingleChannelOpticalModel:
         return self.evaluate(rgrid, reaction, kinematics, *params)
 
 
+def _as_potential_array(result: complex | np.ndarray) -> PotentialArray:
+    """Return a potential result with repository-standard complex dtypes."""
+
+    if isinstance(result, np.ndarray):
+        return np.asarray(result, dtype=np.complex128)
+    return complex(result)
+
+
 def central(
     r: ArrayOrScalar,
     Vv: float,
@@ -63,9 +71,7 @@ def central(
         - (-4 * ad) * Vd * woods_saxon_prime_safe(r, Rd, ad)
         - 1j * (-4 * ad) * Wd * woods_saxon_prime_safe(r, Rd, ad)
     )
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 def spin_orbit(
@@ -73,9 +79,7 @@ def spin_orbit(
 ) -> PotentialArray:
     """Evaluate the default Thomas-form spin-orbit potential."""
     result = (Vso + 1j * Wso) / WAVENUMBER_PION**2 * thomas_safe(r, Rso, aso)
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 class LocalOpticalPotential(SingleChannelOpticalModel):

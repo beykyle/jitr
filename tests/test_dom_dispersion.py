@@ -15,8 +15,8 @@ import time
 import unittest
 
 import numpy as np
-from scipy.special import exp1, expi
 
+from jitr.optical_potentials import dom
 from jitr.optical_potentials.dispersion import (
     DEFAULT_SEGMENTS,
     DispersionSolver,
@@ -29,7 +29,7 @@ from jitr.optical_potentials.dispersion import (
 # Fixtures: physics functions for the typical DOM surface use case
 # ===========================================================================
 def Ws_depth(x, Ws0=16.2, ws1=12.5, ws2=0.0214):
-    return Ws0 * x**4 / (x**4 + ws1**4) * np.exp(-ws2 * np.abs(x))
+    return dom.Ws_depth(x, Ws0, ws1, ws2)
 
 
 def quartic_a(E, a_min=0.30, a_max=0.60, Lambda_a=12.0):
@@ -52,20 +52,8 @@ def W_surface_vec(r_grid, x, **kw):
     return np.array([W_surface(r, x, **kw) for r in r_grid])
 
 
-# Closed-form K-K of W_d(x) (for r-independent shape limit)
 def delta_Wd_analytic(E, Ws0=16.2, ws1=12.5, ws2=0.0214):
-    if E == 0.0:
-        return 0.0
-    ax = abs(E)
-    z1 = ws2 * ax
-    J1 = (-np.exp(-z1) * expi(z1) - np.exp(z1) * exp1(z1)) / (2.0 * ax)
-    roots = ws1 * np.array([np.exp(1j * np.pi / 4), np.exp(1j * 3 * np.pi / 4)])
-    F = np.exp(-ws2 * roots) * exp1(-ws2 * roots)
-    contrib = (roots**2 + E**2) / (4.0 * roots**3) * F
-    J2 = 2.0 * np.real(np.sum(contrib))
-    pre1 = E**4 / (E**4 + ws1**4)
-    pre2 = ws1**4 / (E**4 + ws1**4)
-    return (2.0 * Ws0 * E / np.pi) * (pre1 * J1 + pre2 * J2)
+    return dom.delta_Vs_analytic(E, Ws0, ws1, ws2)
 
 
 # ===========================================================================

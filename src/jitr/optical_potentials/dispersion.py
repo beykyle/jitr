@@ -1,52 +1,30 @@
-"""
-Numerical Kramers-Kronig dispersion-relation solver, optimized for repeated
-online evaluation at a fixed radial grid and fixed scalar energy.
+"""Numerical Kramers-Kronig dispersion utilities for local DOM workflows.
 
-Designed for DOM fitting workflows where many parameter samples reuse the
-same (r_grid, E) configuration. All quantities that depend only on
-(r_grid, E, E_cut, segments) are computed once at solver construction;
-the online call does a single fused-multiply-add inner loop, JIT-compiled
-with numba for SIMD speed.
+The solver is optimized for repeated evaluation at a fixed radial grid and a
+fixed scalar energy. Quantities that depend only on ``(r_grid, E, segments)``
+are precomputed at construction time, leaving a single numba-compiled inner
+loop for each online evaluation.
 
-This allows for dispersion corrections for non-annalytic W(r, E) models, or
-models where W(r,E) is not separable into a product of a radial function and an
-energy function.  The solver itself is agnostic to the physics of W; it only
-requires that the caller provide W evaluated on the quadrature nodes and at the
-target energy, and that W be smooth enough for the quadrature to converge, and
-go to zero fast enough at large |E| for the cutoff to be effective.
-
-Algorithm
----------
-The principal-value integral is regularised via singularity subtraction:
-
-    ΔV(r, E) = (1/π) ∫_{-E_cut}^{E_cut}  W(r, x) / (x − E) dx
-             = (1/π) [ ∫ (W(r, x) − W(r, E)) / (x − E) dx
-                       + W(r, E) · ln|(E_cut − E) / (E_cut + E)| ]
-
-The first integrand is smooth at x = E (removable singularity).  Discretising
-with a piecewise Gauss-Legendre rule gives, for fixed E, a constant weight
-vector  α_k = w_k / (x_k − E)  used as a dot product against W(r, x_k).
-
-Caller responsibilities (per parameter sample)
-----------------------------------------------
-* Compute  W_grid[i, k] = W(r_grid[i], x_quad[k])   shape (N_r, N_q)
-* Compute  W_at_E[i]    = W(r_grid[i], E)           shape (N_r,)
-* Call     dV = solver(W_grid, W_at_E)              shape (N_r,)
-
-All three steps are user-side; the solver itself does no W evaluation
-because W is application-specific.
+This makes the module useful for non-analytic or non-separable imaginary
+potentials ``W(r, E)`` where an analytic dispersive correction is unavailable.
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable, Sequence
 
 import numpy as np
 from numba import njit
 from numpy.polynomial.legendre import leggauss
 
-# ---------------------------------------------------------------------------
-# Default piecewise Gauss-Legendre layout: ~140 nodes total, dense near origin
-# ---------------------------------------------------------------------------
-DEFAULT_SEGMENTS = (
+from .._types import FloatArray
+
+QuadratureSegment = tuple[float, float, int]
+QuadratureSegments = Sequence[QuadratureSegment]
+
+# Default piecewise Gauss-Legendre layout: about 140 nodes total, with denser
+# coverage around the origin where the kernel changes most rapidly.
+DEFAULT_SEGMENTS: tuple[QuadratureSegment, ...] = (
     (-400.0, -50.0, 20),
     (-50.0, -15.0, 30),
     (-15.0, 15.0, 40),
@@ -55,264 +33,238 @@ DEFAULT_SEGMENTS = (
 )
 
 
-def build_quadrature(segments=DEFAULT_SEGMENTS):
-    """
-    Construct piecewise Gauss-Legendre nodes and weights.
+def build_quadrature(
+    segments: QuadratureSegments = DEFAULT_SEGMENTS,
+) -> tuple[FloatArray, FloatArray, float]:
+    """Construct piecewise Gauss-Legendre quadrature nodes and weights.
 
-    Parameters
-    ----------
-    segments : sequence of (a, b, n)
-        Each tuple defines a sub-interval [a, b] with `n` Gauss-Legendre
-        nodes.  Sub-intervals must abut and cover [-E_cut, +E_cut].
-
-    Returns
-    -------
-    x_quad : (N_q,) float64 array
-        Quadrature nodes, monotonically increasing.
-    w_quad : (N_q,) float64 array
-        Quadrature weights (positive, sum to total interval length).
-    E_cut : float
-        Outer cutoff (= max |x_quad|).
+    :param segments: Sequence of ``(a, b, n)`` segment descriptors covering the
+        integration interval.
+    :raises ValueError: If any segment has ``b <= a`` or ``n < 1``.
+    :returns: ``(x_quad, w_quad, E_cut)`` where ``x_quad`` are the quadrature
+        nodes, ``w_quad`` are the weights, and ``E_cut`` is the outer cutoff
+        inferred from the segment endpoints.
+    :rtype: tuple[numpy.ndarray, numpy.ndarray, float]
     """
-    nodes, weights = [], []
+
+    nodes: list[FloatArray] = []
+    weights: list[FloatArray] = []
     for a, b, n in segments:
         if not b > a:
             raise ValueError(f"segment endpoints must satisfy b > a, got ({a}, {b})")
         if n < 1:
             raise ValueError(f"segment node count must be >= 1, got {n}")
         x_u, w_u = leggauss(n)
-        nodes.append(0.5 * (b - a) * x_u + 0.5 * (a + b))
-        weights.append(0.5 * (b - a) * w_u)
-    x = np.concatenate(nodes).astype(np.float64)
-    w = np.concatenate(weights).astype(np.float64)
-    # Use the segment endpoints as the analytical integration interval.  The
+        nodes.append((0.5 * (b - a) * x_u + 0.5 * (a + b)).astype(np.float64))
+        weights.append((0.5 * (b - a) * w_u).astype(np.float64))
+
+    x_quad = np.concatenate(nodes).astype(np.float64)
+    w_quad = np.concatenate(weights).astype(np.float64)
+
+    # Use the segment endpoints as the analytic integration interval. The
     # outermost Gauss-Legendre nodes lie strictly inside their segments, so
-    # max(|x|) is slightly less than the true cutoff used by the log_term.
+    # max(abs(x_quad)) is slightly smaller than the true cutoff used by the log
+    # boundary term.
     E_cut = float(max(abs(segments[0][0]), abs(segments[-1][1])))
-    return x, w, E_cut
+    return x_quad, w_quad, E_cut
 
 
-# ---------------------------------------------------------------------------
-# Hot-loop kernel.  All inputs are precomputed by the solver; this function
-# does no allocation aside from the output array, no branches, and SIMDs
-# cleanly under -fastmath.
-# ---------------------------------------------------------------------------
 @njit(cache=True, fastmath=True)
-def _dispersion_kernel(W_grid, W_at_E, dx_inv_w, log_term):
-    """
-    Pure-numba dispersion kernel.
+def _dispersion_kernel(
+    W_grid: np.ndarray,
+    W_at_E: np.ndarray,
+    dx_inv_w: np.ndarray,
+    log_term: float,
+) -> np.ndarray:
+    """Evaluate the preconditioned dispersion sum in numba."""
 
-    Parameters
-    ----------
-    W_grid : (N_r, N_q) float64 array
-        W(r_grid[i], x_quad[k]).
-    W_at_E : (N_r,) float64 array
-        W(r_grid[i], E).
-    dx_inv_w : (N_q,) float64 array
-        w_quad[k] / (x_quad[k] - E).
-    log_term : float64
-        ln|(E_cut - E) / (E_cut + E)|.
-
-    Returns
-    -------
-    dV : (N_r,) float64 array
-    """
     N_r, N_q = W_grid.shape
     inv_pi = 1.0 / np.pi
     dV = np.empty(N_r, dtype=np.float64)
 
     for i in range(N_r):
-        WE = W_at_E[i]
-        s = 0.0
-        # Subtraction inside the multiply preserves precision near x_k ≈ E.
+        W_E = W_at_E[i]
+        total = 0.0
         for k in range(N_q):
-            s += dx_inv_w[k] * (W_grid[i, k] - WE)
-        dV[i] = (s + WE * log_term) * inv_pi
+            total += dx_inv_w[k] * (W_grid[i, k] - W_E)
+        dV[i] = (total + W_E * log_term) * inv_pi
 
     return dV
 
 
-# ---------------------------------------------------------------------------
 class DispersionSolver:
-    """
-    A
-    Pre-computes quadrature data for K-K evaluation at a fixed (r_grid, E).
+    r"""Precompute quadrature data for repeated DOM dispersion evaluation.
 
-    Online cost is dominated by a single (N_r × N_q) numba loop with one
-    fused-multiply-add per node-radius pair.  No allocation other than the
-    output vector.
+    The solver targets repeated evaluation of
 
-    Parameters
-    ----------
-    r_grid : array-like, shape (N_r,)
-        Radial mesh (typically the quadrature mesh of the Schrödinger solver).
-    E : float
-        Scalar energy at which the dispersion correction will be evaluated.
-        Must lie strictly inside (-E_cut, +E_cut) and not coincide with a
+    .. math::
+
+       \Delta V(r, E) = \frac{1}{\pi}\,\mathrm{p.v.}
+       \int_{-E_\mathrm{cut}}^{E_\mathrm{cut}} \frac{W(r, x)}{x - E}\,dx
+
+    at fixed ``r_grid`` and fixed scalar ``E``. The principal-value singularity
+    is handled by subtraction of ``W(r, E)`` from the integrand and an analytic
+    logarithmic boundary term.
+
+    :param r_grid: Radial mesh in fm.
+    :param E: Target energy in MeV.
+    :param segments: Piecewise Gauss-Legendre quadrature segments.
+    :param min_node_distance: Minimum tolerated distance between ``E`` and any
         quadrature node.
-    segments : sequence of (a, b, n), optional
-        Piecewise Gauss-Legendre layout.  See ``DEFAULT_SEGMENTS``.
-    min_node_distance : float, optional
-        Minimum |x_quad[k] - E| tolerated; values below this trigger a
-        ValueError because the kernel would divide by a tiny number.
-
-    Attributes
-    ----------
-    r_grid, E, E_cut, x_quad, w_quad, n_nodes : read-only properties.
-
-    Examples
-    --------
-    >>> r_grid = np.linspace(0.5, 12.0, 50)
-    >>> solver = DispersionSolver(r_grid, E=12.0)
-    >>> # per parameter sample:
-    >>> W_grid = my_W(r_grid[:, None], solver.x_quad[None, :])  # (50, n_nodes)
-    >>> W_at_E = my_W(r_grid, 12.0)                              # (50,)
-    >>> dV = solver(W_grid, W_at_E)                              # (50,)
+    :raises ValueError: If ``r_grid`` is not one-dimensional, if ``E`` lies
+        outside the quadrature interval, or if ``E`` is too close to a node.
     """
 
     def __init__(
         self,
-        r_grid,
-        E,
-        segments=DEFAULT_SEGMENTS,
-        min_node_distance=1e-6,
-    ):
-        r_grid = np.ascontiguousarray(np.asarray(r_grid, dtype=np.float64))
-        if r_grid.ndim != 1:
-            raise ValueError(f"r_grid must be 1-D, got shape {r_grid.shape}")
+        r_grid: FloatArray | Sequence[float],
+        E: float,
+        segments: QuadratureSegments = DEFAULT_SEGMENTS,
+        min_node_distance: float = 1e-6,
+    ) -> None:
+        radial_grid = np.ascontiguousarray(np.asarray(r_grid, dtype=np.float64))
+        if radial_grid.ndim != 1:
+            raise ValueError(f"r_grid must be 1-D, got shape {radial_grid.shape}")
 
-        E = float(E)
-        x_q, w_q, E_cut = build_quadrature(segments)
+        energy = float(E)
+        x_quad, w_quad, E_cut = build_quadrature(segments)
 
-        if abs(E) >= E_cut:
+        if abs(energy) >= E_cut:
             raise ValueError(
-                f"E = {E} must lie strictly inside (-E_cut, E_cut) = "
+                f"E = {energy} must lie strictly inside (-E_cut, E_cut) = "
                 f"({-E_cut}, {E_cut})"
             )
 
-        dx = x_q - E
-        closest = np.argmin(np.abs(dx))
+        dx = x_quad - energy
+        closest = int(np.argmin(np.abs(dx)))
         if abs(dx[closest]) < min_node_distance:
             raise ValueError(
-                f"E = {E} is within {min_node_distance} of quadrature node "
-                f"x_quad[{closest}] = {x_q[closest]}.  Adjust segments, perturb "
-                f"E, or relax min_node_distance."
+                f"E = {energy} is within {min_node_distance} of quadrature node "
+                f"x_quad[{closest}] = {x_quad[closest]}. Adjust segments, perturb E, "
+                "or relax min_node_distance."
             )
 
-        # ---- precomputed quantities ----
-        self._r_grid = r_grid
-        self._E = E
+        self._r_grid = radial_grid
+        self._E = energy
         self._E_cut = E_cut
-        self._x_quad = x_q
-        self._w_quad = w_q
-        self._dx_inv_w = (w_q / dx).astype(np.float64)
-        self._log_term = float(np.log(abs((E_cut - E) / (E_cut + E))))
-        self._N_r = r_grid.size
-        self._N_q = x_q.size
+        self._x_quad = x_quad
+        self._w_quad = w_quad
+        self._dx_inv_w = np.asarray(w_quad / dx, dtype=np.float64)
+        self._log_term = float(np.log(abs((E_cut - energy) / (E_cut + energy))))
+        self._N_r = radial_grid.size
+        self._N_q = x_quad.size
 
-    # -------- read-only properties --------
     @property
-    def r_grid(self):
+    def r_grid(self) -> FloatArray:
+        """Return the radial mesh used by this solver."""
+
         return self._r_grid
 
     @property
-    def E(self):
+    def E(self) -> float:
+        """Return the target energy in MeV."""
+
         return self._E
 
     @property
-    def E_cut(self):
+    def E_cut(self) -> float:
+        """Return the solver's outer integration cutoff in MeV."""
+
         return self._E_cut
 
     @property
-    def x_quad(self):
+    def x_quad(self) -> FloatArray:
+        """Return the quadrature nodes in MeV."""
+
         return self._x_quad
 
     @property
-    def w_quad(self):
+    def w_quad(self) -> FloatArray:
+        """Return the quadrature weights."""
+
         return self._w_quad
 
     @property
-    def n_nodes(self):
+    def n_nodes(self) -> int:
+        """Return the number of quadrature nodes."""
+
         return self._N_q
 
     @property
-    def n_radial(self):
+    def n_radial(self) -> int:
+        """Return the number of radial grid points."""
+
         return self._N_r
 
-    # -------- online entry point --------
-    def __call__(self, W_grid, W_at_E):
+    def __call__(self, W_grid: np.ndarray, W_at_E: np.ndarray) -> FloatArray:
+        """Evaluate the dispersion correction on the stored radial grid.
+
+        :param W_grid: Array with shape ``(n_radial, n_nodes)`` containing
+            ``W(r_grid[i], x_quad[k])``.
+        :param W_at_E: Array with shape ``(n_radial,)`` containing
+            ``W(r_grid[i], E)``.
+        :raises ValueError: If the input shapes do not match the solver
+            configuration.
+        :returns: Dispersion correction ``ΔV(r_grid, E)``.
+        :rtype: numpy.ndarray
         """
-        Evaluate ΔV(r, E) on the bound radial grid.
 
-        Parameters
-        ----------
-        W_grid : (N_r, N_q) array
-            W(r_grid, x_quad).  Must be C-contiguous float64 for full speed;
-            other layouts/dtypes are silently converted.
-        W_at_E : (N_r,) array
-            W(r_grid, E).
+        W_grid_array = np.ascontiguousarray(W_grid, dtype=np.float64)
+        W_at_E_array = np.ascontiguousarray(W_at_E, dtype=np.float64)
 
-        Returns
-        -------
-        dV : (N_r,) ndarray
-        """
-        W_grid = np.ascontiguousarray(W_grid, dtype=np.float64)
-        W_at_E = np.ascontiguousarray(W_at_E, dtype=np.float64)
-
-        if W_grid.shape != (self._N_r, self._N_q):
+        if W_grid_array.shape != (self._N_r, self._N_q):
             raise ValueError(
-                f"W_grid shape {W_grid.shape} does not match expected "
+                f"W_grid shape {W_grid_array.shape} does not match expected "
                 f"({self._N_r}, {self._N_q})"
             )
-        if W_at_E.shape != (self._N_r,):
+        if W_at_E_array.shape != (self._N_r,):
             raise ValueError(
-                f"W_at_E shape {W_at_E.shape} does not match expected ({self._N_r},)"
+                "W_at_E shape "
+                f"{W_at_E_array.shape} does not match expected ({self._N_r},)"
             )
 
-        return _dispersion_kernel(W_grid, W_at_E, self._dx_inv_w, self._log_term)
+        return _dispersion_kernel(
+            W_grid_array,
+            W_at_E_array,
+            self._dx_inv_w,
+            self._log_term,
+        )
 
 
-# ---------------------------------------------------------------------------
-# High-precision reference (scipy adaptive Cauchy-weighted quadrature).
-# Used in tests and for accuracy validation.  Slow.
-# ---------------------------------------------------------------------------
-def dispersion_correction_reference(W_func, r_grid, E, E_cut=400.0, **quad_kwargs):
+def dispersion_correction_reference(
+    W_func: Callable[[float, float], float],
+    r_grid: FloatArray | Sequence[float],
+    E: float,
+    E_cut: float = 400.0,
+    **quad_kwargs: float,
+) -> FloatArray:
+    """Evaluate a high-accuracy SciPy Cauchy-weighted reference solution.
+
+    :param W_func: Scalar callable returning ``W(r, x)``.
+    :param r_grid: Radial points at which to evaluate the dispersion
+        correction.
+    :param E: Target energy in MeV.
+    :param E_cut: Outer integration cutoff in MeV.
+    :param quad_kwargs: Extra keyword arguments forwarded to
+        :func:`scipy.integrate.quad`.
+    :returns: Reference dispersion correction on ``r_grid``.
+    :rtype: numpy.ndarray
     """
-    High-precision reference using ``scipy.integrate.quad`` with the
-    ``weight='cauchy'`` adaptive principal-value rule.
 
-    Parameters
-    ----------
-    W_func : callable
-        Two-argument scalar callable: ``W_func(r, x)`` returns a float.
-    r_grid : array-like
-        Radial points at which to evaluate ΔV.
-    E : float
-        Target energy.
-    E_cut : float, optional
-        Outer integration cutoff (default 400 MeV).
-    **quad_kwargs
-        Forwarded to ``scipy.integrate.quad``; defaults are
-        ``epsabs=1e-11, epsrel=1e-10, limit=500``.
-
-    Returns
-    -------
-    dV : ndarray, shape (len(r_grid),)
-    """
     from scipy import integrate
 
-    r_grid = np.asarray(r_grid, dtype=float)
-    quad_kwargs = {"epsabs": 1e-7, "epsrel": 1e-6, "limit": 500, **quad_kwargs}
+    radial_grid = np.asarray(r_grid, dtype=float)
+    quad_options = {"epsabs": 1e-7, "epsrel": 1e-6, "limit": 500, **quad_kwargs}
 
-    out = np.empty(r_grid.size, dtype=np.float64)
-    for i, r in enumerate(r_grid):
+    out = np.empty(radial_grid.size, dtype=np.float64)
+    for i, radius in enumerate(radial_grid):
         val, _ = integrate.quad(
-            lambda x, r=r: W_func(r, x),
+            lambda x, radius=radius: W_func(radius, x),
             -E_cut,
             E_cut,
             weight="cauchy",
             wvar=float(E),
-            **quad_kwargs,
+            **quad_options,
         )
         out[i] = val / np.pi
 

@@ -19,7 +19,7 @@ from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import ALPHA, HBARC
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel
+from .omp import SingleChannelOpticalModel, _as_potential_array
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -97,9 +97,7 @@ def central(
     imag_volume = 1j * W * woods_saxon_safe(r, Rd, ad)
     surface = -(4j * ad * Wd) * woods_saxon_prime_safe(r, Rd, ad)
     result = -volume - imag_volume - surface
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 def spin_orbit(
@@ -114,9 +112,7 @@ def spin_orbit(
     :param Rso: float The radius of the spin-orbit potential.
     :param aso: float The diffuseness of the spin-orbit potential."""
     result = 2 * Vso * thomas_safe(r, Rso, aso)
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 def calculate_params(

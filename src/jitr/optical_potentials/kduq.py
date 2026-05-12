@@ -18,7 +18,7 @@ from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import WAVENUMBER_PION
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel
+from .omp import SingleChannelOpticalModel, _as_potential_array
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -142,9 +142,7 @@ def central(
         - 1j * Wv * woods_saxon_safe(r, Rwv, awv)
         - 1j * (-4 * ad) * Wd * woods_saxon_prime_safe(r, Rd, ad)
     )
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 def spin_orbit(
@@ -171,9 +169,7 @@ def spin_orbit(
     result = Vso / WAVENUMBER_PION**2 * thomas_safe(
         r, Rso, aso
     ) + 1j * Wso / WAVENUMBER_PION**2 * thomas_safe(r, Rwso, awso)
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    return _as_potential_array(result)
 
 
 class Global:
