@@ -7,7 +7,7 @@ Documentation site: <https://beykyle.github.io/jitr/>
 <img src="./assets/jitr_logo.png" alt="drawing" width="300" /> 
 </p>
 
-# just-in-time R-Matrix (jitR)
+# just-in-time R-Matrix (jitr)
 A nuclear reaction toolkit, production ready for calibration and uncertainty-quantification, featuring:
 
 - fast calculable $\mathcal{R}$-matrix solver for parametric reaction models
@@ -15,12 +15,12 @@ A nuclear reaction toolkit, production ready for calibration and uncertainty-qua
 - built in nuclear data
 - plenty of examples demonstrating the propagation of uncertainties into reaction observables and model calibration
 
-Give your nuclear reaction UQ workflow a caffeine-kick with jitR!
+Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
 ## description
 A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. 
 
-Under the hood, jitR solves the Shrödinger equation in partial waves using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitR is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitR relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
+Under the hood, jitr solves the Shrödinger equation in partial waves using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitr relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
 
 The theory generally follows:
 - [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
@@ -116,17 +116,7 @@ The example notebooks are tested with `pytest` and `nbval`:
 uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
 
-### Build the documentation website
 
-The docs site uses Sphinx and MyST-NB, and it includes the repository notebooks directly:
-
-```bash
-uv run --group docs sphinx-build -W -b html -c docs . docs/_build/html
-```
-
-The published site is available at <https://beykyle.github.io/jitr/>.
-
-Feel free to fork and make a pull request if you have things to contribute. There are many [open issues](https://github.com/beykyle/jitr/issues), feel free to add more.
 
 ## examples and tutorials
 

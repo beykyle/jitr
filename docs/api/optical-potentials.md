@@ -1,25 +1,35 @@
 # Optical potentials
 
-```{automodule} jitr.optical_potentials
-:members:
+This page collects the built-in optical-potential interfaces,
+parameterizations, and helper utilities used throughout the example
+workflows.
+
+```{eval-rst}
+.. automodule:: jitr.optical_potentials
+   :members:
 ```
 
-```{automodule} jitr.optical_potentials.omp
-:members:
+```{eval-rst}
+.. automodule:: jitr.optical_potentials.omp
+   :members:
 ```
 
-```{automodule} jitr.optical_potentials.kduq
-:members:
+```{eval-rst}
+.. automodule:: jitr.optical_potentials.kduq
+   :members:
 ```
 
-```{automodule} jitr.optical_potentials.chuq
-:members:
+```{eval-rst}
+.. automodule:: jitr.optical_potentials.chuq
+   :members:
 ```
 
-```{automodule} jitr.optical_potentials.wlh
-:members:
+```{eval-rst}
+.. automodule:: jitr.optical_potentials.wlh
+   :members:
 ```
 
-```{automodule} jitr.optical_potentials.potential_forms
-:members:
+```{eval-rst}
+.. automodule:: jitr.optical_potentials.potential_forms
+   :members:
 ```

@@ -26,6 +26,7 @@ extensions = [
 autosummary_generate = True
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
+napoleon_use_ivar = True
 autodoc_default_options = {
     "members": True,
     "show-inheritance": True,
@@ -48,6 +49,12 @@ exclude_patterns = [
     "README.md",
     "SUPPORT.rst",
     "assets/jitr_logo.ipynb",
+    "examples/notebooks/chex_jitr_validation.ipynb",
+    "examples/notebooks/comparison_to_Runge_Kutta.ipynb",
+    "examples/notebooks/test_coupled_single_dwba.ipynb",
+    "examples/notebooks/test_dom_impl.ipynb",
+    "examples/notebooks/test_dom_with_edep_a.ipynb",
+    "examples/notebooks/volume_integrals.ipynb",
     "jitrbandsdk.md",
     "**/.ipynb_checkpoints",
 ]

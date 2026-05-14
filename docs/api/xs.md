@@ -1,13 +1,14 @@
 # Observables and workspaces
 
-```{automodule} jitr.xs
-:members:
+The observables API covers elastic and quasi-elastic calculations
+together with the workspaces that package intermediate solver state.
+
+```{eval-rst}
+.. automodule:: jitr.xs.elastic
+   :members:
 ```
 
-```{automodule} jitr.xs.elastic
-:members:
-```
-
-```{automodule} jitr.xs.quasielastic_pn
-:members:
+```{eval-rst}
+.. automodule:: jitr.xs.quasielastic_pn
+   :members:
 ```
