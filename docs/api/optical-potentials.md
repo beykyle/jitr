@@ -1,8 +1,7 @@
 # Optical potentials
 
 This page collects the built-in optical-potential interfaces,
-parameterizations, and helper utilities used throughout the example
-workflows.
+parameterizations, and helper utilities.
 
 ```{eval-rst}
 .. automodule:: jitr.optical_potentials

@@ -54,7 +54,8 @@ exclude_patterns = [
     "examples/notebooks/test_coupled_single_dwba.ipynb",
     "examples/notebooks/test_dom_impl.ipynb",
     "examples/notebooks/test_dom_with_edep_a.ipynb",
-    "examples/notebooks/volume_integrals.ipynb",
+    "examples/notebooks/how_to_define_your_interaction.ipynb",
+    "examples/notebooks/integration.ipynb",
     "jitrbandsdk.md",
     "**/.ipynb_checkpoints",
 ]

@@ -230,13 +230,21 @@ class Workspace:
             raise ValueError(f"{name} must have shape {expected_shape}")
         return potential_array
 
+    def _optional_local_potential(
+        self, potential: npt.ArrayLike | None, name: str
+    ) -> ComplexArray:
+        """Return a validated local potential or a zero array when omitted."""
+        if potential is None:
+            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
+        return self._local_potential(potential, name)
+
     def tmatrix(
         self,
         U_p_coulomb: npt.ArrayLike,
         U_p_central: npt.ArrayLike,
-        U_p_spin_orbit: npt.ArrayLike,
-        U_n_central: npt.ArrayLike,
-        U_n_spin_orbit: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
@@ -261,11 +269,18 @@ class Workspace:
 
         # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
+        if U_n_central is None:
+            raise TypeError("U_n_central is required")
+
         proton_central = self._local_potential(U_p_central, "U_p_central")
-        proton_spin_orbit = self._local_potential(U_p_spin_orbit, "U_p_spin_orbit")
+        proton_spin_orbit = self._optional_local_potential(
+            U_p_spin_orbit, "U_p_spin_orbit"
+        )
         proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
         neutron_central = self._local_potential(U_n_central, "U_n_central")
-        neutron_spin_orbit = self._local_potential(U_n_spin_orbit, "U_n_spin_orbit")
+        neutron_spin_orbit = self._optional_local_potential(
+            U_n_spin_orbit, "U_n_spin_orbit"
+        )
 
         im_central_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
@@ -367,9 +382,9 @@ class Workspace:
         self,
         U_p_coulomb: npt.ArrayLike,
         U_p_central: npt.ArrayLike,
-        U_p_spin_orbit: npt.ArrayLike,
-        U_n_central: npt.ArrayLike,
-        U_n_spin_orbit: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
     ) -> np.ndarray:
         """
         Calculate the differential cross section for (p,n) quasi-elastic

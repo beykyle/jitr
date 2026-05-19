@@ -93,17 +93,25 @@ class IntegralWorkspace:
             raise ValueError(f"{name} must have shape {expected_shape}")
         return potential_array
 
+    def _optional_local_potential(
+        self, potential: npt.ArrayLike | None, name: str
+    ) -> ComplexArray:
+        """Return a validated local potential or a zero array when omitted."""
+        if potential is None:
+            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
+        return self._local_potential(potential, name)
+
     def smatrix(
         self,
         central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike | None = None,
         coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[ComplexArray, ComplexArray]:
         """Compute the elastic S-matrix for ``j=l±1/2`` channels."""
         splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         central_array = self._local_potential(central_potential, "central_potential")
-        spin_orbit_array = self._local_potential(
+        spin_orbit_array = self._optional_local_potential(
             spin_orbit_potential, "spin_orbit_potential"
         )
 
@@ -177,7 +185,7 @@ class IntegralWorkspace:
     def xs(
         self,
         central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike | None = None,
         coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[float, float]:
         """Return total and reaction cross sections in mb."""
@@ -191,7 +199,7 @@ class IntegralWorkspace:
     def transmission_coefficients(
         self,
         central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike | None = None,
         coulomb_potential: npt.ArrayLike | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return transmission coefficients for ``j=l±1/2`` channels."""
@@ -275,7 +283,7 @@ class DifferentialWorkspace:
     def xs(
         self,
         central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike,
+        spin_orbit_potential: npt.ArrayLike | None = None,
         coulomb_potential: npt.ArrayLike | None = None,
     ) -> ElasticXS:
         """Return differential and integral elastic observables."""

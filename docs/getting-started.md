@@ -9,10 +9,9 @@
 
 Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
-## description
-A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. 
+## Description
 
-Under the hood, jitr solves the Shrödinger equation in partial waves using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitr relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
+Under the hood, jitr solves the Shrödinger equation using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables corresponding to an ensemble of reactions. Additionally, jitr relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
 
 The theory generally follows:
 - [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
@@ -34,21 +33,128 @@ If you use `uv`, add it to an existing project with:
 uv add jitr
 ```
 
-## Start here
+## Examples and tutorials
 
-If you are learning the package for the first time, this is the
-recommended path through the documentation:
+Browse the curated [example notebooks](examples/index.md).
 
-1. Browse the curated [example notebooks](examples/index.md) to see the
-   main workflows in context.
-2. Start with
-   [`local_omp_demo`](../examples/notebooks/local_omp_demo.ipynb) for a
-   concrete elastic-scattering workflow, or
-   [`how_to_define_your_interaction`](../examples/notebooks/how_to_define_your_interaction.ipynb)
-   if you want to understand how to define local, nonlocal, and
-   coupled-channel interactions.
-3. Use the [API reference](api/index.md) to drill into the modules that
-   appear in those examples.
+### Quick start
+
+Here is full end-to-end example for 
+- compiling a solver for a given reaction system
+- defining a parametric interaction potential
+- calculating an elastic scattering cross section for an ensemble of potential parameters
+
+This is adapted from the [quickstart example](/examples/notebooks/quickstart). 
+```python
+from jitr.reactions.reaction import Reaction
+from jitr.xs import elastic
+from jitr.rmatrix import Solver as SolverKernel
+from jitr.optical_potentials.potential_forms import (
+    woods_saxon_safe,
+    woods_saxon_prime_safe,
+    coulomb_charged_sphere,
+)
+
+from jitr.utils import utils
+
+import numpy as np
+from scipy import stats
+from tqdm import tqdm
+from matplotlib import pyplot as plt
+
+# define reaction system
+alpha = (4, 2)
+Ca48 = (48, 20)
+reaction = Reaction(target=Ca48, projectile=alpha, process="El")
+
+# calculate kinematics for a given lab energy
+energy_lab = 28.2
+kinematics = reaction.kinematics(energy_lab)
+
+# set the channel radius, number of nodes, and number of partial waves
+interaction_range_fm = 1.5 * (48 ** (1 / 3) + 4 ** (1 / 3)) + 3
+channel_radius_dimensionless = utils.suggested_dimensionless_channel_radius(
+    interaction_range_fm, kinematics.k
+)
+channel_radius = channel_radius_dimensionless / kinematics.k
+N = utils.suggested_basis_size(channel_radius_dimensionless)
+lmax = 180
+
+# build a solver for the system and reaction of interest
+print(f"Compiling solver for {reaction} at {energy_lab} MeV")
+print(f" - channel radius {channel_radius:1.2f} fm")
+print(f" - {N} nodes")
+print(f" - {lmax} partial waves")
+
+solver = elastic.DifferentialWorkspace.build_from_system(
+    reaction=reaction,
+    kinematics=kinematics,
+    channel_radius_fm=channel_radius,
+    solver=SolverKernel(N),
+    lmax=lmax,
+    angles=np.linspace(0.1, np.pi, 180),
+)
+rgrid = solver.radial_grid()
+print("Done!")
+```
+
+```
+Compiling solver for 48-Ca(alpha,el) at 28.2 MeV
+ - channel radius 13.76 fm
+ - 50 nodes
+ - 180 partial waves
+Done!
+```
+
+```python
+# define interaction
+def U_central(r, Vv, Wv, Rv, av, Rd, ad):
+    return -(Vv + 1j * Wv) * woods_saxon_safe(r, Rv, av)
+
+
+def V_Coulomb(r, RC):
+    Zz = reaction.target.Z * reaction.projectile.Z
+    return coulomb_charged_sphere(r, Zz, RC)
+
+
+# define parameter distribution and draw samples
+# just
+param_means = np.array([185, 20, 1.0, 0.6, 1.8, 0.5, 1.2])
+param_std_devs = np.array([6, 2, 0.05, 0.05, 0.1, 0.05, 0.05])
+num_samples = 1000
+param_draws = stats.multivariate_normal(
+    mean=param_means, cov=np.diag(param_std_devs) ** 2
+).rvs(num_samples)
+
+print(f"Running {num_samples} calculations...")
+prediction_samples = np.zeros((num_samples, solver.angles.size))
+for i in tqdm(range(param_draws.shape[0])):
+    Vv, Wv, rv, av, rd, ad, rC = param_draws[i]
+    A_factor = reaction.target.A ** (1 / 3) + reaction.projectile.A ** (1 / 3)
+    xs = solver.xs(
+        central_potential=U_central(
+            rgrid, Vv, Wv, rv * A_factor, av, rd * A_factor, ad
+        ),
+        coulomb_potential=V_Coulomb(rgrid, rC * A_factor),
+    )
+    prediction_samples[i, :] = xs.dsdo / solver.rutherford
+
+print("Done!")
+```
+
+```
+Running 1000 calculations...
+
+100%|███████████████████████████████████████████████████████████| 1000/1000 [00:18<00:00, 55.52it/s]
+
+Done!
+
+```
+
+
+## API reference and development
+
+Use the [API reference](api/index.md) for detailed documentation of the codebase.
 
 For development setup, test commands, and documentation builds, see
 [Advanced users and developers](advanced-users.md) and
@@ -56,8 +162,7 @@ For development setup, test commands, and documentation builds, see
 
 ## BAND
 
-`jitr` is part of the
-[BAND Framework](https://github.com/bandframework/).
+`jitr` is one of the siftware packages included in the [BAND Framework](https://bandframework.github.io/).
 
 ## Citations
 

@@ -17,20 +17,9 @@ A nuclear reaction toolkit, production ready for calibration and uncertainty-qua
 
 Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
-## description
-A framework for uncertainty-quantification of nuclear reaction observables using parametric reaction models. 
-
-Under the hood, jitr solves the Shrödinger equation in partial waves using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables for many parameter samples. Additionally, jitr relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
-
-The theory generally follows:
-- [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
-- [Descouvemont, P. (2016). An R-matrix package for coupled-channel problems in nuclear physics. Computer physics communications, 200, 199-219](https://www.sciencedirect.com/science/article/pii/S0010465515003951)
-- [Descouvemont P. and Baye D. (2010). The R-matrix theory. Rep. Prog. Phys. 73 036301](https://iopscience.iop.org/article/10.1088/0034-4885/73/3/036301/meta)
-
-
 ## Documentation
 
-The documentation site is available at <https://beykyle.github.io/jitr/>. It includes installation instructions, API reference, and examples. 
+The documentation site is available at <https://beykyle.github.io/jitr/>. 
 
 ## Installation and Development
 
@@ -115,7 +104,6 @@ The example notebooks are tested with `pytest` and `nbval`:
 ```bash
 uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
-
 
 
 ## examples and tutorials

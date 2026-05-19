@@ -1,7 +1,7 @@
 # Core package
 
 The core page documents the package-level exports together with the
-utility modules that support kinematics, mass data, and shared helper
+utility modules that support kinematics and nuclear data, and shared helper
 functions.
 
 ```{eval-rst}

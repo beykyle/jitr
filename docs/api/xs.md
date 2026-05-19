@@ -1,7 +1,6 @@
 # Observables and workspaces
 
-The observables API covers elastic and quasi-elastic calculations
-together with the workspaces that package intermediate solver state.
+The `xs` submodule contains the `Workspace` classes which are used to compute observables.
 
 ```{eval-rst}
 .. automodule:: jitr.xs.elastic
