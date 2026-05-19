@@ -46,21 +46,19 @@ Here is full end-to-end example for
 
 This is adapted from the [quickstart example](/examples/notebooks/quickstart). 
 ```python
-from jitr.reactions.reaction import Reaction
-from jitr.xs import elastic
-from jitr.rmatrix import Solver as SolverKernel
-from jitr.optical_potentials.potential_forms import (
-    woods_saxon_safe,
-    woods_saxon_prime_safe,
-    coulomb_charged_sphere,
-)
-
-from jitr.utils import utils
-
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy import stats
 from tqdm import tqdm
-from matplotlib import pyplot as plt
+
+from jitr.optical_potentials.potential_forms import (
+    coulomb_charged_sphere as coulomb,
+    woods_saxon_safe as ws,
+)
+from jitr.reactions.reaction import Reaction
+from jitr.rmatrix import Solver as SolverKernel
+from jitr.utils import utils
+from jitr.xs import elastic
 
 # define reaction system
 alpha = (4, 2)
@@ -72,7 +70,7 @@ energy_lab = 28.2
 kinematics = reaction.kinematics(energy_lab)
 
 # set the channel radius, number of nodes, and number of partial waves
-interaction_range_fm = 1.5 * (48 ** (1 / 3) + 4 ** (1 / 3)) + 3
+interaction_range_fm = 1.2 * (48 ** (1 / 3) + 4 ** (1 / 3)) + 2
 channel_radius_dimensionless = utils.suggested_dimensionless_channel_radius(
     interaction_range_fm, kinematics.k
 )
@@ -95,32 +93,34 @@ solver = elastic.DifferentialWorkspace.build_from_system(
     angles=np.linspace(0.1, np.pi, 180),
 )
 rgrid = solver.radial_grid()
+# jit warmup
+_ = solver.xs(central_potential=np.zeros_like(solver.radial_grid()))
 print("Done!")
 ```
 
 ```
 Compiling solver for 48-Ca(alpha,el) at 28.2 MeV
- - channel radius 13.76 fm
- - 50 nodes
+ - channel radius 11.19 fm
+ - 40 nodes
  - 180 partial waves
 Done!
 ```
 
 ```python
 # define interaction
-def U_central(r, Vv, Wv, Rv, av, Rd, ad):
-    return -(Vv + 1j * Wv) * woods_saxon_safe(r, Rv, av)
+def U_central(r, Vv, Wv, Rv, av):
+    fr = ws(r, Rv, av)
+    return -(Vv * fr + 1j * Wv * fr)
 
 
-def V_Coulomb(r, RC):
-    Zz = reaction.target.Z * reaction.projectile.Z
-    return coulomb_charged_sphere(r, Zz, RC)
+def V_Coulomb(r, Zz, RC):
+    return coulomb(r, Zz, RC)
 
 
 # define parameter distribution and draw samples
 # just
-param_means = np.array([185, 20, 1.0, 0.6, 1.8, 0.5, 1.2])
-param_std_devs = np.array([6, 2, 0.05, 0.05, 0.1, 0.05, 0.05])
+param_means = np.array([185, 20, 1.0, 0.6, 1.2])
+param_std_devs = np.array([6, 2, 0.05, 0.05, 0.01])
 num_samples = 1000
 param_draws = stats.multivariate_normal(
     mean=param_means, cov=np.diag(param_std_devs) ** 2
@@ -129,13 +129,14 @@ param_draws = stats.multivariate_normal(
 print(f"Running {num_samples} calculations...")
 prediction_samples = np.zeros((num_samples, solver.angles.size))
 for i in tqdm(range(param_draws.shape[0])):
-    Vv, Wv, rv, av, rd, ad, rC = param_draws[i]
+    Vv, Wv, rv, av, rC = param_draws[i]
     A_factor = reaction.target.A ** (1 / 3) + reaction.projectile.A ** (1 / 3)
+    Zz = reaction.target.Z * reaction.projectile.Z
     xs = solver.xs(
         central_potential=U_central(
-            rgrid, Vv, Wv, rv * A_factor, av, rd * A_factor, ad
+            rgrid, Vv, Wv, rv * A_factor, av, 
         ),
-        coulomb_potential=V_Coulomb(rgrid, rC * A_factor),
+        coulomb_potential=V_Coulomb(rgrid, Zz, rC * A_factor),
     )
     prediction_samples[i, :] = xs.dsdo / solver.rutherford
 
@@ -145,12 +146,28 @@ print("Done!")
 ```
 Running 1000 calculations...
 
-100%|███████████████████████████████████████████████████████████| 1000/1000 [00:18<00:00, 55.52it/s]
+100%|██████████████████████████████████████████████████████████| 1000/1000 [00:05<00:00, 168.00it/s]
 
 Done!
 
 ```
 
+```python
+plt.figure()
+plt.fill_between(
+    np.rad2deg(solver.angles),
+    *np.percentile(prediction_samples, [16, 84], axis=0),
+    alpha=0.5,
+)
+plt.yscale("log")
+plt.xlabel(r"$\theta$ [deg]")
+plt.ylabel(r"$(\frac{d\sigma}{d\Omega}) / (\frac{d\sigma}{d\Omega})_{R}$")
+plt.title(f"${reaction.reaction_latex}$ at {kinematics.Elab:1.0f} MeV")
+plt.tight_layout()
+plt.show()
+```
+
+See the [quickstart example](/examples/notebooks/quickstart) for more details and the results of this calculation!
 
 ## API reference and development
 
