@@ -33,7 +33,7 @@ autodoc_default_options = {
     "undoc-members": False,
 }
 
-root_doc = "docs/index"
+root_doc = "index"
 templates_path = ["_templates"]
 exclude_patterns = [
     ".git",
@@ -45,6 +45,7 @@ exclude_patterns = [
     "dist",
     "docs/_build",
     "docs/_build/**",
+    "docs/index.md",
     "CHANGELOG.rst",
     "README.md",
     "SUPPORT.rst",
