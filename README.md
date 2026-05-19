@@ -131,7 +131,7 @@ uv run --with jupyter jupyter lab
 In JupyterLab, select the `Python (jitr)` kernel. Notebooks using this kernel will run against the uv-managed `.venv/` environment.
 
 Then, you can run the notebooks. In particular, check out:
-- [`examples/notebooks/reactions.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reactions.ipynb) which demonstrates the use of the `reactions` submodule
+- [`examples/notebooks/reaction.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reaction.ipynb) which demonstrates the use of the `reactions` submodule
 - [`examples/notebooks/builtin_omps_uq.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/builtin_omps_uq.ipynb) to see how to use the built-in uncertainty-quantified optical model potentials to propagate uncertainties into reaction observables
 
 ## BAND
