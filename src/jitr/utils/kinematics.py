@@ -1,27 +1,27 @@
+"""Kinematic helpers for entrance, exit, and frame-conversion calculations."""
+
+from __future__ import annotations
+
 from dataclasses import astuple, dataclass
 
 import numpy as np
+import numpy.typing as npt
 
 from .constants import ALPHA, HBARC
+
+FloatArray = npt.NDArray[np.float64]
 
 
 @dataclass
 class ChannelKinematics:
-    """
-    A class to represent the kinematics of a channel.
+    """Kinematic quantities for a single reaction channel.
 
-    Attributes
-    ----------
-    Elab : float
-        The energy in the laboratory frame.
-    Ecm : float
-        The energy in the center of mass frame.
-    mu : float
-        The reduced mass.
-    k : float
-        The wave number.
-    eta : float
-        The Sommerfeld parameter.
+    Attributes:
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Ecm: Center-of-mass kinetic energy in MeV.
+        mu: Reduced mass in MeV/c^2.
+        k: Center-of-mass wavenumber in fm^-1.
+        eta: Sommerfeld parameter.
     """
 
     Elab: float
@@ -31,31 +31,29 @@ class ChannelKinematics:
     eta: float
 
     def __iter__(self):
-        """
-        Returns
-        -------
-        iterator
-            An iterator over the attributes of the class.
-        """
+        """Iterate over the stored kinematic values in field order."""
         return iter(astuple(self))
 
 
-def semi_relativistic_kinematics(mass_target, mass_projectile, Elab, Zz=0):
-    """
-    Calculate the CM frame kinetic energy and wavenumber for a projectile
-    scattering on a target using the relatavistic approximation of
-    Ingemarsson, 1974:
-    https://doi.org/10.1088/0031-8949/9/3/004
+def semi_relativistic_kinematics(
+    mass_target: float,
+    mass_projectile: float,
+    Elab: float,
+    Zz: int = 0,
+) -> ChannelKinematics:
+    """Compute semi-relativistic entrance-channel kinematics.
 
-    Parameters:
-    mass_target (float): Mass of the target nuclide.
-    mass_projectile (float): Mass of the projectile.
-    Elab (float): Laboratory frame energy.
-    Zz (int, optional): Charge product of the interacting particles.
-        Default is 0.
+    Uses the approximation from Ingemarsson (1974) for a projectile scattering
+    from a fixed target.
+
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+        A populated :class:`ChannelKinematics` instance.
     """
     m_t = mass_target
     m_p = mass_projectile
@@ -70,25 +68,27 @@ def semi_relativistic_kinematics(mass_target, mass_projectile, Elab, Zz=0):
         / HBARC
     )
     mu = k**2 * Ep / (Ep**2 - m_p * m_p) * HBARC**2
-    k_C = ALPHA * Zz * mu / HBARC
-    eta = k_C / k
+    eta = (ALPHA * Zz * mu / HBARC) / k
 
     return ChannelKinematics(Elab, Ecm, mu, k, eta)
 
 
-def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0):
-    """
-    Calculate classical kinematics for a projectile scattering on a target.
+def classical_kinematics(
+    mass_target: float,
+    mass_projectile: float,
+    Elab: float,
+    Zz: int = 0,
+) -> ChannelKinematics:
+    """Compute non-relativistic kinematics from a laboratory energy.
 
-    Parameters:
-    mass_target (float): Mass of the target nuclide.
-    mass_projectile (float): Mass of the projectile.
-    Elab (float): Laboratory frame energy.
-    Zz (int, optional): Charge product of the interacting particles.
-        Default is 0.
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Elab: Laboratory-frame kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+        A populated :class:`ChannelKinematics` instance.
     """
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Ecm = mass_target / (mass_target + mass_projectile) * Elab
@@ -97,20 +97,22 @@ def classical_kinematics(mass_target, mass_projectile, Elab, Zz=0):
     return ChannelKinematics(Elab, Ecm, mu, k, eta)
 
 
-def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0):
-    """
-    Calculate classical kinematics for projectile scattering on a target
-        with center-of-mass frame energy provided
+def classical_kinematics_cm(
+    mass_target: float,
+    mass_projectile: float,
+    Ecm: float,
+    Zz: int = 0,
+) -> ChannelKinematics:
+    """Compute non-relativistic kinematics from a center-of-mass energy.
 
-    Parameters:
-    mass_target (float): Mass of the target nuclide.
-    mass_projectile (float): Mass of the projectile.
-    Ecm (float): Center of mass frame energy.
-    Zz (int, optional): Charge product of the interacting particles.
-        Default is 0.
+    Args:
+        mass_target: Target rest mass in MeV/c^2.
+        mass_projectile: Projectile rest mass in MeV/c^2.
+        Ecm: Center-of-mass kinetic energy in MeV.
+        Zz: Product of projectile and target charges.
 
     Returns:
-    ChannelKinematics: A dataclass containing Elab, Ecm, mu, k, and eta.
+        A populated :class:`ChannelKinematics` instance.
     """
     mu = mass_target * mass_projectile / (mass_target + mass_projectile)
     Elab = (mass_target + mass_projectile) / mass_target * Ecm
@@ -119,51 +121,95 @@ def classical_kinematics_cm(mass_target, mass_projectile, Ecm, Zz=0):
     return ChannelKinematics(Elab, Ecm, mu, k, eta)
 
 
+def _rho(ma: float, mb: float, mc: float, md: float, E: float, Q: float) -> float:
+    """Return the standard two-body frame-conversion factor."""
+    rho = np.sqrt(ma * mc / (mb * md) * E / (E + Q))
+    if rho >= 1:
+        raise ValueError("rho must be < 1 for valid angle conversion.")
+    return float(rho)
+
+
+def _validate_angles(angles: npt.ArrayLike, var_name: str) -> None:
+    """Validate that an angle array is defined on ``[0, 180]`` degrees."""
+    angle_array = np.asarray(angles, dtype=float)
+    if np.any(angle_array < 0.0) or np.any(angle_array > 180.0):
+        raise ValueError(f"{var_name} must be in the range [0, 180] degrees.")
+
+
 def cm_to_lab_frame(
-    angles_cm_deg: np.ndarray,
+    angles_cm_deg: npt.ArrayLike,
     ma: float,
     mb: float,
     mc: float,
     md: float,
     E: float,
     Q: float,
-):
-    rho = np.sqrt(ma * mc / (mb * md) * E / (E + Q))
-    if rho >= 1:
-        raise ValueError("rho must be < 1 for valid angle conversion.")
-    angles_cm_rad = np.deg2rad(angles_cm_deg)
-    y = np.sin(angles_cm_rad)
-    x = rho + np.cos(angles_cm_rad)
-    theta_lab_rad = np.arctan2(y, x)
-    return np.rad2deg(theta_lab_rad)
+) -> FloatArray:
+    """Convert center-of-mass angles to laboratory angles.
+
+    Args:
+        angles_cm_deg: Input angles in degrees.
+        ma: Mass of projectile ``a``.
+        mb: Mass of target ``b``.
+        mc: Mass of ejectile ``c``.
+        md: Mass of recoil ``d``.
+        E: Laboratory-frame energy in MeV.
+        Q: Reaction Q-value in MeV.
+
+    Returns:
+        A NumPy array of laboratory-frame angles in degrees.
+    """
+    _validate_angles(angles_cm_deg, "angles_cm_deg")
+    rho = _rho(ma, mb, mc, md, E, Q)
+    theta_cm = np.deg2rad(np.asarray(angles_cm_deg, dtype=float))
+
+    theta_lab = np.arctan2(np.sin(theta_cm), rho + np.cos(theta_cm))
+    theta_lab = np.where(theta_lab < 0.0, theta_lab + 2.0 * np.pi, theta_lab)
+
+    return np.rad2deg(theta_lab)
 
 
 def lab_to_cm_frame(
-    angles_lab_deg: np.ndarray,
+    angles_lab_deg: npt.ArrayLike,
     ma: float,
     mb: float,
     mc: float,
     md: float,
     E: float,
     Q: float,
-):
-    rho = np.sqrt(ma * mc / (mb * md) * E / (E + Q))
-    if rho >= 1:
-        raise ValueError("rho must be < 1 for valid angle conversion.")
-    t = np.tan(np.deg2rad(angles_lab_deg))
-    # Compute s with explicit clipping for numerical safety
-    under_sqrt = (1 - rho**2) * t**4 + t**2
-    # Prevent small negative numbers inside sqrt
-    # due to numerical noise
-    under_sqrt = np.clip(under_sqrt, 0, None)
-    s = (rho * t + np.sqrt(under_sqrt)) / (t**2 + 1)
-    s = np.clip(s, -1, 1)  # For arcsin domain safety
-    theta_cm_rad = np.arcsin(s)
-    peak_index = np.argmax(s)
-    offset = 0 if s.size % 2 == 0 else 1
-    # only set the mirror if in range
-    if peak_index + offset < s.size:
-        theta_cm_rad[peak_index + offset :] = (
-            np.pi - theta_cm_rad[peak_index + offset :]
-        )
-    return np.rad2deg(theta_cm_rad)
+) -> FloatArray:
+    """Convert laboratory angles to center-of-mass angles.
+
+    Args:
+        angles_lab_deg: Input angles in degrees.
+        ma: Mass of projectile ``a``.
+        mb: Mass of target ``b``.
+        mc: Mass of ejectile ``c``.
+        md: Mass of recoil ``d``.
+        E: Laboratory-frame energy in MeV.
+        Q: Reaction Q-value in MeV.
+
+    Returns:
+        A NumPy array of center-of-mass angles in degrees.
+    """
+    _validate_angles(angles_lab_deg, "angles_lab_deg")
+    rho = _rho(ma, mb, mc, md, E, Q)
+    theta_lab = np.deg2rad(np.asarray(angles_lab_deg, dtype=float))
+
+    sin_lab = np.sin(theta_lab)
+    cos_lab = np.cos(theta_lab)
+
+    under_sqrt = 1.0 - (rho * sin_lab) ** 2
+    under_sqrt = np.clip(under_sqrt, 0.0, None)
+
+    k = rho * cos_lab + np.sqrt(under_sqrt)
+    sin_cm = k * sin_lab
+    cos_cm = k * cos_lab - rho
+
+    sin_cm = np.clip(sin_cm, -1.0, 1.0)
+    cos_cm = np.clip(cos_cm, -1.0, 1.0)
+
+    theta_cm = np.arctan2(sin_cm, cos_cm)
+    theta_cm = np.where(theta_cm < 0.0, theta_cm + 2.0 * np.pi, theta_cm)
+
+    return np.rad2deg(theta_cm)

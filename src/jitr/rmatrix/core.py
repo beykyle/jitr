@@ -1,11 +1,13 @@
+"""Low-level linear-algebra helpers for the R-matrix solver."""
+
 import numpy as np
-from numba import int32, float64, njit
+from numba import float64, int32, njit
 
 
 @njit
 def rmatrix_with_inverse(
     A: float64[:, :], b: float64[:], nchannels: int32, nbasis: int32, a: float64
-):
+) -> tuple[np.ndarray, np.ndarray]:
     r"""Eqn 15 in Descouvemont, 2016"""
     R = np.zeros((nchannels, nchannels), dtype=np.complex128)
     C = np.linalg.inv(A)
@@ -32,9 +34,9 @@ def solve_smatrix_with_inverse(
     a: float64,
     nchannels: int32,
     nbasis: int32,
-):
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     r"""
-    @returns the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
+    Return the multichannel R-Matrix, S-matrix, and wavefunction coefficients,
     all in Lagrange-Legendre coordinates, as well as the derivative of
     asymptotic channel Wavefunctions evaluated at the channel radius. Everything
     returned as block-matrices and block vectors in channel space.
@@ -66,9 +68,9 @@ def solution_coeffs_with_inverse(
     uext_prime_boundary: float64[:],
     nchannels: int32,
     nbasis: int32,
-):
+) -> np.ndarray:
     r"""
-    @returns the multichannel wavefunction coefficients, in Lagrange- Legendre
+    Return the multichannel wavefunction coefficients, in Lagrange-Legendre
     coordinates.
 
     This follows: Descouvemont, P. (2016).  An R-matrix package for

@@ -1,111 +1,109 @@
-from numba import njit
+"""Free-particle and Coulomb asymptotic solutions."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+import numpy as np
 import scipy.special as sc
 from mpmath import coulombf, coulombg
-import numpy as np
+from numba import njit
 
 
 @njit
-def Gamow_factor(l, eta):
-    r"""This returns the... Gamow factor.
-    See [Wikipedia](https://en.wikipedia.org/wiki/Gamow_factor).
-
-    Parameters:
-        l (int): angular momentum
-        eta (float): Sommerfeld parameter (see
-            [Wikipedia](https://en.wikipedia.org/wiki/Sommerfeld_parameter))
-
-    Returns:
-        C_l (float): Gamow factor
-
-    """
+def Gamow_factor(l: int, eta: float) -> float:
+    """Return the Coulomb Gamow factor for angular momentum ``l``."""
     if eta == 0.0:
         if l == 0:
-            return 1
-        else:
-            return 1 / (2 * l + 1) * Gamow_factor(l - 1, 0)
-    elif l == 0:
+            return 1.0
+        return 1.0 / (2 * l + 1) * Gamow_factor(l - 1, 0.0)
+    if l == 0:
         return np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
-    else:
-        return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
+    return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
 
 
 class FreeAsymptotics:
-    r"""For neutral particles, one may desired to explicitly pass in the type FreeAsymptotics
-    into H_plus, H_minus, etc., for speed, as, while Coulomb functions reduce to the spherical
-    Bessels for neutral particles, the arbitrary precision implementation in mpmath will be much
-    slower than this
-    """
-
-    def __init__():
-        pass
+    """Spherical-Bessel asymptotics for neutral-particle scattering."""
 
     @staticmethod
-    def F(s, l, _=None):
-        """
-        Bessel function of the first kind.
-        """
+    def F(s: float, l: int, _eta: float | None = None) -> np.float64:
+        """Return the regular free solution."""
         return s * sc.spherical_jn(l, s)
 
     @staticmethod
-    def G(s, l, _=None):
-        """
-        Bessel function of the second kind.
-        """
+    def G(s: float, l: int, _eta: float | None = None) -> np.float64:
+        """Return the irregular free solution."""
         return -s * sc.spherical_yn(l, s)
 
 
 class CoulombAsymptotics:
+    """Coulomb asymptotic functions evaluated through :mod:`mpmath`."""
+
     @staticmethod
-    def F(s, l, eta):
-        """
-        Coulomb function of the first kind.
-        """
+    def F(s: float, l: int, eta: float) -> np.complex128:
+        """Return the regular Coulomb function."""
         return np.complex128(coulombf(l, eta, s))
 
     @staticmethod
-    def G(s, l, eta):
-        """
-        Coulomb function of the second kind.
-        """
+    def G(s: float, l: int, eta: float) -> np.complex128:
+        """Return the irregular Coulomb function."""
         return np.complex128(coulombg(l, eta, s))
 
 
-def H_plus(s, l, eta, asym=CoulombAsymptotics):
-    """
-    Hankel/Coulomb-Hankel function of the first kind (outgoing).
-    """
+def H_plus(
+    s: float,
+    l: int,
+    eta: float,
+    asym: type = CoulombAsymptotics,
+) -> complex:
+    """Return the outgoing Coulomb-Hankel function."""
     return asym.G(s, l, eta) + 1j * asym.F(s, l, eta)
 
 
-def H_minus(s, l, eta, asym=CoulombAsymptotics):
-    """
-    Hankel/Coulomb-Hankel function of the second kind (incoming).
-    """
+def H_minus(
+    s: float,
+    l: int,
+    eta: float,
+    asym: type = CoulombAsymptotics,
+) -> complex:
+    """Return the incoming Coulomb-Hankel function."""
     return asym.G(s, l, eta) - 1j * asym.F(s, l, eta)
 
 
-def coulomb_func_deriv(func, s, l, eta):
-    """
-    Derivative of Coulomb functions F, G, and Coulomb Hankel functions H+ and H-
-    """
-    # recurrance relations from https://dlmf.nist.gov/33.4
-    # dlmf Eq. 33.4.4
-    R = np.sqrt(1 + eta**2 / (l + 1) ** 2)
-    S = (l + 1) / s + eta / (l + 1)
+def coulomb_func_deriv(
+    func: Callable[[float, int, float], complex],
+    s: float,
+    l: int,
+    eta: float,
+) -> complex:
+    """Differentiate Coulomb or Coulomb-Hankel functions using recurrence relations."""
+    recurrence_factor = np.sqrt(1 + eta**2 / (l + 1) ** 2)
+    shift_term = (l + 1) / s + eta / (l + 1)
     Xl = func(s, l, eta)
     Xlp = func(s, l + 1, eta)
-    return S * Xl - R * Xlp
+    return shift_term * Xl - recurrence_factor * Xlp
 
 
-def H_plus_prime(s, l, eta, asym=CoulombAsymptotics):
-    """
-    Derivative of the Hankel function (first kind) with respect to s
-    """
-    return coulomb_func_deriv(H_plus, s, l, eta)
+def H_plus_prime(
+    s: float,
+    l: int,
+    eta: float,
+    asym: type = CoulombAsymptotics,
+) -> complex:
+    """Return the derivative of the outgoing Coulomb-Hankel function."""
+    return coulomb_func_deriv(
+        lambda ss, ll, ee: H_plus(ss, ll, ee, asym=asym), s, l, eta
+    )
 
 
-def H_minus_prime(s, l, eta, dx=1e-6, asym=CoulombAsymptotics):
-    """
-    Derivative of the Hankel function (second kind) with respect to s.
-    """
-    return coulomb_func_deriv(H_minus, s, l, eta)
+def H_minus_prime(
+    s: float,
+    l: int,
+    eta: float,
+    dx: float = 1e-6,
+    asym: type = CoulombAsymptotics,
+) -> complex:
+    """Return the derivative of the incoming Coulomb-Hankel function."""
+    return coulomb_func_deriv(
+        lambda ss, ll, ee: H_minus(ss, ll, ee, asym=asym), s, l, eta
+    )

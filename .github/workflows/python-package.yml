@@ -1,69 +1,62 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# For more information see: 
+# https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
 name: Python package
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    
-    permissions:
-      # Give the default GITHUB_TOKEN write permission to commit and push the changed files back to the repository.
-      contents: write
-
+  test:
+    name: Test Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    
+
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
-    
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: ${{ github.head_ref }}
- 
-    - name: black
-      uses: lgeiger/black-action@v1.0.1
-      with:
-        args: .
- 
-    - name: Check for modified files
-      id: git-check
-      run: echo "modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi)" >> $GITHUB_OUTPUT
- 
-    - name: Push changes
-      if: steps.git-check.outputs.modified == 'true'
-      uses: stefanzweifel/git-auto-commit-action@v4
+        python-version: ["3.12", "3.13", "3.14"]
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install package and dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install flake8 pytest pandas 
-        pip install .
-    
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Test with pytest
-      run: |
-        pytest
-    
-    - name: run jupyter notebook tests
-      run: |
-        pip install -r examples/notebooks/requirements.txt
-        pytest --nbval-lax examples/notebooks/ -v
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install package and dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Black
+        run: uv run black --check .
+
+      - name: Flake8
+        run: uv run flake8 src tests
+
+      - name: Mypy
+        run: uv run mypy src
+
+      - name: Run unit tests
+        run: uv run pytest
+
+      - name: Run notebook tests
+        run: uv run --group examples pytest --nbval-lax --current-env examples/notebooks/
+
+      - name: Build package
+        run: uv build

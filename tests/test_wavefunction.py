@@ -1,9 +1,10 @@
 import numpy as np
+from scipy.integrate import solve_ivp
+
 from jitr import rmatrix
 from jitr.optical_potentials import potential_forms as potentials
 from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
 from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
-from scipy.integrate import solve_ivp
 
 Elab = 14.1
 nodes_within_radius = 5
@@ -46,6 +47,11 @@ def interaction(r, *params):
     return coulomb + nuclear
 
 
+def local_potential_array(solver, channel):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
+
+
 def test_wavefunction(l=0):
     ch = channels[l]
     asym = asymptotics[l]
@@ -58,8 +64,7 @@ def test_wavefunction(l=0):
         ch,
         asym,
         wavefunction=True,
-        local_interaction=interaction,
-        local_args=params,
+        local_potential=local_potential_array(solver_lm, ch),
     )
     u_lm = wavefunction.Wavefunctions(
         solver_lm,

@@ -1,6 +1,7 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=80", "setuptools_scm[toml]>=8"]
 build-backend = "setuptools.build_meta"
+
 
 [project]
 name = "jitr"
@@ -10,15 +11,146 @@ authors = [
 description = "Calculable R-matrix solver for quantum scattering using just-in-time compilation for performance."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.10"
-dynamic = ["dependencies", "version"]
+requires-python = ">=3.12"
+dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+    "mpmath",
+    "numpy",
+    "scipy",
+    "sympy",
+    "periodictable",
+    "numba",
+    "pandas",
+]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[dependency-groups]
+test = [
+    "pytest",
+]
+
+docs = [
+    "furo",
+    "myst-nb",
+    "sphinx",
+    "sphinx-autodoc-typehints",
+]
+
+examples = [
+    "matplotlib",
+    "exfor_tools",
+    "nbmake",
+    "nbval",
+    "ipykernel",
+    "jupyter",
+    "pytest",
+    "matplotlib",
+]
+
+lint = [
+    "ruff",
+    "black",
+    "flake8",
+    "mypy",
+    "flake8-pyproject>=1.2.4",
+    "pyright",
+]
+
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+    { include-group = "examples" },
+]
 
 [tool.setuptools_scm]
-write_to = "src/jitr/__version__.py"
+version_file = "src/jitr/__version__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = [".ipynb_checkpoints"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E741", "UP040"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/notebooks/*.ipynb" = ["E501"]
+"src/jitr/optical_potentials/chuq.py" = ["E501"]
+"src/jitr/optical_potentials/kduq.py" = ["E501"]
+"src/jitr/optical_potentials/wlh.py" = ["E501"]
+"src/jitr/reactions/reaction.py" = ["E501"]
+"src/jitr/reactions/system.py" = ["E501"]
+"src/jitr/utils/kinematics.py" = ["E501"]
+"src/jitr/utils/utils.py" = ["E501"]
+"src/jitr/xs/elastic.py" = ["E501"]
+"src/jitr/xs/quasielastic_pn.py" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = false
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+extend-exclude = "/(\\.ipynb_checkpoints|build|dist)/"
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "E741"]
+per-file-ignores = [
+    "src/jitr/optical_potentials/chuq.py:E501",
+    "src/jitr/optical_potentials/kduq.py:E501",
+    "src/jitr/optical_potentials/wlh.py:E501",
+    "src/jitr/reactions/reaction.py:E501",
+    "src/jitr/reactions/system.py:E501",
+    "src/jitr/utils/kinematics.py:E501",
+    "src/jitr/utils/utils.py:E501",
+    "src/jitr/xs/elastic.py:E501",
+    "src/jitr/xs/quasielastic_pn.py:E501",
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    ".ipynb_checkpoints",
+]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["jitr"]
+strict = false
+
+[[tool.mypy.overrides]]
+module = [
+    "mpmath",
+    "numba",
+    "numba.*",
+    "pandas",
+    "periodictable",
+    "scipy",
+    "scipy.*",
+    "sympy",
+    "sympy.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "jitr.reactions.wavefunction",
+    "jitr.rmatrix.rmatrix",
+    "jitr.utils.free_solutions",
+]
+ignore_errors = true

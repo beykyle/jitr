@@ -11,10 +11,14 @@ from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 
+from .._types import ArrayOrScalar, PotentialArray
 from ..data import data_dir
+from ..reactions import Reaction
 from ..utils.constants import WAVENUMBER_PION
-from ..xs.elastic import DifferentialWorkspace
+from ..utils.kinematics import ChannelKinematics
+from .omp import SingleChannelOpticalModel, _as_potential_array
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -25,7 +29,23 @@ from .potential_forms import (
 NUM_POSTERIOR_SAMPLES = 1000
 
 
-def get_samples(projectile: tuple):
+def get_param_names(projectile: tuple[int, int]) -> list[str]:
+    """
+    Get the names of the parameters for the given projectile, in the
+    order they are returned by the get_samples function.
+    """
+    return list(Global(projectile).params.keys())
+
+
+def get_samples(projectile: tuple[int, int]) -> np.ndarray:
+    """
+    Get the parameter samples for the WLH potential for the given
+    projectile.
+
+    Args:
+        projectile: tuple (A, Z) of the projectile. Should be (1, 0) for
+            neutron and (1, 1) for proton.
+    """
     return np.array(
         [
             list(
@@ -38,35 +58,68 @@ def get_samples(projectile: tuple):
     )
 
 
-def spin_orbit(r, uso, rso, aso):
-    r"""WLH spin-orbit terms"""
-    return (uso / WAVENUMBER_PION**2) * thomas_safe(r, rso, aso)
+def spin_orbit(
+    r: float | np.ndarray, Uso: float, Rso: float, aso: float
+) -> PotentialArray:
+    """
+    Form of the spin-orbit term in the WLH potential. See Eq. (2) of
+    Whitehead et al., 2021.
+
+    Args:
+        r: Radial coordinate(s) at which to evaluate the potential.
+        Uso: Spin-orbit strength parameter.
+        Rso: Spin-orbit radius parameter.
+        aso: Spin-orbit diffuseness parameter.
+    """
+    result = (Uso / WAVENUMBER_PION**2) * thomas_safe(r, Rso, aso)
+    return _as_potential_array(result)
 
 
-def central(r, uv, rv, av, uw, rw, aw, ud, rd, ad):
-    r"""WLH without the spin-orbit term"""
-    return (
-        -uv * woods_saxon_safe(r, rv, av)
-        - 1j * uw * woods_saxon_safe(r, rw, aw)
-        - 1j * (-4 * ad) * ud * woods_saxon_prime_safe(r, rd, ad)
+def central(
+    r: float | np.ndarray,
+    Uv: float,
+    Rv: float,
+    av: float,
+    Uw: float,
+    Rw: float,
+    aw: float,
+    Ud: float,
+    Rd: float,
+    ad: float,
+) -> PotentialArray:
+    """
+    Form of the central term in the WLH potential. See Eq. (2) of
+    Whitehead et al., 2021.
+
+    Args:
+        r: Radial coordinate(s) at which to evaluate the potential.
+        Uv: Real volume potential strength parameter.
+        Rv: Real volume potential radius parameter.
+        av: Real volume potential diffuseness parameter.
+        Uw: Imaginary volume potential strength parameter.
+        Rw: Imaginary volume potential radius parameter.
+        aw: Imaginary volume potential diffuseness parameter.
+        Ud: Imaginary surface potential strength parameter.
+        Rd: Imaginary surface potential radius parameter.
+        ad: Imaginary surface potential diffuseness parameter.
+    """
+    result = (
+        -Uv * woods_saxon_safe(r, Rv, av)
+        - 1j * Uw * woods_saxon_safe(r, Rw, aw)
+        - 1j * (-4 * ad) * Ud * woods_saxon_prime_safe(r, Rd, ad)
     )
-
-
-def central_plus_coulomb(r, central_params, coulomb_params):
-    nucl = central(r, *central_params)
-    coul = coulomb_charged_sphere(r, *coulomb_params)
-    return nucl + coul
+    return _as_potential_array(result)
 
 
 class Global:
     r"""Global optical potential in WLH form."""
 
-    def __init__(self, projectile: tuple, param_fpath: Path = None):
+    def __init__(self, projectile: tuple, param_fpath: Path | None = None):
         r"""
-        Parameters:
-            projectile : neutron or proton?
-            param_fpath : path to json file encoding parameter values.
-                Defaults to data/WLH_mean.json
+        Args:
+            projectile: Neutron or proton as ``(A, Z)`` tuple.
+            param_fpath: Path to JSON file encoding parameter values.
+                Defaults to ``data/WLH_mean.json``.
         """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
@@ -186,8 +239,10 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for WLH!")
 
-    def get_params(self, A, Z, Elab):
-        # fermi energy
+    def get_params(
+        self, A: int, Z: int, Elab: float
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """Return WLH central, spin-orbit, and Coulomb parameters."""
         return calculate_params(
             self.projectile, (A, Z), Elab, *list(self.params.values())
         )
@@ -243,22 +298,26 @@ def calculate_params(
     rso1: float,
     aso0: float,
     aso1: float,
-):
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """
-    Calculates WLH parameters for a given system
+    Calculate the arguments for the central, spin_orbit, and
+    coulomb_charged_sphere functions corresponding to the WLH potential
+    for a given projectile, target, lab energy, and the WLH parameters.
 
-    Parameters:
-        projectile : tuple
-            (A, Z) of the projectile
-        target : tuple
-            (A, Z) of the target
-        Elab : float
-            Laboratory energy in MeV
-        uv0, uv1, ..., aso1 : float
-            Parameters of the WLH potential. See
-            [Whitehead et al., 2021]
-            (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502)
+    Args:
+        projectile: tuple (A, Z) of the projectile.
+        target: tuple (A, Z) of the target.
+        Elab: Laboratory energy in MeV.
+        uv0, uv1, ..., aso1: Parameters of the WLH potential. See
+            `Whitehead et al., 2021
+            <https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502>`_
             for details.
+
+    Returns:
+        ``(central_params, spin_orbit_params, coulomb_params)`` where
+        ``central_params`` is ``(uv, Rv, av, uw, Rw, aw, ud, Rd, ad)``,
+        ``spin_orbit_params`` is ``(uso, Rso, aso)``, and
+        ``coulomb_params`` is ``(Z*Zp, RC)``.
     """
 
     A, Z = target
@@ -321,21 +380,62 @@ def calculate_params(
         rso * A ** (1.0 / 3.0),
         aso,
     )
-    return coulomb_params, central_params, spin_orbit_params
+    return central_params, spin_orbit_params, coulomb_params
 
 
-def calculate_diff_xs(
-    workspace: DifferentialWorkspace,
-    params: OrderedDict,
-):
-    rxn = workspace.reaction
-    coulomb_params, central_params, spin_orbit_params = calculate_params(
-        rxn.projectile, rxn.target, workspace.kinematics.Elab, params
-    )
+class WLH(SingleChannelOpticalModel):
+    """
+    The Whitehead-Lim-Holt global optical potential for nucleon-nucleus
+    scattering.
+    """
 
-    return workspace.xs(
-        central_plus_coulomb,
-        spin_orbit,
-        (central_params, coulomb_params),
-        spin_orbit_params,
-    )
+    def __init__(self, projectile: tuple):
+        super().__init__(
+            params=get_param_names(projectile),
+        )
+        self.projectile = projectile
+
+    def evaluate(
+        self,
+        rgrid: float | npt.NDArray[np.float64],
+        reaction: Reaction,
+        kinematics: ChannelKinematics,
+        *params: float,
+    ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
+        """
+        Evaluate the central, spin-orbit, and Coulomb terms of the WLH
+        potential on the given radial grid for the specified reaction and
+        kinematics, using the provided potential parameters.
+
+        Args:
+            rgrid: Radial coordinate or grid in fm.
+            reaction: Reaction for which to calculate the parameters.
+            kinematics: Kinematics of the reaction channel.
+            *params: Parameters of the WLH potential. See
+                `Whitehead et al., 2021
+                <https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.127.182502>`_
+                for details.
+
+        Returns:
+            ``(U_central, U_spin_orbit, U_coulomb)`` evaluated on the radial grid.
+        """
+        central_params, spin_orbit_params, coulomb_params = calculate_params(
+            (reaction.projectile.A, reaction.projectile.Z),
+            (reaction.target.A, reaction.target.Z),
+            kinematics.Elab,
+            *params,
+        )
+
+        U_central = central(
+            rgrid,
+            *central_params,
+        )
+        U_spin_orbit = spin_orbit(
+            rgrid,
+            *spin_orbit_params,
+        )
+        U_coulomb = coulomb_charged_sphere(
+            rgrid,
+            *coulomb_params,
+        )
+        return U_central, U_spin_orbit, U_coulomb

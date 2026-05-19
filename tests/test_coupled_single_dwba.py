@@ -1,4 +1,5 @@
 import numpy as np
+
 from jitr import reactions, rmatrix
 from jitr.utils.kinematics import classical_kinematics
 
@@ -24,6 +25,16 @@ def potential_2level(r, depth, mass, coupling):
     return np.array(
         [[diag, off_diag], [off_diag, diag]],
     )
+
+
+def local_scalar_potential(channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return potential_scalar(rgrid, *params)
+
+
+def local_2level_potential(channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return potential_2level(rgrid, *params)
 
 
 nbasis = 40
@@ -71,22 +82,19 @@ def test_coupled_vs_single():
     R, S, u = solver.solve(
         channels_uncoupled[0],
         asymptotics_uncoupled[0],
-        potential_scalar,
-        params_scalar,
+        local_potential=local_scalar_potential(channels_uncoupled[0], params_scalar),
     )
     R2, S2, u2 = solver.solve(
         channels_uncoupled[1],
         asymptotics_uncoupled[1],
-        potential_scalar,
-        params_scalar,
+        local_potential=local_scalar_potential(channels_uncoupled[1], params_scalar),
     )
 
     # solve the full system
     Rm, Sm, xm = solver.solve(
         channels_coupled,
         asymptotics_coupled,
-        potential_2level,
-        params_2level,
+        local_potential=local_2level_potential(channels_coupled, params_2level),
     )
 
     b = solver.precompute_boundaries(sys_2level.channel_radius)
@@ -112,8 +120,7 @@ def test_coupled_vs_single():
         channels_coupled.E[0],
         channels_coupled.a,
         channels_coupled.size,
-        potential_2level,
-        params_2level,
+        local_potential=local_2level_potential(channels_coupled, params_2level),
     )
 
     # test diaginal blocks
@@ -143,8 +150,9 @@ def test_coupled_vs_single():
             channels_uncoupled[0].E[0],
             channels_uncoupled[0].a,
             channels_uncoupled[0].size,
-            potential_scalar,
-            params_scalar,
+            local_potential=local_scalar_potential(
+                channels_uncoupled[0], params_scalar
+            ),
         ),
         solver.get_channel_block(
             interaction,
@@ -158,8 +166,9 @@ def test_coupled_vs_single():
             channels_uncoupled[1].E[0],
             channels_uncoupled[1].a,
             channels_uncoupled[1].size,
-            potential_scalar,
-            params_scalar,
+            local_potential=local_scalar_potential(
+                channels_uncoupled[1], params_scalar
+            ),
         ),
         solver.get_channel_block(
             interaction,
@@ -184,8 +193,9 @@ def test_coupled_vs_single():
             channels_uncoupled[0].E[0],
             channels_uncoupled[0].a,
             channels_uncoupled[0].size,
-            potential_scalar,
-            params_scalar,
+            local_potential=local_scalar_potential(
+                channels_uncoupled[0], params_scalar
+            ),
         )
         + free_0
     )

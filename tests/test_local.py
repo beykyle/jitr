@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.integrate import solve_ivp
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
@@ -6,7 +8,6 @@ from jitr.optical_potentials.potential_forms import (
 )
 from jitr.reactions import ProjectileTargetSystem, make_channel_data
 from jitr.utils import kinematics, schrodinger_eqn_ivp_order1, smatrix
-from scipy.integrate import solve_ivp
 
 
 def interaction(r, *args):
@@ -14,6 +15,11 @@ def interaction(r, *args):
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(
         r, zz, r_c
     )
+
+
+def local_potential_array(solver, channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
 
 
 def test_local():
@@ -72,12 +78,12 @@ def test_local():
         )
 
         for l in sys.l:
+            local_potential = local_potential_array(solver, channels[l], params)
             # Lagrange-Legendre R-Matrix solve for this partial wave
             R_lm, S_lm, uext_boundary = solver.solve(
                 channels[l],
                 asymptotics[l],
-                local_interaction=interaction,
-                local_args=params,
+                local_potential=local_potential,
                 basis_boundary=basis_boundary,
                 free_matrix=free_matrices[l],
             )
@@ -86,8 +92,8 @@ def test_local():
             rk_solver_info = make_channel_data(channels[l])[0]
             domain, init_con = rk_solver_info.initial_conditions()
             sol_rk = solve_ivp(
-                lambda s, y: schrodinger_eqn_ivp_order1(
-                    s, y, rk_solver_info, interaction, params
+                lambda s, y, channel=rk_solver_info: schrodinger_eqn_ivp_order1(
+                    s, y, channel, interaction, params
                 ),
                 domain,
                 init_con,

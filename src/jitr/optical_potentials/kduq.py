@@ -7,31 +7,67 @@ paper](https://www.sciencedirect.com/science/article/pii/S0375947402013210) for
 details. Equation references are with respect to (w.r.t.) this paper.
 """
 
-from pathlib import Path
-from collections import OrderedDict
-
 import json
+from collections import OrderedDict
+from pathlib import Path
+
 import numpy as np
 
-from ..utils.constants import WAVENUMBER_PION
-from .potential_forms import (
-    woods_saxon_safe,
-    woods_saxon_prime_safe,
-    thomas_safe,
-    coulomb_charged_sphere,
-)
+from .._types import ArrayOrScalar, PotentialArray
 from ..data import data_dir
-from ..xs.elastic import DifferentialWorkspace
+from ..reactions.reaction import Reaction
+from ..utils.constants import WAVENUMBER_PION
+from ..utils.kinematics import ChannelKinematics
+from .omp import SingleChannelOpticalModel, _as_potential_array
+from .potential_forms import (
+    coulomb_charged_sphere,
+    thomas_safe,
+    woods_saxon_prime_safe,
+    woods_saxon_safe,
+)
 
 NUM_POSTERIOR_SAMPLES = 416
 
 
-def get_samples_democratic(projectile: tuple):
+def get_param_names(projectile: tuple[int, int]) -> list[str]:
+    """
+    Get the names of the parameters for the given projectile, in the
+    order they are returned by the get_samples function.
+    """
+    return list(Global(projectile).params.keys())
+
+
+def get_samples(projectile: tuple[int, int], posterior: str = "federal") -> np.ndarray:
+    """
+    Get the posterior samples for the given projectile (neutron or
+    proton) from the KDUQ Federal or Democratic posteriors.
+
+    See [Pruitt, et al., 2023]
+    (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602) for
+    details on the KDUQ posteriors.
+
+    Args:
+        projectile: tuple (Ap, Zp) of the projectile. Must be ``(1, 0)``
+            for neutron or ``(1, 1)`` for proton.
+        posterior: Which KDUQ posterior to return samples from. Must be
+            either ``"federal"`` or ``"democratic"``. Defaults to ``"federal"``.
+
+    Returns:
+        An array of shape ``(NUM_POSTERIOR_SAMPLES, num_params)`` containing
+        the posterior samples for the given projectile.
+    """
+    if posterior == "federal":
+        directory = "KDUQFederal"
+    elif posterior == "democratic":
+        directory = "KDUQDemocratic"
+    else:
+        raise ValueError("posterior must be either 'federal' or 'democratic'")
+
     return np.array(
         [
             list(
                 Global(
-                    projectile, data_dir / f"KDUQDemocratic/{i}/parameters.json"
+                    projectile, data_dir / f"{directory}/{i}/parameters.json"
                 ).params.values()
             )
             for i in range(NUM_POSTERIOR_SAMPLES)
@@ -39,89 +75,118 @@ def get_samples_democratic(projectile: tuple):
     )
 
 
-def get_samples_federal(projectile: tuple):
-    return np.array(
-        [
-            list(
-                Global(
-                    projectile, data_dir / f"KDUQFederal/{i}/parameters.json"
-                ).params.values()
-            )
-            for i in range(NUM_POSTERIOR_SAMPLES)
-        ]
-    )
-
-
-def Vv(E, v1, v2, v3, v4, Ef):
+def Vv(E: float, v1: float, v2: float, v3: float, v4: float, Ef: float) -> float:
     r"""energy-dependent, volume-central strength - real term, Eq. (7)"""
     return v1 * (1 - v2 * (E - Ef) + v3 * (E - Ef) ** 2 - v4 * (E - Ef) ** 3)
 
 
-def Wv(E, w1, w2, Ef):
+def Wv(E: float, w1: float, w2: float, Ef: float) -> float:
     """energy-dependent, volume-central strength - imaginary term, Eq. (7)"""
     return w1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + w2**2)
 
 
-def Wd(E, d1, d2, d3, Ef):
+def Wd(E: float, d1: float, d2: float, d3: float, Ef: float) -> float:
     """energy-dependent, surface-central strength - imaginary term (no real
     term), Eq. (7)
     """
     return d1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + d3**2) * np.exp(-d2 * (E - Ef))
 
 
-def Vso(E, vso1, vso2, Ef):
+def Vso(E: float, vso1: float, vso2: float, Ef: float) -> float:
     """energy-dependent, spin-orbit strength --- real term, Eq. (7)"""
     return vso1 * np.exp(-vso2 * (E - Ef))
 
 
-def Wso(E, wso1, wso2, Ef):
+def Wso(E: float, wso1: float, wso2: float, Ef: float) -> float:
     """energy-dependent, spin-orbit strength --- imaginary term, Eq. (7)"""
     return wso1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + wso2**2)
 
 
-def delta_VC(E, Vcbar, v1, v2, v3, v4, Ef):
+def delta_VC(
+    E: float, Vcbar: float, v1: float, v2: float, v3: float, v4: float, Ef: float
+) -> float:
     """energy dependent Coulomb correction term, Eq. 23"""
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
 
-def central(r, vv, rv, av, wv, rwv, awv, wd, rd, ad):
-    r"""simplified Koning-Delaroche without the spin-orbit terms
+def central(
+    r: float | np.ndarray,
+    Vv: float,
+    Rv: float,
+    av: float,
+    Wv: float,
+    Rwv: float,
+    awv: float,
+    Wd: float,
+    Rd: float,
+    ad: float,
+) -> PotentialArray:
+    r"""
+    Koning-Delaroche central terms at a given energy.
 
-    Take Eq. (1) and remove the energy dependence of the coefficients.
+    This matches Eq. (7) in Koning and Delaroche (2003).
+
+    Args:
+        r: The radius at which to evaluate the potential.
+        Vv: The real central depth.
+        Rv: The real central radius parameter.
+        av: The real central diffuseness parameter.
+        Wv: The imaginary volume depth.
+        Rwv: The imaginary volume radius parameter.
+        awv: The imaginary volume diffuseness parameter.
+        Wd: The imaginary surface depth.
+        Rd: The imaginary surface radius parameter.
+        ad: The imaginary surface diffuseness parameter.
     """
-    return (
-        -vv * woods_saxon_safe(r, rv, av)
-        - 1j * wv * woods_saxon_safe(r, rwv, awv)
-        - 1j * (-4 * ad) * wd * woods_saxon_prime_safe(r, rd, ad)
+    result = (
+        -Vv * woods_saxon_safe(r, Rv, av)
+        - 1j * Wv * woods_saxon_safe(r, Rwv, awv)
+        - 1j * (-4 * ad) * Wd * woods_saxon_prime_safe(r, Rd, ad)
     )
+    return _as_potential_array(result)
 
 
-def central_plus_coulomb(r, central_params, coulomb_params):
-    nucl = central(r, *central_params)
-    coul = coulomb_charged_sphere(r, *coulomb_params)
-    return nucl + coul
+def spin_orbit(
+    r: float | np.ndarray,
+    Vso: float,
+    Rso: float,
+    aso: float,
+    Wso: float,
+    Rwso: float,
+    awso: float,
+) -> PotentialArray:
+    r"""
+    Koning-Delaroche spin-orbit terms at a given energy.
 
+    This matches Eq. (7) in Koning and Delaroche (2003).
 
-def spin_orbit(r, vso, rso, aso, wso, rwso, awso):
-    r"""simplified Koning-Delaroche spin-orbit terms
-
-    Take Eq. (1) and remove the energy dependence of the coefficients.
+    Args:
+        r: The radius at which to evaluate the potential.
+        Vso: The real spin-orbit depth.
+        Rso: The real spin-orbit radius parameter.
+        aso: The real spin-orbit diffuseness parameter.
+        Wso: The imaginary spin-orbit depth.
+        Rwso: The imaginary spin-orbit radius parameter.
+        awso: The imaginary spin-orbit diffuseness parameter.
     """
-    return vso / WAVENUMBER_PION**2 * thomas_safe(
-        r, rso, aso
-    ) + 1j * wso / WAVENUMBER_PION**2 * thomas_safe(r, rwso, awso)
+    result = Vso / WAVENUMBER_PION**2 * thomas_safe(
+        r, Rso, aso
+    ) + 1j * Wso / WAVENUMBER_PION**2 * thomas_safe(r, Rwso, awso)
+    return _as_potential_array(result)
 
 
 class Global:
     r"""Global Koning-Delaroche parameters"""
 
-    def __init__(self, projectile: tuple, param_fpath: Path = None):
+    def __init__(self, projectile: tuple, param_fpath: Path | None = None):
         r"""
-        Parameters:
-            projectile (tuple): (A,Z) must be neutron or proton
-                (e.g. (1,0) or (1,1))
-            param_fpath : path to json file encoding parameter values.
-            Defaults to data/KD_default.json
+        Args:
+            projectile: tuple (Ap, Zp) of the projectile. Must be ``(1, 0)``
+                for neutron or ``(1, 1)`` for proton.
+            param_fpath: Path to the JSON file containing the Koning-Delaroche
+                parameters. If ``None``, defaults to ``KD_default.json`` in the
+                data directory, which contains the original Koning-Delaroche
+                (2003) parameters.
         """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
@@ -271,7 +336,10 @@ class Global:
             else:
                 raise ValueError("Unrecognized parameter file format for KDUQ!")
 
-    def get_params(self, A, Z, Elab):
+    def get_params(
+        self, A: int, Z: int, Elab: float
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """Return Koning-Delaroche central, spin-orbit, and Coulomb parameters."""
         return calculate_params(
             self.projectile, (A, Z), Elab, *list(self.params.values())
         )
@@ -321,45 +389,28 @@ def calculate_params(
     rc_0: float = 0.0,
     rc_A: float = 0.0,
     rc_A2: float = 0.0,
-):
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """
-    Calculate Koning-Delaroche global neutron-nucleus optical potential
-    parameters for a given system.
+    Calculate the arguments for the central, spin_orbit, and
+    coulomb_charged_sphere functions corresponding to the KDUQ potential
+    for a given projectile, target, lab energy, and the KDUQ parameters.
 
-    Parameters:
-    ----------
-    projectile : tuple
-        A tuple representing the projectile, with format (Ap, Zp),
-        where Ap is the mass number and Zp is the atomic number.
-    target : tuple
-        A tuple representing the target, with format (A, Z),
-        where A is the mass number and Z is the atomic number.
-    Elab : float
-        The laboratory energy of the projectile in MeV.
-    Ef_0 : float
-        Base Fermi energy.
-    Ef_A : float
-        Atomic mass number modifier for Fermi energy.
-    v1_0, v1_asymm, ..., rc_A2: float
-        Parameters for the Koning-Delaroche potential, including
-        real and imaginary central depths, forms, spin-orbit terms,
-        and Coulomb correction parameters. See Table V and the Appendix
-        of [Pruitt, et al., 2023]
-        (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602)
-        for details.
+    Args:
+        projectile: tuple (Ap, Zp) of the projectile.
+        target: tuple (A, Z) of the target.
+        Elab: Laboratory energy of the projectile in MeV.
+        Ef_0: Base Fermi energy.
+        Ef_A: Atomic mass number modifier for Fermi energy.
+        v1_0, v1_asymm, ..., rc_A2: Parameters for the Koning-Delaroche
+            potential. See Table V and the Appendix of `Pruitt et al., 2023
+            <https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602>`_
+            for details.
 
     Returns:
-    -------
-    tuple
-        A tuple containing the following:
-        - coulomb_params: tuple
-            A tuple with Coulomb parameters (Z * Zp, R_C).
-        - central_params: tuple
-            A tuple with central potential parameters
-            (vv, rv * A**(1/3), av, wv, rwv * A**(1/3), awv, wd, rd * A**(1/3), ad)
-        - spin_orbit_params: tuple
-            A tuple with spin-orbit potential parameters
-            (vso, rso * A**(1/3), aso, wso, rwso * A**(1/3), awso).
+        ``(central_params, spin_orbit_params, coulomb_params)`` where
+        ``central_params`` is ``(vv, Rv, av, wv, Rwv, awv, wd, Rd, ad)``,
+        ``spin_orbit_params`` is ``(vso, Rso, aso, wso, Rwso, awso)``, and
+        ``coulomb_params`` is ``(Z*Zp, RC)``.
     """
 
     A, Z = target
@@ -452,21 +503,35 @@ def calculate_params(
         awso,
     )
 
-    return coulomb_params, central_params, spin_orbit_params
+    return central_params, spin_orbit_params, coulomb_params
 
 
-def calculate_diff_xs(
-    workspace: DifferentialWorkspace,
-    params: OrderedDict,
-):
-    rxn = workspace.reaction
-    coulomb_params, central_params, spin_orbit_params = calculate_params(
-        rxn.projectile, rxn.target, workspace.kinematics.Elab, params
-    )
+class KDUQ(SingleChannelOpticalModel):
+    """
+    Koning-Delaroche Uncertainty Quantification (KDUQ) optical
+    potential model.
+    """
 
-    return workspace.xs(
-        central_plus_coulomb,
-        spin_orbit,
-        (central_params, coulomb_params),
-        spin_orbit_params,
-    )
+    def __init__(self, projectile: tuple):
+        super().__init__(params=get_param_names(projectile))
+        self.projectile = projectile
+
+    def evaluate(
+        self,
+        rgrid: float | np.ndarray,
+        reaction: Reaction,
+        kinematics: ChannelKinematics,
+        *params: float,
+    ) -> tuple[PotentialArray, PotentialArray, ArrayOrScalar]:
+        """Evaluate the KDUQ central, spin-orbit, and Coulomb terms."""
+        central_params, spin_orbit_params, coulomb_params = calculate_params(
+            (reaction.projectile.A, reaction.projectile.Z),
+            (reaction.target.A, reaction.target.Z),
+            kinematics.Elab,
+            *params,
+        )
+        return (
+            central(rgrid, *central_params),
+            spin_orbit(rgrid, *spin_orbit_params),
+            coulomb_charged_sphere(rgrid, *coulomb_params),
+        )

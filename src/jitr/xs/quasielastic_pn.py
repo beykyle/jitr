@@ -1,4 +1,7 @@
+"""DWBA workspaces for quasi-elastic ``(p,n)`` scattering observables."""
+
 import numpy as np
+import numpy.typing as npt
 from scipy.special import gamma, sph_harm_y
 from sympy.physics.wigner import clebsch_gordan
 
@@ -8,6 +11,9 @@ from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
 from .elastic import check_angles
 
+ComplexArray = npt.NDArray[np.complex128]
+FloatArray = npt.NDArray[np.float64]
+
 
 class System:
     r"""
@@ -16,19 +22,13 @@ class System:
     projectile and target masses, charges, and the channel radius.
 
     Attributes:
-    ----------
-    channel_radius_fm : float
-        The channel radius in femtometers.
-    lmax : int
-        The maximum angular momentum quantum number.
-    l : np.ndarray
-        An array of angular momentum quantum numbers from 0 to lmax.
-    entrance : ProjectileTargetSystem
-        The entrance channel system, which includes the projectile and target masses,
-        charges, and the channel radius.
-    exit : ProjectileTargetSystem
-        The exit channel system, which includes the product and residual masses,
-        charges, and the channel radius.
+        channel_radius_fm: The channel radius in femtometers.
+        lmax: The maximum angular momentum quantum number.
+        l: An array of angular momentum quantum numbers from 0 to lmax.
+        entrance: The entrance channel system, including projectile/target
+            masses, charges, and the channel radius.
+        exit: The exit channel system, including product/residual masses,
+            charges, and the channel radius.
     """
 
     def __init__(
@@ -38,22 +38,17 @@ class System:
         reaction: Reaction,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
-    ):
+    ) -> None:
         r"""
         Initialize the System for (p,n) quasi-elastic scattering observables.
-        Parameters:
-        ----------
-        channel_radius_fm : float
-            The channel radius in femtometers.
-        lmax : int
-            The maximum angular momentum quantum number.
-        reaction : Reaction
-            The reaction object containing information about the target, projectile,
-            residual, and product.
-        kinematics_entrance : ChannelKinematics
-            The kinematics for the entrance channel.
-        kinematics_exit : ChannelKinematics
-            The kinematics for the exit channel.
+
+        Args:
+            channel_radius_fm: The channel radius in femtometers.
+            lmax: The maximum angular momentum quantum number.
+            reaction: Reaction object containing information about the target,
+                projectile, residual, and product.
+            kinematics_entrance: Kinematics for the entrance channel.
+            kinematics_exit: Kinematics for the exit channel.
         """
 
         self.channel_radius_fm = channel_radius_fm
@@ -70,6 +65,10 @@ class System:
             coupling=spin_half_orbit_coupling,
         )
 
+        if reaction.residual is None or reaction.product is None:
+            raise ValueError(
+                "Reaction must define both residual and product for (p,n) scattering"
+            )
         self.exit = ProjectileTargetSystem(
             channel_radius=self.channel_radius_fm * kinematics_exit.k,
             lmax=self.lmax,
@@ -94,32 +93,27 @@ class Workspace:
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
         solver: Solver,
-        angles: np.array,
+        angles: FloatArray,
         lmax: int,
         channel_radius_fm: float,
         tmatrix_abs_tol: float = 1e-6,
-    ):
+    ) -> None:
         r"""
         Initialize the Workspace for (p,n) quasi-elastic scattering observables.
-        Parameters:
-        ----------
-        reaction : Reaction
-            The reaction object containing information about the target, projectile,
-            residual, and product.
-        kinematics_entrance : ChannelKinematics
-            The kinematics for the entrance channel.
-        kinematics_exit : ChannelKinematics
-            The kinematics for the exit channel.
-        solver : Solver
-            The solver used to compute the distorted waves and interaction matrices.
-        angles : np.array
-            The angles in radians at which to compute the differential cross section.
-        lmax : int
-            The maximum angular momentum quantum number.
-        channel_radius_fm : float
-            The channel radius in femtometers.
-        tmatrix_abs_tol : float
-            The absolute tolerance for the transition matrix elements.
+
+        Args:
+            reaction: Reaction object containing information about the target,
+                projectile, residual, and product.
+            kinematics_entrance: Kinematics for the entrance channel.
+            kinematics_exit: Kinematics for the exit channel.
+            solver: Solver used to compute the distorted waves and interaction
+                matrices.
+            angles: Angles in radians at which to compute the differential
+                cross section.
+            lmax: The maximum angular momentum quantum number.
+            channel_radius_fm: The channel radius in femtometers.
+            tmatrix_abs_tol: The absolute tolerance for the transition matrix
+                elements.
         """
 
         # params
@@ -222,52 +216,52 @@ class Workspace:
                                 * ylm
                             )
 
+    def radial_grid(self) -> FloatArray:
+        """Return the physical quadrature grid used for local potentials."""
+        return self.solver.radial_grid(
+            self.p_channels[0][0].a, self.kinematics_entrance.k
+        )
+
+    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
+        """Validate and cast a local potential array on the quadrature grid."""
+        potential_array = np.asarray(potential, dtype=np.complex128)
+        expected_shape = (self.solver.kernel.quadrature.nbasis,)
+        if potential_array.shape != expected_shape:
+            raise ValueError(f"{name} must have shape {expected_shape}")
+        return potential_array
+
+    def _optional_local_potential(
+        self, potential: npt.ArrayLike | None, name: str
+    ) -> ComplexArray:
+        """Return a validated local potential or a zero array when omitted."""
+        if potential is None:
+            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
+        return self._local_potential(potential, name)
+
     def tmatrix(
         self,
-        U_p_coulomb=None,
-        U_p_central=None,
-        U_p_spin_orbit=None,
-        U_n_central=None,
-        U_n_spin_orbit=None,
-        args_p_coulomb=None,
-        args_p_central=None,
-        args_p_spin_orbit=None,
-        args_n_central=None,
-        args_n_spin_orbit=None,
-    ):
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
         using the distorted wave Born approximation (DWBA).
-        Parameters:
-        ----------
-        U_p_coulomb : callable
-            The Coulomb interaction for the proton.
-        U_p_central : callable
-            The central interaction for the proton.
-        U_p_spin_orbit : callable
-            The spin-orbit interaction for the proton.
-        U_n_central : callable
-            The central interaction for the neutron.
-        U_n_spin_orbit : callable
-            The spin-orbit interaction for the neutron.
-        args_p_coulomb : tuple
-            parameters for the proton Coulomb interaction.
-        args_p_central : tuple
-            parameters for the proton central interaction.
-        args_p_spin_orbit : tuple
-            parameters for the proton spin-orbit interaction.
-        args_n_central : tuple
-            parameters for the neutron central interaction.
-        args_n_spin_orbit : tuple
-            parameters for the neutron spin-orbit interaction.
+
+        Args:
+            U_p_coulomb: Coulomb interaction for the proton.
+            U_p_central: Central interaction for the proton.
+            U_p_spin_orbit: Spin-orbit interaction for the proton.
+            U_n_central: Central interaction for the neutron.
+            U_n_spin_orbit: Spin-orbit interaction for the neutron.
+
         Returns:
-        -------
-        Tpn : np.ndarray
-            The transition matrix for the (p,n) reaction.
-        Sn : np.ndarray
-            The S-matrix for the neutron elastic exit channel.
-        Sp : np.ndarray
-            The S-matrix for the proton elastic entrance channel.
+            Tuple (Tpn, Sn, Sp) where Tpn is the transition matrix for the
+            (p,n) reaction, Sn is the S-matrix for the neutron elastic exit
+            channel, and Sp is the S-matrix for the proton elastic entrance
+            channel.
         """
         Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
@@ -275,29 +269,39 @@ class Workspace:
 
         # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
+        if U_n_central is None:
+            raise TypeError("U_n_central is required")
+
+        proton_central = self._local_potential(U_p_central, "U_p_central")
+        proton_spin_orbit = self._optional_local_potential(
+            U_p_spin_orbit, "U_p_spin_orbit"
+        )
+        proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
+        neutron_central = self._local_potential(U_n_central, "U_n_central")
+        neutron_spin_orbit = self._optional_local_potential(
+            U_n_spin_orbit, "U_n_spin_orbit"
+        )
+
         im_central_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_central,
-            local_args=args_p_central,
+            local_potential=proton_central,
         )
         im_spin_orbit_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_spin_orbit,
-            local_args=args_p_spin_orbit,
+            local_potential=proton_spin_orbit,
         )
         im_coulomb_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
             self.p_channels[0][0].E[0],
             self.p_channels[0][0].a,
             self.p_channels[0][0].size,
-            local_interaction=U_p_coulomb,
-            local_args=args_p_coulomb,
+            local_potential=proton_coulomb,
         )
 
         # precomute central and spin-obit interaction matrices
@@ -307,36 +311,19 @@ class Workspace:
             self.n_channels[0][0].E[0],
             self.n_channels[0][0].a,
             self.n_channels[0][0].size,
-            local_interaction=U_n_central,
-            local_args=args_n_central,
+            local_potential=neutron_central,
         )
         im_spin_orbit_n = self.solver.interaction_matrix(
             self.n_channels[0][0].k[0],
             self.n_channels[0][0].E[0],
             self.n_channels[0][0].a,
             self.n_channels[0][0].size,
-            local_interaction=U_n_spin_orbit,
-            local_args=args_n_spin_orbit,
+            local_potential=neutron_spin_orbit,
         )
 
-        # evaluate the QE (p,n) transition matrix element on the quadrature
-        # in r-space
-        r_quadrature = (
-            self.solver.kernel.quadrature.abscissa * self.sys.channel_radius_fm
-        )
-        U1_central = (
-            -(
-                U_n_central(r_quadrature, *args_n_central)
-                - U_p_central(r_quadrature, *args_p_central)
-            )
-            * self.isovector_factor
-        )
+        U1_central = -(neutron_central - proton_central) * self.isovector_factor
         U1_spin_orbit = (
-            -(
-                U_n_spin_orbit(r_quadrature, *args_n_spin_orbit)
-                - U_p_spin_orbit(r_quadrature, *args_p_spin_orbit)
-            )
-            * self.isovector_factor
+            -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
         )
 
         def tmatrix_element(l, ji, l_dot_s):
@@ -393,47 +380,25 @@ class Workspace:
 
     def xs(
         self,
-        U_p_coulomb=None,
-        U_p_central=None,
-        U_p_spin_orbit=None,
-        U_n_central=None,
-        U_n_spin_orbit=None,
-        args_p_coulomb=None,
-        args_p_central=None,
-        args_p_spin_orbit=None,
-        args_n_central=None,
-        args_n_spin_orbit=None,
-    ):
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
+    ) -> np.ndarray:
         """
-        Calculate the differential cross section for (p,n) quasi-elastic scattering
-        in mb/Sr in the outgoing neutron angle using DWBA.
-        Parameters:
-        ----------
-        U_p_coulomb : callable
-            The Coulomb interaction for the proton.
-        U_p_central : callable
-            The central interaction for the proton.
-        U_p_spin_orbit : callable
-            The spin-orbit interaction for the proton.
-        U_n_central : callable
-            The central interaction for the neutron.
-        U_n_spin_orbit : callable
-            The spin-orbit interaction for the neutron.
-        args_p_coulomb : tuple
-            parameters for the proton Coulomb interaction.
-        args_p_central : tuple
-            parameters for the proton central interaction.
-        args_p_spin_orbit : tuple
-            parameters for the proton spin-orbit interaction.
-        args_n_central : tuple
-            parameters for the neutron central interaction.
-        args_n_spin_orbit : tuple
-            parameters for the neutron spin-orbit interaction.
+        Calculate the differential cross section for (p,n) quasi-elastic
+        scattering in mb/Sr in the outgoing neutron angle using DWBA.
+
+        Args:
+            U_p_coulomb: Coulomb interaction for the proton.
+            U_p_central: Central interaction for the proton.
+            U_p_spin_orbit: Spin-orbit interaction for the proton.
+            U_n_central: Central interaction for the neutron.
+            U_n_spin_orbit: Spin-orbit interaction for the neutron.
 
         Returns:
-        -------
-        xs : np.ndarray
-            The differential cross section for the (p,n) reaction in mb/Sr.
+            Differential cross section for the (p,n) reaction in mb/Sr.
         """
 
         Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
@@ -443,11 +408,6 @@ class Workspace:
             U_p_spin_orbit=U_p_spin_orbit,
             U_n_central=U_n_central,
             U_n_spin_orbit=U_n_spin_orbit,
-            args_p_coulomb=args_p_coulomb,
-            args_p_central=args_p_central,
-            args_p_spin_orbit=args_p_spin_orbit,
-            args_n_central=args_n_central,
-            args_n_spin_orbit=args_n_spin_orbit,
         )
         # TODO cast into a np.sum
         for im, m in enumerate([-0.5, 0.5]):

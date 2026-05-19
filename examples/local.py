@@ -1,4 +1,7 @@
 import numpy as np
+from matplotlib import pyplot as plt
+from scipy.integrate import solve_ivp
+
 from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
@@ -6,8 +9,6 @@ from jitr.optical_potentials.potential_forms import (
 )
 from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
 from jitr.utils import delta, kinematics, schrodinger_eqn_ivp_order1, smatrix
-from matplotlib import pyplot as plt
-from scipy.integrate import solve_ivp
 
 # target (A,Z)
 Ca48 = (48, 20)
@@ -21,6 +22,11 @@ mass_proton = 938.271653086152  # MeV/c^2
 def interaction(r, *params):
     V0, W0, R0, a0, zz, RC = params
     return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
+
+
+def local_potential_array(solver, channel, params):
+    rgrid = solver.radial_grid(channel.a, channel.k[0])
+    return interaction(rgrid, *params)
 
 
 def local_interaction_example():
@@ -76,8 +82,12 @@ def local_interaction_example():
     S_rk = smatrix(R_rk, a, ch.l, ch.eta)
 
     # Lagrange mesh
+    local_potential = local_potential_array(solver_lm, channels[l], params)
     R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        channels[l], asymptotics[l], interaction, params, wavefunction=True
+        channels[l],
+        asymptotics[l],
+        local_potential=local_potential,
+        wavefunction=True,
     )
     # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
     u_lm = wavefunction.Wavefunctions(
@@ -123,7 +133,7 @@ def local_interaction_example():
 
     plt.legend()
     plt.xlabel(r"$r$ [fm]")
-    plt.ylabel(r"$u_{%d} (r) $ [a.u.]" % ch.l)
+    plt.ylabel(rf"$u_{{{ch.l}}} (r) $ [a.u.]")
     plt.tight_layout()
     plt.show()
 
@@ -168,8 +178,11 @@ def channel_radius_dependence_test():
     for i, a in enumerate(a_grid):
         sys.channel_radius = a
         channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
+        local_potential = solver.radial_grid(channels[l].a, channels[l].k[0])
         R, S, _ = solver.solve(
-            channels[l], asymptotics[l], woods_saxon_potential, params
+            channels[l],
+            asymptotics[l],
+            local_potential=woods_saxon_potential(local_potential, *params),
         )
         deltaa, attena = delta(S[0, 0])
         delta_grid[i] = deltaa + 1.0j * attena
@@ -240,13 +253,13 @@ def rmse_RK_LM():
         # since our interaction is l-independent and we're using the same
         # set of parameters for each partial wave, we can actually pre-compute
         # the interaction part of the Lagrange-matrix
+        local_potential = local_potential_array(solver, channels[0], params)
         im = solver.interaction_matrix(
             channels[0].k[0],
             channels[0].E[0],
             channels[0].a,
             channels[0].size,
-            local_interaction=interaction,
-            local_args=params,
+            local_potential=local_potential,
         )
 
         for l in sys.l:
@@ -263,8 +276,8 @@ def rmse_RK_LM():
             rk_solver_info = make_channel_data(channels[l])[0]
             domain, init_con = rk_solver_info.initial_conditions()
             sol_rk = solve_ivp(
-                lambda s, y: schrodinger_eqn_ivp_order1(
-                    s, y, rk_solver_info, interaction, params
+                lambda s, y, channel=rk_solver_info: schrodinger_eqn_ivp_order1(
+                    s, y, channel, interaction, params
                 ),
                 domain,
                 init_con,
@@ -280,7 +293,7 @@ def rmse_RK_LM():
             error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
 
     for l in sys.l:
-        plt.plot(egrid, 100 * error_matrix[l, :], label=r"$l = %d$" % l)
+        plt.plot(egrid, 100 * error_matrix[l, :], label=rf"$l = {l}$")
 
     plt.ylabel(
         r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} |"
