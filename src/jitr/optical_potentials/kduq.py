@@ -32,15 +32,37 @@ NUM_POSTERIOR_SAMPLES = 416
 def get_param_names(projectile: tuple[int, int]) -> list[str]:
     """
     Get the names of the parameters for the given projectile, in the
-    order they are returned by the get_samples function.
+    order they are returned by :func:`get_kd03` and :func:`get_samples`.
     """
     return list(Global(projectile).params.keys())
+
+
+def get_kd03(projectile: tuple[int, int]) -> np.ndarray:
+    """
+    Return the original KD03 frequentist parameter vector for the given projectile.
+
+    This is the single parameter set loaded by :class:`Global` when no explicit
+    ``param_fpath`` is supplied. The returned vector follows the ordering from
+    :func:`get_param_names` so it can be passed directly into
+    :func:`calculate_params` or compared with rows returned by :func:`get_samples`.
+
+    Args:
+        projectile: tuple ``(Ap, Zp)`` of the projectile. Must be ``(1, 0)``
+            for neutron or ``(1, 1)`` for proton.
+
+    Returns:
+        A one-dimensional array containing the KD03 frequentist parameter set.
+    """
+    return np.asarray(list(Global(projectile).params.values()), dtype=np.float64)
 
 
 def get_samples(projectile: tuple[int, int], posterior: str = "federal") -> np.ndarray:
     """
     Get the posterior samples for the given projectile (neutron or
     proton) from the KDUQ Federal or Democratic posteriors.
+
+    These samples are distinct from the original KD03 frequentist parameter
+    set returned by :func:`get_kd03`.
 
     See [Pruitt, et al., 2023]
     (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602) for
@@ -185,8 +207,8 @@ class Global:
                 for neutron or ``(1, 1)`` for proton.
             param_fpath: Path to the JSON file containing the Koning-Delaroche
                 parameters. If ``None``, defaults to ``KD_default.json`` in the
-                data directory, which contains the original Koning-Delaroche
-                (2003) parameters.
+                data directory, which contains the original KD03 frequentist
+                parameter set from Koning and Delaroche (2003).
         """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(
