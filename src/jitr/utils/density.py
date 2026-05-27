@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import periodictable
@@ -47,28 +48,32 @@ class DensityTable:
     radial_grid: NDArray[np.float64]
     proton_density_grid: NDArray[np.float64]
     neutron_density_grid: NDArray[np.float64]
-    _proton_density: Callable[[float | np.ndarray], np.ndarray] = field(
+    _proton_density_interp: Callable[[np.ndarray], np.ndarray] | None = field(
         init=False,
+        default=None,
         repr=False,
         compare=False,
     )
-    _neutron_density: Callable[[float | np.ndarray], np.ndarray] = field(
+    _neutron_density_interp: Callable[[np.ndarray], np.ndarray] | None = field(
         init=False,
+        default=None,
         repr=False,
         compare=False,
     )
 
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "_proton_density",
-            density_from_array(self.radial_grid, self.proton_density_grid),
-        )
-        object.__setattr__(
-            self,
-            "_neutron_density",
-            density_from_array(self.radial_grid, self.neutron_density_grid),
-        )
+    def _proton_interpolator(self) -> Callable[[np.ndarray], np.ndarray]:
+        interp = self._proton_density_interp
+        if interp is None:
+            interp = density_from_array(self.radial_grid, self.proton_density_grid)
+            object.__setattr__(self, "_proton_density_interp", interp)
+        return cast(Callable[[np.ndarray], np.ndarray], interp)
+
+    def _neutron_interpolator(self) -> Callable[[np.ndarray], np.ndarray]:
+        interp = self._neutron_density_interp
+        if interp is None:
+            interp = density_from_array(self.radial_grid, self.neutron_density_grid)
+            object.__setattr__(self, "_neutron_density_interp", interp)
+        return cast(Callable[[np.ndarray], np.ndarray], interp)
 
     @property
     def N(self) -> int:
@@ -81,11 +86,11 @@ class DensityTable:
 
     def proton_density(self, r: float | np.ndarray) -> np.ndarray:
         """Return the proton density on the requested radial grid."""
-        return self._proton_density(r)
+        return self._proton_interpolator()(np.asarray(r, dtype=float))
 
     def neutron_density(self, r: float | np.ndarray) -> np.ndarray:
         """Return the neutron density on the requested radial grid."""
-        return self._neutron_density(r)
+        return self._neutron_interpolator()(np.asarray(r, dtype=float))
 
     def matter_density(self, r: float | np.ndarray) -> np.ndarray:
         """Return the total matter density on the requested radial grid."""

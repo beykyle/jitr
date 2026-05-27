@@ -52,6 +52,28 @@ class TestDensityUtilities:
             proton + neutron,
         )
 
+    def test_density_interpolators_are_built_lazily(self):
+        radial = np.array([0.0, 0.5, 1.0], dtype=float)
+        proton_grid = np.array([0.1, 0.08, 0.04], dtype=float)
+        neutron_grid = np.array([0.12, 0.09, 0.05], dtype=float)
+        table = density.DensityTable(
+            A=16,
+            Z=8,
+            model="test",
+            symbol="O",
+            dr=0.5,
+            radial_grid=radial,
+            proton_density_grid=proton_grid,
+            neutron_density_grid=neutron_grid,
+        )
+        assert table._proton_density_interp is None
+        assert table._neutron_density_interp is None
+        _ = table.proton_density(np.array([0.0]))
+        assert table._proton_density_interp is not None
+        assert table._neutron_density_interp is None
+        _ = table.neutron_density(np.array([0.0]))
+        assert table._neutron_density_interp is not None
+
     def test_density_zero_outside_tabulated_range(self):
         table = density.density_table(16, 8, model="bskg3")
         beyond = np.array([table.radial_grid[-1] + table.dr])
