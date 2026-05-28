@@ -83,6 +83,7 @@ F_N_IM = np.array(
     ]
 )
 F_DAMPING = 1.0  # MeV
+DAMPING_EPS = 1e-12  # MeV
 
 # ---------------------------------------------------------------------------
 # Eq. 27 — Fermi energy ε_F(ρ) = ρ·(−510.8 + 3222·ρ − 6250·ρ²)  [MeV]
@@ -132,6 +133,7 @@ def W0(
     E_F: ScalarOrArray,
     coeffs: FloatArray = D_W0,
     damping: float = D_DAMPING,
+    damping_eps: float = DAMPING_EPS,
 ) -> PolynomialValue:
     """Return the imaginary isoscalar JLM self-energy component.
 
@@ -141,18 +143,15 @@ def W0(
         E_F: Local Fermi energy in MeV.
         coeffs: Polynomial coefficients for the fit.
         damping: Imaginary-part damping parameter in MeV².
+        damping_eps: Minimum energy denominator scale in MeV.
 
     Returns:
         Imaginary isoscalar self-energy values in MeV.
     """
 
     energy_diff_sq = np.asarray((E_MeV - E_F) ** 2, dtype=float)
-    damping_term = np.divide(
-        damping,
-        energy_diff_sq,
-        out=np.full(energy_diff_sq.shape, np.inf, dtype=float),
-        where=energy_diff_sq != 0.0,
-    )
+    safe_energy_diff_sq = np.maximum(energy_diff_sq, damping_eps**2)
+    damping_term = damping / safe_energy_diff_sq
     return poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0) / (
         1 + damping_term
     )
@@ -253,6 +252,7 @@ def W1(
     coeffs_A: FloatArray = A_V0,
     coeffs_C: FloatArray = C_KMASS,
     damping: float = F_DAMPING,
+    damping_eps: float = DAMPING_EPS,
 ) -> PolynomialValue:
     """Return the imaginary isovector JLM self-energy component.
 
@@ -264,18 +264,19 @@ def W1(
         coeffs_A: Coefficients for the real isoscalar fit.
         coeffs_C: Coefficients for the momentum-dependent mass fit.
         damping: Imaginary-part damping parameter in MeV.
+        damping_eps: Minimum absolute energy denominator scale in MeV.
 
     Returns:
         Imaginary isovector self-energy values in MeV.
     """
 
     energy_diff = np.asarray(E_MeV - E_F, dtype=float)
-    damping_term = np.divide(
-        damping,
+    safe_energy_diff = np.where(
+        np.abs(energy_diff) < damping_eps,
+        np.where(energy_diff < 0.0, -damping_eps, damping_eps),
         energy_diff,
-        out=np.full(energy_diff.shape, np.inf, dtype=float),
-        where=energy_diff != 0.0,
     )
+    damping_term = damping / safe_energy_diff
     im_n = poly.poly2d(rho_fm3, E_MeV, coeffs_F, start_i=1, start_j=0) / (
         1 + damping_term
     )
