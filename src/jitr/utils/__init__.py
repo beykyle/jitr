@@ -5,6 +5,7 @@ from . import density as density
 from . import free_solutions as free_solutions
 from . import kinematics as kinematics
 from . import mass as mass
+from . import poly as poly
 from .utils import block as block
 from .utils import complex_det as complex_det
 from .utils import delta as delta
@@ -35,6 +36,7 @@ __all__ = [
     "interaction_range",
     "kinematics",
     "mass",
+    "poly",
     "schrodinger_eqn_ivp_order1",
     "second_derivative_op",
     "smatrix",

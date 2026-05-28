@@ -1,325 +1,324 @@
-"""JLM and JLMB optical-potential models built on generic folding primitives."""
-
-from __future__ import annotations
-
-import warnings
-from collections.abc import Callable
-from dataclasses import dataclass, field
-
 import numpy as np
 
-from ..utils.constants import ALPHA, HBARC, MASS_N, MASS_P
-from .folding import gaussian_fold
-from .nuclear_matter_self_energy import RHO_SAT, NMSelfEnergy
+from ..utils import poly
+from ..utils.constants import ALPHA, HBARC
 
-M_NUCLEON: float = 0.5 * (MASS_N + MASS_P)
-E2: float = ALPHA * HBARC
+# ---------------------------------------------------------------------------
+# Table I — V_0(ρ, E) = Σ a_ij ρ^i E^(j-1)            [Eq. 25]
+# Isoscalar real component (MeV)
+# ---------------------------------------------------------------------------
+A_V0 = np.array(
+    [
+        # j=1        j=2         j=3
+        [-974.0, 11.26, -0.0425],  # i=1
+        [7097.0, -125.7, 0.5853],  # i=2
+        [-19530.0, 418.0, -2.054],  # i=3
+    ]
+)
 
-T_R_DEFAULT: float = 1.20
-T_I_DEFAULT: float = 1.75
+# ---------------------------------------------------------------------------
+# Table II — Re N(ρ, E) = Σ b_ij ρ^i E^(j-1)          [Eq. 28]
+# Real isovector kernel; V_1 = (m̃/m) · Re N           [Eq. 11]
+# ---------------------------------------------------------------------------
+B_N_RE = np.array(
+    [
+        [360.1, -5.224, 0.02051],  # i=1
+        [-2691.0, 51.30, -0.2470],  # i=2
+        [7733.0, -171.7, 0.8846],  # i=3
+    ]
+)
 
+# ---------------------------------------------------------------------------
+# Table III — m̃(ρ, E)/m = 1 − Σ c_ij ρ^i E^(j-1)     [Eq. 29]
+# k-mass ratio (multiplies V_1 and divides W_0, W_1)
+# ---------------------------------------------------------------------------
+C_KMASS = np.array(
+    [
+        [4.557, -5.291e-3, 6.108e-6],  # i=1
+        [-2.051, -0.4906, 1.812e-3],  # i=2
+        [-65.09, 3.095, -0.0119],  # i=3
+    ]
+)
 
-@dataclass(frozen=True)
-class JLMV0Parameters:
-    """Coefficients for the isoscalar real self-energy component."""
+# ---------------------------------------------------------------------------
+# Table IV — W̄_0(ρ, E) = [1 + D/(E−ε_F)²]⁻¹ Σ d_ij ρ^i E^(j-1)    [Eq. 30]
+# Imaginary isoscalar kernel, D = 600 MeV²
+# Physical W_0 = (m/m̃) · W̄_0                                     [Eq. 7]
+# ---------------------------------------------------------------------------
+D_W0 = np.array(
+    [
+        # j=1          j=2         j=3        j=4
+        [-1483.0, 37.18, -0.3549, 1.119e-3],  # i=1
+        [29880.0, -931.8, 9.591, -0.03160],  # i=2
+        [-212800.0, 7209.0, -77.52, 0.2611],  # i=3
+        [512500.0, -17960.0, 198.0, -0.6753],  # i=4
+    ]
+)
+D_DAMPING = 600.0  # MeV²
 
-    energy_constant: float = 108.0
-    energy_linear: float = 0.61
-    energy_quadratic: float = 0.00163
-    density_quadratic: float = 0.51
+# ---------------------------------------------------------------------------
+# Table V — Im N_1(ρ, E) = [1 + F/(E−ε_F)]⁻¹ Σ f_ij ρ^i E^(j-1)   [Eq. 31]
+# Imaginary isovector kernel, F = 1 MeV
+# Physical W_1 = (m/m̃) · Im N_1                                   [Eq. 12]
+# ---------------------------------------------------------------------------
+F_N_IM = np.array(
+    [
+        [546.1, -11.20, 0.1065, -3.541e-4],  # i=1
+        [-8471.0, 230.0, -2.439, 8.544e-3],  # i=2
+        [51720.0, -1520.0, 17.17, -0.06211],  # i=3
+        [-114000.0, 3543.0, -41.69, 0.1537],  # i=4
+    ]
+)
+F_DAMPING = 1.0  # MeV
 
-
-@dataclass(frozen=True)
-class JLMW0Parameters:
-    """Coefficients for the isoscalar imaginary self-energy component."""
-
-    fermi_energy: float = -8.0
-    energy_width: float = 25.0
-    saturation_strength: float = 22.0
-    density_quadratic: float = 0.20
-
-
-@dataclass(frozen=True)
-class JLMV1Parameters:
-    """Coefficients for the isovector real self-energy component."""
-
-    energy_constant: float = 14.0
-    energy_linear: float = 0.04
-    density_quadratic: float = 0.15
-
-
-@dataclass(frozen=True)
-class JLMW1Parameters:
-    """Coefficients for the isovector imaginary self-energy component."""
-
-    fermi_energy: float = -8.0
-    energy_width: float = 30.0
-    saturation_strength: float = 12.0
-
-
-@dataclass(frozen=True)
-class JLMSelfEnergyModelParameters:
-    """Full parameter bundle for the analytical JLM self-energy model."""
-
-    rho_sat: float = RHO_SAT
-    V0: JLMV0Parameters = field(default_factory=JLMV0Parameters)
-    W0: JLMW0Parameters = field(default_factory=JLMW0Parameters)
-    V1: JLMV1Parameters = field(default_factory=JLMV1Parameters)
-    W1: JLMW1Parameters = field(default_factory=JLMW1Parameters)
-
-
-@dataclass(frozen=True)
-class JLMBLambdaModelParameters:
-    """Coefficient bundle for the JLMB renormalization-factor helper."""
-
-    lambda_V0_offset: float = 1.0
-    lambda_V0_slope: float = 0.0005
-    lambda_V0_reference_energy: float = 30.0
-    lambda_W0_offset: float = 0.6
-    lambda_W0_amplitude: float = 0.5
-    lambda_W0_center_energy: float = 5.0
-    lambda_W0_width: float = 20.0
-    lambda_V1_value: float = 1.0
-    lambda_W1_value: float = 1.6
-
-
-DEFAULT_JLM_SELF_ENERGY_PARAMETERS = JLMSelfEnergyModelParameters()
-DEFAULT_JLMB_LAMBDA_MODEL_PARAMETERS = JLMBLambdaModelParameters()
+# ---------------------------------------------------------------------------
+# Eq. 27 — Fermi energy ε_F(ρ) = ρ·(−510.8 + 3222·ρ − 6250·ρ²)  [MeV]
+# ---------------------------------------------------------------------------
+EPS_F_coeffs = np.array([-510.8, 3222.0, -6250.0])  # multiplied by ρ¹, ρ², ρ³
 
 
-class JLMSelfEnergy(NMSelfEnergy):
-    """Analytical JLM-style nuclear-matter self-energy parameterization."""
-
-    def __init__(
-        self,
-        projectile: str = "n",
-        model_parameters: JLMSelfEnergyModelParameters | None = None,
-    ) -> None:
-        super().__init__(projectile=projectile)
-        self.model_parameters = (
-            DEFAULT_JLM_SELF_ENERGY_PARAMETERS
-            if model_parameters is None
-            else model_parameters
-        )
-
-    def V0(self, E: float, rho: float | np.ndarray) -> np.ndarray:
-        coefficients = self.model_parameters.V0
-        x = np.asarray(rho, dtype=float) / self.model_parameters.rho_sat
-        prefac = -(
-            coefficients.energy_constant
-            - coefficients.energy_linear * E
-            + coefficients.energy_quadratic * E**2
-        )
-        return prefac * x * (1.0 - coefficients.density_quadratic * x)
-
-    def W0(self, E: float, rho: float | np.ndarray) -> np.ndarray:
-        coefficients = self.model_parameters.W0
-        x = np.asarray(rho, dtype=float) / self.model_parameters.rho_sat
-        W_sat = -coefficients.saturation_strength * (
-            (E - coefficients.fermi_energy) ** 2
-            / ((E - coefficients.fermi_energy) ** 2 + coefficients.energy_width**2)
-        )
-        return W_sat * x * (1.0 - coefficients.density_quadratic * x)
-
-    def V1(self, E: float, rho: float | np.ndarray) -> np.ndarray:
-        coefficients = self.model_parameters.V1
-        x = np.asarray(rho, dtype=float) / self.model_parameters.rho_sat
-        prefac = coefficients.energy_constant - coefficients.energy_linear * E
-        return prefac * x * (1.0 - coefficients.density_quadratic * x)
-
-    def W1(self, E: float, rho: float | np.ndarray) -> np.ndarray:
-        coefficients = self.model_parameters.W1
-        x = np.asarray(rho, dtype=float) / self.model_parameters.rho_sat
-        return (
-            -coefficients.saturation_strength
-            * (
-                (E - coefficients.fermi_energy) ** 2
-                / ((E - coefficients.fermi_energy) ** 2 + coefficients.energy_width**2)
-            )
-            * x
-        )
+def fermi_energy_MeV(rho_fm3: float, coeffs: np.ndarray = EPS_F_coeffs) -> float:
+    return poly.poly1d(rho_fm3, coeffs, start_i=1)
 
 
-def coulomb_potential_center(Z: int, A: int, r_C: float = 1.25) -> float:
-    """Approximate the central Coulomb potential for a uniform sphere."""
-    R_C = r_C * (A ** (1.0 / 3.0))
-    return 1.5 * Z * E2 / R_C
+def V0(rho_fm3, E_MeV, coeffs=A_V0):
+    return poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0)
 
 
-@dataclass
-class JLMParameters:
-    """Tunable parameters of the JLM/JLMB folding construction."""
-
-    t_R: float = T_R_DEFAULT
-    t_I: float = T_I_DEFAULT
-    lambda_V0: float = 1.0
-    lambda_W0: float = 1.0
-    lambda_V1: float = 1.0
-    lambda_W1: float = 1.0
-    apply_coulomb_shift: bool = True
-    n_quad: int = 400
-    r_max: float = 20.0
-
-
-def jlmb_lambda_factors(
-    E: float,
-    model_parameters: JLMBLambdaModelParameters | None = None,
-) -> tuple[float, float, float, float]:
-    """Return the default JLMB renormalization factors at energy ``E``."""
-    coefficients = (
-        DEFAULT_JLMB_LAMBDA_MODEL_PARAMETERS
-        if model_parameters is None
-        else model_parameters
+def W0(rho_fm3, E_MeV, E_F, coeffs=D_W0, damping=D_DAMPING):
+    return poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0) / (
+        1 + damping / (E_MeV - E_F) ** 2
     )
-    lambda_V0 = coefficients.lambda_V0_offset + coefficients.lambda_V0_slope * (
-        E - coefficients.lambda_V0_reference_energy
+
+
+def m_tilde_over_m(rho_fm3, E_MeV, coeffs=C_KMASS):
+    """k-mass m̃/m = 1 − Σ c_ij ρ^i E^(j-1)    [Eq. 29 / Table III]"""
+    return 1.0 - poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0)
+
+
+def eff_mass(rho_fm3, E_MeV, coeffs=A_V0):
+    """m*(ρ,E)/m = 1 − ∂V₀/∂E    [Eq. 14]"""
+    c, si, sj = poly.poly2d_deriv(coeffs, start_i=1, start_j=0, wrt="y")
+    return 1.0 - poly.poly2d(rho_fm3, E_MeV, c, start_i=si, start_j=sj)
+
+
+def E_mass(rho_fm3, E_MeV, coeffs_A=A_V0, coeffs_C=C_KMASS):
+    """m̄(ρ,E)/m via Eq. 15:   m*/m = (m̃/m)·(m̄/m)."""
+    return eff_mass(rho_fm3, E_MeV, coeffs=coeffs_A) / m_tilde_over_m(
+        rho_fm3, E_MeV, coeffs=coeffs_C
     )
-    lambda_W0 = float(
-        coefficients.lambda_W0_offset
-        + coefficients.lambda_W0_amplitude
-        * np.tanh(
-            (E - coefficients.lambda_W0_center_energy) / coefficients.lambda_W0_width
+
+
+def V1(rho_fm3, E_MeV, E_F, coeffs_B=B_N_RE, coeffs_C=C_KMASS):
+    """V₁ = (m̃/m) · Re N    [Eq. 11]"""
+    re_n = poly.poly2d(rho_fm3, E_MeV, coeffs_B, start_i=1, start_j=0)
+    return m_tilde_over_m(rho_fm3, E_MeV, coeffs=coeffs_C) * re_n
+
+
+def W1(
+    rho_fm3,
+    E_MeV,
+    E_F,
+    coeffs_F=F_N_IM,
+    coeffs_A=A_V0,
+    coeffs_C=C_KMASS,
+    damping=F_DAMPING,
+):
+    """W₁ = (m/m̄) · Im N    [Eq. 12]"""
+    im_n = poly.poly2d(rho_fm3, E_MeV, coeffs_F, start_i=1, start_j=0) / (
+        1 + damping / (E_MeV - E_F)
+    )
+    return im_n / E_mass(rho_fm3, E_MeV, coeffs_A=coeffs_A, coeffs_C=coeffs_C)
+
+
+def Delta_C(rho_fm3, E_MeV, V_C_MeV, coeffs_A=A_V0, linear=True):
+    """Real Coulomb correction Δ_C(ρ, E) for protons    [JLM 1977 Eqs. 17–18]
+
+    Defined exactly as
+        Δ_C(ρ, E) = V₀(ρ, E − V_C) − V₀(ρ, E).                       (Eq. 17)
+
+    Two evaluation modes:
+
+    `linear=True`  (paper's preferred form, Eq. 18)
+        Δ_C ≈ (m*(ρ,E)/m − 1) · V_C
+        Uses m*/m at the *physical* energy E, so the polynomial is only
+        ever evaluated inside its [10, 160] MeV fit range. Linear in V_C.
+
+    `linear=False`  (direct substitution, Eq. 16/17)
+        Δ_C = V₀(ρ, E − V_C) − V₀(ρ, E)
+        Exact within the LDA, but the cubic in E in V₀ extrapolates
+        wildly once E − V_C drops below ~10 MeV (low-E protons on heavy
+        targets).
+    """
+    if linear:
+        return (eff_mass(rho_fm3, E_MeV, coeffs=coeffs_A) - 1.0) * V_C_MeV
+    return V0(rho_fm3, E_MeV - V_C_MeV, coeffs=coeffs_A) - V0(
+        rho_fm3, E_MeV, coeffs=coeffs_A
+    )
+
+
+def potential_JLM(
+    rgrid,
+    rho_grid,
+    projectile,
+    target,
+    E,
+    coeffs_A=A_V0,
+    coeffs_B=B_N_RE,
+    coeffs_C=C_KMASS,
+    coeffs_D=D_W0,
+    D_damping=D_DAMPING,
+    coeffs_F=F_N_IM,
+    F_damping=F_DAMPING,
+    coeffs_E_F=EPS_F_coeffs,
+):
+    A, Z = target
+    N = A - Z
+    alpha = (N - Z) / A
+    E_F = fermi_energy_MeV(rho_fm3=rho_grid, coeffs=coeffs_E_F)
+    V0_grid = V0(rho_fm3=rho_grid, E_MeV=E, coeffs=coeffs_A)
+    if projectile == (1, 1):
+        # TODO calculate VC from rho_p
+        RC = 1.2 * A ** (1 / 3)
+        VC = 6.0 * Z * ALPHA * HBARC / (5 * RC)
+        DelC = Delta_C(
+            rho_fm3=rho_grid, E_MeV=E, V_C_MeV=VC, coeffs_A=coeffs_A, linear=True
         )
-    )
-    lambda_V1 = coefficients.lambda_V1_value
-    lambda_W1 = coefficients.lambda_W1_value
-    return lambda_V0, lambda_W0, lambda_V1, lambda_W1
-
-
-def make_jlmb_parameters(
-    E: float,
-    lambda_model_parameters: JLMBLambdaModelParameters | None = None,
-    **overrides,
-) -> JLMParameters:
-    """Build :class:`JLMParameters` using JLMB renormalization factors."""
-    lV0, lW0, lV1, lW1 = jlmb_lambda_factors(
-        E, model_parameters=lambda_model_parameters
-    )
-    params = JLMParameters(
-        t_R=T_R_DEFAULT,
-        t_I=T_I_DEFAULT,
-        lambda_V0=lV0,
-        lambda_W0=lW0,
-        lambda_V1=lV1,
-        lambda_W1=lW1,
-    )
-    for name, value in overrides.items():
-        if not hasattr(params, name):
-            raise TypeError(f"Unknown JLM parameter override: {name}")
-        setattr(params, name, value)
-    return params
-
-
-class JLMPotential:
-    """Microscopic JLM/JLMB nucleon-nucleus optical potential."""
-
-    def __init__(
-        self,
-        rho_n: Callable[[np.ndarray], np.ndarray],
-        rho_p: Callable[[np.ndarray], np.ndarray],
-        self_energy: Callable,
-        parameters: JLMParameters | None = None,
-    ) -> None:
-        self.rho_n = rho_n
-        self.rho_p = rho_p
-        self.self_energy = self_energy
-        self.params = parameters if parameters is not None else JLMParameters()
-
-    def _local_rho_beta(self, r: float | np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        radii = np.atleast_1d(np.asarray(r, dtype=float))
-        rho_n = np.asarray(self.rho_n(radii), dtype=float)
-        rho_p = np.asarray(self.rho_p(radii), dtype=float)
-        rho = rho_n + rho_p
-        with np.errstate(invalid="ignore", divide="ignore"):
-            beta = np.where(rho > 1e-15, (rho_n - rho_p) / rho, 0.0)
-        return rho, beta
-
-    def _M_components(
-        self, r: float | np.ndarray, E_eff: float
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        rho, beta = self._local_rho_beta(r)
-        V_full, W_full = self.self_energy(E_eff, rho, beta)
-        V_iso, W_iso = self.self_energy(E_eff, rho, np.zeros_like(rho))
-        V_iv = V_full - V_iso
-        W_iv = W_full - W_iso
-        return V_iso, W_iso, V_iv, W_iv
-
-    def compute(
-        self,
-        R_grid: float | np.ndarray,
-        E: float,
-        projectile: str,
-        Z: int | None = None,
-        A: int | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute the real and imaginary potential on ``R_grid``."""
-        if projectile not in ("n", "p"):
-            raise ValueError("projectile must be 'n' or 'p'.")
-
-        params = self.params
-        E_eff = float(E)
-        if projectile == "p" and params.apply_coulomb_shift:
-            if Z is None or A is None:
-                warnings.warn(
-                    "Coulomb shift requested but Z/A not provided; "
-                    "using uncorrected lab energy.",
-                    stacklevel=2,
-                )
-            else:
-                E_eff = float(E) - coulomb_potential_center(int(Z), int(A))
-
-        def V_pre(r: np.ndarray) -> np.ndarray:
-            V_iso, _, V_iv, _ = self._M_components(r, E_eff)
-            return params.lambda_V0 * V_iso + params.lambda_V1 * V_iv
-
-        def W_pre(r: np.ndarray) -> np.ndarray:
-            _, W_iso, _, W_iv = self._M_components(r, E_eff)
-            return params.lambda_W0 * W_iso + params.lambda_W1 * W_iv
-
-        V = gaussian_fold(
-            R_grid, V_pre, params.t_R, r_max=params.r_max, n_quad=params.n_quad
+        DeltaE = E - DelC
+        W0_grid = W0(rho_fm3=rho_grid, E_MeV=DeltaE, E_F=E_F, coeffs=coeffs_D)
+        V1_grid = V1(
+            rho_fm3=rho_grid,
+            E_MeV=DeltaE,
+            coeffs_B=coeffs_B,
+            coeffs_C=coeffs_C,
+            E_F=E_F,
         )
-        W = gaussian_fold(
-            R_grid, W_pre, params.t_I, r_max=params.r_max, n_quad=params.n_quad
+        W1_grid = W1(
+            rho_fm3=rho_grid,
+            E_MeV=DeltaE,
+            E_F=E_F,
+            coeffs_A=coeffs_A,
+            coeffs_C=coeffs_C,
+            coeffs_F=coeffs_F,
+            damping=F_damping,
         )
-        return V, W
+        return V0_grid + DelC + alpha * V1_grid, W0_grid + alpha * W1_grid
 
-    def volume_integrals(
-        self,
-        E: float,
-        projectile: str,
-        A_target: int,
-        Z: int | None = None,
-        A: int | None = None,
-        r_max: float = 15.0,
-        n_R: int = 600,
-    ) -> tuple[float, float]:
-        """Return the conventional positive volume integrals per nucleon."""
-        R = np.linspace(0.0, r_max, n_R)
-        V, W = self.compute(R, E, projectile, Z=Z, A=A)
-        J_V = -4.0 * np.pi * np.trapezoid(R**2 * V, R)
-        J_W = -4.0 * np.pi * np.trapezoid(R**2 * W, R)
-        return float(J_V / A_target), float(J_W / A_target)
+    elif projectile == (1, 0):
+        DeltaE = E
+        W0_grid = W0(rho_fm3=rho_grid, E_MeV=E, E_F=E_F, coeffs=coeffs_D)
+        V1_grid = V1(
+            rho_fm3=rho_grid, E_MeV=E, coeffs_B=coeffs_B, coeffs_C=coeffs_C, E_F=E_F
+        )
+        W1_grid = W1(
+            rho_fm3=rho_grid,
+            E_MeV=E,
+            E_F=E_F,
+            coeffs_A=coeffs_A,
+            coeffs_C=coeffs_C,
+            coeffs_F=coeffs_F,
+            damping=F_damping,
+        )
+        return V0_grid + alpha * V1_grid, W0_grid + alpha * W1_grid
+    else:
+        raise ValueError(
+            f"Projectile must be neutron (1,0) or proton (1,1), recieved {projectile}"
+        )
+    return
 
 
-__all__ = [
-    "DEFAULT_JLMB_LAMBDA_MODEL_PARAMETERS",
-    "DEFAULT_JLM_SELF_ENERGY_PARAMETERS",
-    "E2",
-    "HBARC",
-    "JLMBLambdaModelParameters",
-    "JLMParameters",
-    "JLMPotential",
-    "JLMSelfEnergy",
-    "JLMSelfEnergyModelParameters",
-    "JLMV0Parameters",
-    "JLMV1Parameters",
-    "JLMW0Parameters",
-    "JLMW1Parameters",
-    "M_NUCLEON",
-    "T_I_DEFAULT",
-    "T_R_DEFAULT",
-    "coulomb_potential_center",
-    "jlmb_lambda_factors",
-    "make_jlmb_parameters",
-]
+def lambda_v0(E_MeV):
+    """λ_V(E) — real isoscalar.       Eq. 8: 0.95–0.99 over 1 keV–200 MeV."""
+    log_E = np.log(1000.0 * E_MeV)  # paper has ln(1000 E), E in MeV
+    return 0.951 + 0.0008 * log_E + 0.00018 * log_E**2
+
+
+def lambda_w0(E_MeV):
+    """λ_W(E) — imaginary isoscalar.   Eq. 9."""
+    E = E_MeV
+    f1 = 1.24 - 1.0 / (1.0 + np.exp((E - 4.5) / 2.9))
+    f2 = 1.0 + 0.06 * np.exp(-(((E - 14.0) / 3.7) ** 2))
+    f3 = 1.0 - 0.09 * np.exp(-(((E - 80.0) / 78.0) ** 2))
+    f4 = 1.0 + np.maximum(E - 80.0, 0.0) / 400.0  # Θ(E-80)·(E-80)/400
+    return f1 * f2 * f3 * f4
+
+
+def lambda_v1(E_MeV):
+    """λ_V1(E) — real isovector enhancement.    Eq. 10: 1.1 → 1.5."""
+    return 1.5 - 0.65 / (1.0 + np.exp((E_MeV - 1.3) / 3.0))
+
+
+def lambda_w1(E_MeV):
+    """λ_W1(E) — imaginary isovector enhancement.    Eq. 11."""
+    E = E_MeV
+    # paper: [1 + (e^((E-40)/50.9))^4]^-1  →  1 / (1 + e^(4(E-40)/50.9))
+    f1 = 1.1 + 0.44 / (1.0 + np.exp(4.0 * (E - 40.0) / 50.9))
+    f2 = 1.0 - 0.065 * np.exp(-(((E - 40.0) / 13.0) ** 2))
+    f3 = 1.0 - 0.083 * np.exp(-(((E - 200.0) / 80.0) ** 2))
+    return f1 * f2 * f3
+
+
+def potential_JLMB(
+    folder,
+    rho_n_q,
+    rho_p_q,
+    projectile,
+    target,
+    E,
+    coulomb_mode="density",
+    coulomb_R_C=None,
+    include_exchange=False,
+    coeffs_A=A_V0,
+    coeffs_B=B_N_RE,
+    coeffs_C=C_KMASS,
+    coeffs_D=D_W0,
+    coeffs_F=F_N_IM,
+    coeffs_E_F=EPS_F_coeffs,
+    D_damping=D_DAMPING,
+    F_damping=F_DAMPING,
+    lambda_V=1,
+    lambda_W=1,
+    lambda_V1=1,
+    lambda_W1=1,
+    t_r=1.25,
+    t_i=1.35,
+    r_out=None,
+):
+    A, Z = target
+    rho_q = rho_n_q + rho_p_q
+    alpha_q = np.where(rho_q > 1e-12, (rho_n_q - rho_p_q) / rho_q, 0.0)
+
+    if projectile == (1, 1):
+        V_C_q = folder.V_coulomb(
+            rho_p_q,
+            mode=coulomb_mode,
+            R_C=coulomb_R_C,
+            include_exchange=include_exchange,
+        )
+        E_eff_q = E - V_C_q
+        sign = -1.0
+    elif projectile == (1, 0):
+        E_eff_q = np.full_like(folder.r_q, float(E))
+        sign = +1.0
+    else:
+        raise ValueError(f"Projectile must be (1,0) [n] or (1,1) [p], got {projectile}")
+
+    E_F_q = fermi_energy_MeV(rho_q, coeffs=coeffs_E_F)
+    V0_q = V0(rho_q, E_eff_q, coeffs=coeffs_A)
+    W0_q = W0(rho_q, E_eff_q, E_F=E_F_q, coeffs=coeffs_D, damping=D_damping)
+    V1_q = V1(rho_q, E_eff_q, E_F=E_F_q, coeffs_B=coeffs_B, coeffs_C=coeffs_C)
+    W1_q = W1(
+        rho_q,
+        E_eff_q,
+        E_F=E_F_q,
+        coeffs_F=coeffs_F,
+        coeffs_A=coeffs_A,
+        coeffs_C=coeffs_C,
+        damping=F_damping,
+    )
+    V_NM_q = lambda_V * (V0_q + sign * lambda_V1 * alpha_q * V1_q)
+    W_NM_q = lambda_W * (W0_q + sign * lambda_W1 * alpha_q * W1_q)
+
+    V_r = folder.gaussian_fold(V_NM_q, t=t_r, r_out=r_out)
+    W_r = folder.gaussian_fold(W_NM_q, t=t_i, r_out=r_out)
+    return V_r, W_r
