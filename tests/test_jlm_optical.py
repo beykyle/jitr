@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -77,6 +79,19 @@ class TestJLMHelpers:
             jlm.Delta_C(rho, energy, v_c, linear=True),
             (jlm.eff_mass(rho, energy) - 1.0) * v_c,
         )
+
+    def test_imaginary_terms_are_finite_at_fermi_energy(self):
+        rho = np.array([0.04, 0.10, 0.16])
+        e_fermi = jlm.fermi_energy_MeV(rho)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("error", RuntimeWarning)
+            w0 = jlm.W0(rho, e_fermi, e_fermi)
+            w1 = jlm.W1(rho, e_fermi, e_fermi)
+
+        assert not caught
+        np.testing.assert_allclose(w0, np.zeros_like(rho))
+        np.testing.assert_allclose(w1, np.zeros_like(rho))
 
 
 class TestJLMPotentials:

@@ -146,8 +146,15 @@ def W0(
         Imaginary isoscalar self-energy values in MeV.
     """
 
+    energy_diff_sq = np.asarray((E_MeV - E_F) ** 2, dtype=float)
+    damping_term = np.divide(
+        damping,
+        energy_diff_sq,
+        out=np.full(energy_diff_sq.shape, np.inf, dtype=float),
+        where=energy_diff_sq != 0.0,
+    )
     return poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0) / (
-        1 + damping / (E_MeV - E_F) ** 2
+        1 + damping_term
     )
 
 
@@ -262,8 +269,15 @@ def W1(
         Imaginary isovector self-energy values in MeV.
     """
 
+    energy_diff = np.asarray(E_MeV - E_F, dtype=float)
+    damping_term = np.divide(
+        damping,
+        energy_diff,
+        out=np.full(energy_diff.shape, np.inf, dtype=float),
+        where=energy_diff != 0.0,
+    )
     im_n = poly.poly2d(rho_fm3, E_MeV, coeffs_F, start_i=1, start_j=0) / (
-        1 + damping / (E_MeV - E_F)
+        1 + damping_term
     )
     return im_n / E_mass(rho_fm3, E_MeV, coeffs_A=coeffs_A, coeffs_C=coeffs_C)
 
