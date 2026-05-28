@@ -11,7 +11,6 @@
 /examples/notebooks/quickstart
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
-/examples/notebooks/builtin_omps
 /examples/notebooks/builtin_omps_uq
 /examples/notebooks/kduq_uq_demo
 /examples/notebooks/local_omp_demo
@@ -34,12 +33,9 @@
 
 ## Full "batteries included" example:
 
-- [JLM and JLMB optical-potential benchmarks](/examples/notebooks/example_jlm)
+- [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
   converts the original JLM example into a notebook and walks through folded
   microscopic potentials, Lane trends, and tabulated self-energy usage.
-- [Compare built-in OMPs](/examples/notebooks/builtin_omps)
-   comparison of `kduq`, `chuq`, `wlh`, `jlm`, and `jlmb` cross sections 
-   and central volume integrals.
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
   walks through posterior sampling, solver setup, and interval construction 
   for several of the built-in uncertainty quantified optical potentials in `jitr`.

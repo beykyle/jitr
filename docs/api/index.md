@@ -6,6 +6,7 @@
 :titlesonly:
 
 core
+folding
 reactions
 optical-potentials
 quadrature
