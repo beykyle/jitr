@@ -14,6 +14,10 @@ from jitr.utils.density import (
     two_parameter_fermi,
 )
 
+ENERGY_DELTA_MEV = 1e-14
+W0_FERMI_TOLERANCE = 1e-20
+W1_FERMI_TOLERANCE = 1e-6
+
 
 class TestFoldingDensities:
     def test_two_parameter_fermi_normalization_matches_requested_particle_number(self):
@@ -88,10 +92,22 @@ class TestJLMHelpers:
             warnings.simplefilter("always")
             w0 = jlm.W0(rho, e_fermi, e_fermi)
             w1 = jlm.W1(rho, e_fermi, e_fermi)
+            w0_hi = jlm.W0(rho, e_fermi + ENERGY_DELTA_MEV, e_fermi)
+            w0_lo = jlm.W0(rho, e_fermi - ENERGY_DELTA_MEV, e_fermi)
+            w1_hi = jlm.W1(rho, e_fermi + ENERGY_DELTA_MEV, e_fermi)
+            w1_lo = jlm.W1(rho, e_fermi - ENERGY_DELTA_MEV, e_fermi)
 
-        assert not any(issubclass(w.category, RuntimeWarning) for w in caught)
-        assert np.all(np.abs(w0) < 1e-20)
-        assert np.all(np.abs(w1) < 1e-6)
+        runtime_warnings = [w for w in caught if issubclass(w.category, RuntimeWarning)]
+        assert not runtime_warnings
+        assert np.all(np.isfinite(w0))
+        assert np.all(np.isfinite(w1))
+        assert np.all(np.isfinite(w0_hi))
+        assert np.all(np.isfinite(w0_lo))
+        assert np.all(np.isfinite(w1_hi))
+        assert np.all(np.isfinite(w1_lo))
+        # W0 scales with 1/(E-E_F)^2 damping and is much more suppressed than W1.
+        assert np.all(np.abs(w0) < W0_FERMI_TOLERANCE)
+        assert np.all(np.abs(w1) < W1_FERMI_TOLERANCE)
 
 
 class TestJLMPotentials:

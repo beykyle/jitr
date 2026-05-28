@@ -83,7 +83,8 @@ F_N_IM = np.array(
     ]
 )
 F_DAMPING = 1.0  # MeV
-DAMPING_EPS = 1e-12  # MeV
+# MeV; far below typical projectile energies, but avoids zero division.
+DAMPING_EPS = 1e-12
 
 # ---------------------------------------------------------------------------
 # Eq. 27 — Fermi energy ε_F(ρ) = ρ·(−510.8 + 3222·ρ − 6250·ρ²)  [MeV]
@@ -149,8 +150,8 @@ def W0(
         Imaginary isoscalar self-energy values in MeV.
     """
 
-    energy_diff_sq = np.asarray((E_MeV - E_F) ** 2, dtype=float)
-    safe_energy_diff_sq = np.maximum(energy_diff_sq, damping_eps**2)
+    # Eq. 30 uses (E - E_F)^2 in the damping denominator.
+    safe_energy_diff_sq = np.maximum((E_MeV - E_F) ** 2, damping_eps**2)
     damping_term = damping / safe_energy_diff_sq
     return poly.poly2d(rho_fm3, E_MeV, coeffs, start_i=1, start_j=0) / (
         1 + damping_term
@@ -270,10 +271,11 @@ def W1(
         Imaginary isovector self-energy values in MeV.
     """
 
-    energy_diff = np.asarray(E_MeV - E_F, dtype=float)
+    energy_diff = np.asarray(E_MeV - E_F)
+    # Eq. 31 uses a signed (E - E_F) denominator, so preserve sign near zero.
     safe_energy_diff = np.where(
         np.abs(energy_diff) < damping_eps,
-        np.where(energy_diff < 0.0, -damping_eps, damping_eps),
+        np.copysign(damping_eps, energy_diff),
         energy_diff,
     )
     damping_term = damping / safe_energy_diff
