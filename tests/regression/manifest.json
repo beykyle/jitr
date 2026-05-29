@@ -1,0 +1,8 @@
+[
+  {
+    "case_id": "F1_p_ni78_elastic",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F1_p_ni78_elastic.csv",
+    "json": "frescox/reference/F1_p_ni78_elastic.json"
+  }
+]
