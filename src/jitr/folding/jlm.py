@@ -326,12 +326,12 @@ def potential_JLM(
     coeffs_F: FloatArray = F_N_IM,
     F_damping: float = F_DAMPING,
     coeffs_E_F: FloatArray = EPS_F_coeffs,
+    r_out: FloatArray | None = None,
 ) -> tuple[FloatArray, FloatArray]:
     """Evaluate the local-density JLM optical potential.
 
     Args:
-        rgrid: Radial grid associated with ``rho_grid``. Retained for API
-            compatibility; the local-density evaluation only uses ``rho_grid``.
+        rgrid: Radial grid associated with ``rho_grid``
         rho_grid: Matter-density values sampled on ``rgrid``.
         projectile: Projectile identifier, ``(1, 0)`` for neutrons or
             ``(1, 1)`` for protons.
@@ -345,6 +345,7 @@ def potential_JLM(
         coeffs_F: Imaginary isovector coefficient table.
         F_damping: Imaginary isovector damping parameter in MeV.
         coeffs_E_F: Fermi-energy coefficient vector.
+        r_out: Optional output grid in fm
 
     Returns:
         Tuple of real and imaginary optical-potential arrays in MeV.
@@ -353,7 +354,6 @@ def potential_JLM(
         ValueError: If ``projectile`` is not neutron or proton.
     """
 
-    _ = rgrid
     rho_array = np.asarray(rho_grid, dtype=float)
     A, Z = target
     N = A - Z
@@ -400,10 +400,12 @@ def potential_JLM(
         coeffs_F=coeffs_F,
         damping=F_damping,
     )
-    return (
-        np.asarray(V0_grid + DelC + sign * alpha * V1_grid, dtype=float),
-        np.asarray(W0_grid + sign * alpha * W1_grid, dtype=float),
-    )
+    v0_out = np.asarray(V0_grid + DelC + sign * alpha * V1_grid, dtype=float)
+    w0_out = np.asarray(W0_grid + sign * alpha * W1_grid, dtype=float)
+    if r_out is not None:
+        v0_out = np.interp(r_out, rgrid, v0_out)
+        w0_out = np.interp(r_out, rgrid, w0_out)
+    return v0_out, w0_out
 
 
 def lambda_v0(E_MeV: ScalarOrArray) -> PolynomialValue:
