@@ -34,15 +34,33 @@ NUM_PARAMS = 22
 def get_param_names() -> list[str]:
     """
     Get the names of the parameters for the given projectile, in the
-    order they are returned by the get_samples function.
+    order they are returned by :func:`get_ch89` and :func:`get_samples`.
     """
     return list(Global().params.keys())
+
+
+def get_ch89() -> np.ndarray:
+    """
+    Return the original CH89 frequentist parameter vector.
+
+    This is the single parameter set loaded by :class:`Global` when no explicit
+    ``param_fpath`` is supplied. The returned vector follows the ordering from
+    :func:`get_param_names` so it can be passed directly into
+    :func:`calculate_params` or compared with rows returned by :func:`get_samples`.
+
+    Returns:
+        A one-dimensional array containing the CH89 frequentist parameter set.
+    """
+    return np.asarray(list(Global().params.values()), dtype=np.float64)
 
 
 def get_samples(posterior: str = "federal") -> np.ndarray:
     """
     Get the posterior samples for the given projectile (neutron or
     proton) from the CHUQ Federal or Democratic posteriors.
+
+    These samples are distinct from the original CH89 frequentist parameter set
+    returned by :func:`get_ch89`.
 
     See [Pruitt, et al., 2023]
     (https://journals.aps.org/prc/pdf/10.1103/PhysRevC.107.014602) for
@@ -217,7 +235,8 @@ class Global:
         r"""
         Args:
             param_fpath: Path to JSON file encoding parameter values.
-                Defaults to ``data/CH89_default.json``.
+                Defaults to ``data/CH89_default.json``, which contains the
+                original CH89 frequentist parameter set.
         """
         if param_fpath is None:
             param_fpath = Path(__file__).parent.resolve() / Path(

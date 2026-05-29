@@ -10,10 +10,13 @@
 
 /examples/notebooks/quickstart
 /examples/notebooks/reaction
+/examples/notebooks/example_jlm
 /examples/notebooks/builtin_omps_uq
 /examples/notebooks/kduq_uq_demo
 /examples/notebooks/local_omp_demo
 /examples/notebooks/angular_reaction_xs
+/examples/notebooks/tabulated_density_demo
+/examples/notebooks/dispersive_optical_model
 /examples/notebooks/mass_exploration
 /examples/notebooks/chuq_kduq_comp
 /examples/notebooks/volume_integrals
@@ -30,12 +33,20 @@
 
 ## Full "batteries included" example:
 
+- [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
+  converts the original JLM example into a notebook and walks through folded
+  microscopic potentials, Lane trends, and tabulated self-energy usage.
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
-  walks through posterior sampling, solver setup, and interval construction for several of the built-in uncertainty quantified optical potentials in `jitr`.
+  walks through posterior sampling, solver setup, and interval construction 
+  for several of the built-in uncertainty quantified optical potentials in `jitr`.
 
 ## Other useful examples
 
-- [UQ demo qith Koning-Delaroche potential](/examples/notebooks/kduq_uq_demo) 
+- [Tabulated density usage](/examples/notebooks/tabulated_density_demo)
+  shows how to grab the tabulated nuclear densities in `jitr`.
+- [Dispersive optical model](/examples/notebooks/dispersive_optical_model)
+  shows how to use the built-in dispersive optical model in `jitr`
+- [UQ demo with Koning-Delaroche potential](/examples/notebooks/kduq_uq_demo) 
   demos propagating the uncertainty of the built-in KDUQ interaction.
 - [Optical potential interface](/examples/notebooks/local_omp_demo)
   shows how to define a custom optical potential using a common interface, and how to use it in a calculation.

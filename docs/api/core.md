@@ -20,6 +20,11 @@ appear once in the API index.
 ```
 
 ```{eval-rst}
+.. automodule:: jitr.utils.density
+   :members:
+```
+
+```{eval-rst}
 .. automodule:: jitr.utils.free_solutions
    :members:
 ```
@@ -36,5 +41,10 @@ appear once in the API index.
 
 ```{eval-rst}
 .. automodule:: jitr.utils.mass
+   :members:
+```
+
+```{eval-rst}
+.. automodule:: jitr.utils.poly
    :members:
 ```
