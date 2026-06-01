@@ -78,3 +78,24 @@ def test_coulomb_charged_sphere_returns_zero_for_neutral_projectiles() -> None:
 
     assert scalar == 0.0
     np.testing.assert_array_equal(array, np.zeros(16))
+
+
+def test_get_kd03_matches_default_global_parameter_ordering() -> None:
+    kd03_neutron = kduq.get_kd03((1, 0))
+    kd03_proton = kduq.get_kd03((1, 1))
+
+    assert kd03_neutron.dtype == np.float64
+    assert kd03_proton.dtype == np.float64
+    np.testing.assert_allclose(
+        kd03_neutron, np.asarray(list(kduq.Global((1, 0)).params.values()))
+    )
+    np.testing.assert_allclose(
+        kd03_proton, np.asarray(list(kduq.Global((1, 1)).params.values()))
+    )
+
+
+def test_get_ch89_matches_default_global_parameter_ordering() -> None:
+    ch89 = chuq.get_ch89()
+
+    assert ch89.dtype == np.float64
+    np.testing.assert_allclose(ch89, np.asarray(list(chuq.Global().params.values())))
