@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
+from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ..utils import poly
-from ..utils.constants import ALPHA, HBARC
 
 FloatArray: TypeAlias = NDArray[np.float64]
 ScalarOrArray: TypeAlias = float | FloatArray
 PolynomialValue: TypeAlias = float | FloatArray
 Projectile: TypeAlias = tuple[int, int]
 Target: TypeAlias = tuple[int, int]
+JLMRealMode: TypeAlias = Literal["linearized_delta_c", "shifted"]
 
 # ---------------------------------------------------------------------------
 # Table I — V_0(ρ, E) = Σ a_ij ρ^i E^(j-1)            [Eq. 25]
@@ -90,23 +91,165 @@ DAMPING_EPS = 1e-12
 # Eq. 27 — Fermi energy ε_F(ρ) = ρ·(−510.8 + 3222·ρ − 6250·ρ²)  [MeV]
 # ---------------------------------------------------------------------------
 EPS_F_coeffs = np.array([-510.8, 3222.0, -6250.0])  # multiplied by ρ¹, ρ², ρ³
+EPS_F_LOW_OFFSET = -22.0
+EPS_F_LOW_coeffs = np.array([-298.52, 3760.23, -12435.82])
+EPS_F_BLEND_ENERGY = 9.0
+EPS_F_BLEND_WIDTH = 2.0
+
+# ---------------------------------------------------------------------------
+# TALYS revised 1998 imaginary kernels and damping
+# ---------------------------------------------------------------------------
+TALYS_D_W0 = np.array(
+    [
+        [-659.86, 10.768, -0.078863, 1.8755e-4],
+        [11437.0, -290.76, 2.4430, -6.2028e-3],
+        [-74505.0, 2206.8, -19.926, 5.1754e-2],
+        [176090.0, -5457.9, 51.127, -0.13386],
+    ]
+)
+TALYS_D_DAMPING = 126.25
+
+TALYS_F_N_IM = np.array(
+    [
+        [459.59, -6.4399, 4.0403e-2, -9.0086e-5],
+        [-7692.9, 146.39, -1.0244, 2.3367e-3],
+        [55250.0, -1112.1, 7.9667, -1.8008e-2],
+        [-143730.0, 3038.2, -22.202, 5.0258e-2],
+    ]
+)
+
+
+@dataclass(frozen=True)
+class JLMParameterization:
+    """Bundled coefficient and low-energy choices for JLM/JLMB helpers.
+
+    Attributes:
+        name: Human-readable identifier.
+        coeffs_A: Real isoscalar coefficient table.
+        coeffs_B: Real isovector coefficient table.
+        coeffs_C: Momentum-dependent mass coefficient table.
+        coeffs_D: Imaginary isoscalar coefficient table.
+        coeffs_F: Imaginary isovector coefficient table.
+        coeffs_E_F: High-energy Fermi-energy coefficients.
+        low_energy_E_F_offset: Constant term for the low-energy Fermi branch.
+        low_energy_E_F_coeffs: Density coefficients for the low-energy branch.
+        E_F_blend_energy: Logistic blend center in MeV.
+        E_F_blend_width: Logistic blend width in MeV.
+        D_damping: Imaginary isoscalar damping parameter in MeV².
+        F_damping: Imaginary isovector damping parameter in MeV.
+        local_jlm_real_mode: Real-part Coulomb treatment for
+            :func:`potential_JLM`.
+    """
+
+    name: str
+    coeffs_A: FloatArray
+    coeffs_B: FloatArray
+    coeffs_C: FloatArray
+    coeffs_D: FloatArray
+    coeffs_F: FloatArray
+    coeffs_E_F: FloatArray
+    low_energy_E_F_offset: float | None = None
+    low_energy_E_F_coeffs: FloatArray | None = None
+    E_F_blend_energy: float = EPS_F_BLEND_ENERGY
+    E_F_blend_width: float = EPS_F_BLEND_WIDTH
+    D_damping: float = D_DAMPING
+    F_damping: float = F_DAMPING
+    local_jlm_real_mode: JLMRealMode = "linearized_delta_c"
+
+
+ORIGINAL_PARAMETERIZATION = JLMParameterization(
+    name="original",
+    coeffs_A=A_V0,
+    coeffs_B=B_N_RE,
+    coeffs_C=C_KMASS,
+    coeffs_D=D_W0,
+    coeffs_F=F_N_IM,
+    coeffs_E_F=EPS_F_coeffs,
+    D_damping=D_DAMPING,
+    F_damping=F_DAMPING,
+    local_jlm_real_mode="linearized_delta_c",
+)
+
+TALYS_PARAMETERIZATION = JLMParameterization(
+    name="talys",
+    coeffs_A=A_V0,
+    coeffs_B=B_N_RE,
+    coeffs_C=C_KMASS,
+    coeffs_D=TALYS_D_W0,
+    coeffs_F=TALYS_F_N_IM,
+    coeffs_E_F=EPS_F_coeffs,
+    low_energy_E_F_offset=EPS_F_LOW_OFFSET,
+    low_energy_E_F_coeffs=EPS_F_LOW_coeffs,
+    E_F_blend_energy=EPS_F_BLEND_ENERGY,
+    E_F_blend_width=EPS_F_BLEND_WIDTH,
+    D_damping=TALYS_D_DAMPING,
+    F_damping=F_DAMPING,
+    local_jlm_real_mode="shifted",
+)
+
+
+def resolve_parameterization(
+    parameterization: str | JLMParameterization | None,
+) -> JLMParameterization | None:
+    """Resolve a named or explicit JLM parameterization bundle."""
+
+    if parameterization is None:
+        return None
+    if isinstance(parameterization, JLMParameterization):
+        return parameterization
+    normalized = parameterization.strip().lower()
+    if normalized in {"original", "jlm", "paper"}:
+        return ORIGINAL_PARAMETERIZATION
+    if normalized in {"talys", "revised", "jlmb-talys"}:
+        return TALYS_PARAMETERIZATION
+    raise ValueError(
+        "parameterization must be one of 'original', 'talys', or a "
+        "JLMParameterization instance."
+    )
 
 
 def fermi_energy_MeV(
     rho_fm3: ScalarOrArray,
     coeffs: FloatArray = EPS_F_coeffs,
+    projectile_energy_MeV: ScalarOrArray | None = None,
+    low_energy_offset: float | None = None,
+    low_energy_coeffs: FloatArray | None = None,
+    blend_energy: float = EPS_F_BLEND_ENERGY,
+    blend_width: float = EPS_F_BLEND_WIDTH,
 ) -> PolynomialValue:
     """Return the local Fermi energy in MeV.
 
     Args:
         rho_fm3: Matter density in fm⁻³.
-        coeffs: Polynomial coefficients for the JLM Fermi-energy fit.
+        coeffs: Polynomial coefficients for the high-energy JLM Fermi-energy fit.
+        projectile_energy_MeV: Incident energy used for the low-energy branch
+            blend. If omitted, only the high-energy branch is evaluated.
+        low_energy_offset: Constant term for the low-energy branch.
+        low_energy_coeffs: Density coefficients for the low-energy branch.
+        blend_energy: Logistic blend center in MeV.
+        blend_width: Logistic blend width in MeV.
 
     Returns:
         Fermi energy evaluated at ``rho_fm3``.
     """
 
-    return poly.poly1d(rho_fm3, coeffs, start_i=1)
+    high_energy_branch = poly.poly1d(rho_fm3, coeffs, start_i=1)
+    if (
+        projectile_energy_MeV is None
+        or low_energy_offset is None
+        or low_energy_coeffs is None
+    ):
+        return high_energy_branch
+
+    low_energy_branch = low_energy_offset + poly.poly1d(
+        rho_fm3, low_energy_coeffs, start_i=1
+    )
+    low_energy_weight = 1.0 / (
+        1.0 + np.exp((np.asarray(projectile_energy_MeV) - blend_energy) / blend_width)
+    )
+    return low_energy_branch * low_energy_weight + high_energy_branch * (
+        1.0 - low_energy_weight
+    )
 
 
 def V0(
@@ -318,6 +461,8 @@ def potential_JLM(
     projectile: Projectile,
     target: Target,
     E: float,
+    V_C: FloatArray | None = None,
+    parameterization: str | JLMParameterization | None = None,
     coeffs_A: FloatArray = A_V0,
     coeffs_B: FloatArray = B_N_RE,
     coeffs_C: FloatArray = C_KMASS,
@@ -337,6 +482,11 @@ def potential_JLM(
             ``(1, 1)`` for protons.
         target: Target ``(A, Z)`` tuple.
         E: Projectile energy in MeV.
+        V_C: Coulomb potential sampled on ``rgrid``. Required for proton
+            projectiles and ignored for neutrons.
+        parameterization: Named kernel bundle. ``'original'`` preserves the
+            existing paper-style implementation, while ``'talys'`` enables the
+            revised TALYS-compatible low-energy handling.
         coeffs_A: Real isoscalar coefficient table.
         coeffs_B: Real isovector coefficient table.
         coeffs_C: Momentum-dependent mass coefficient table.
@@ -351,32 +501,82 @@ def potential_JLM(
         Tuple of real and imaginary optical-potential arrays in MeV.
 
     Raises:
-        ValueError: If ``projectile`` is not neutron or proton.
+        ValueError: If ``projectile`` is not neutron or proton, or if ``V_C`` is
+            missing or malformed for proton calls.
     """
 
+    r_array = np.asarray(rgrid, dtype=float)
     rho_array = np.asarray(rho_grid, dtype=float)
+    if r_array.shape != rho_array.shape:
+        raise ValueError("rgrid and rho_grid must have the same shape.")
     A, Z = target
     N = A - Z
     alpha = (N - Z) / A
-    E_F = fermi_energy_MeV(rho_fm3=rho_array, coeffs=coeffs_E_F)
-    V0_grid = V0(rho_fm3=rho_array, E_MeV=E, coeffs=coeffs_A)
+    params = resolve_parameterization(parameterization)
+    if params is not None:
+        coeffs_A = params.coeffs_A
+        coeffs_B = params.coeffs_B
+        coeffs_C = params.coeffs_C
+        coeffs_D = params.coeffs_D
+        coeffs_F = params.coeffs_F
+        coeffs_E_F = params.coeffs_E_F
+        D_damping = params.D_damping
+        F_damping = params.F_damping
+        local_jlm_real_mode = params.local_jlm_real_mode
+        low_energy_offset = params.low_energy_E_F_offset
+        low_energy_coeffs = params.low_energy_E_F_coeffs
+        blend_energy = params.E_F_blend_energy
+        blend_width = params.E_F_blend_width
+    else:
+        local_jlm_real_mode = "linearized_delta_c"
+        low_energy_offset = None
+        low_energy_coeffs = None
+        blend_energy = EPS_F_BLEND_ENERGY
+        blend_width = EPS_F_BLEND_WIDTH
+
+    E_F = fermi_energy_MeV(
+        rho_fm3=rho_array,
+        coeffs=coeffs_E_F,
+        projectile_energy_MeV=E,
+        low_energy_offset=low_energy_offset,
+        low_energy_coeffs=low_energy_coeffs,
+        blend_energy=blend_energy,
+        blend_width=blend_width,
+    )
+
     if projectile == (1, 1):
-        RC = 1.2 * A ** (1 / 3)
-        VC = 6.0 * Z * ALPHA * HBARC / (5 * RC)
-        DelC = Delta_C(
-            rho_fm3=rho_array, E_MeV=E, V_C_MeV=VC, coeffs_A=coeffs_A, linear=True
-        )
-        E_eff = E - VC
+        if V_C is None:
+            raise ValueError("V_C is required for proton projectiles.")
+        V_c_grid = np.asarray(V_C, dtype=float)
+        if V_c_grid.shape != rho_array.shape:
+            raise ValueError("V_C must have the same shape as rho_grid.")
+        if local_jlm_real_mode == "linearized_delta_c":
+            DelC = Delta_C(
+                rho_fm3=rho_array,
+                E_MeV=E,
+                V_C_MeV=V_c_grid,
+                coeffs_A=coeffs_A,
+                linear=True,
+            )
+            V0_energy = np.full_like(rho_array, float(E))
+        else:
+            DelC = np.zeros_like(rho_array)
+            V0_energy = E - V_c_grid
+        E_eff = E - V_c_grid
         sign = -1.0
     elif projectile == (1, 0):
-        DelC = 0.0
-        E_eff = E
+        if V_C is not None:
+            raise ValueError("V_C is only supported for proton projectiles.")
+        DelC = np.zeros_like(rho_array)
+        V0_energy = np.full_like(rho_array, float(E))
+        E_eff = np.full_like(rho_array, float(E))
         sign = +1.0
     else:
         raise ValueError(
             f"Projectile must be neutron (1,0) or proton (1,1), received {projectile}"
         )
 
+    V0_grid = V0(rho_fm3=rho_array, E_MeV=V0_energy, coeffs=coeffs_A)
     W0_grid = W0(
         rho_fm3=rho_array,
         E_MeV=E_eff,
@@ -478,9 +678,8 @@ def potential_JLMB(
     projectile: Projectile,
     target: Target,
     E: float,
-    coulomb_mode: str = "density",
-    coulomb_R_C: str | float | None = None,
-    include_exchange: bool = False,
+    V_C: FloatArray | None = None,
+    parameterization: str | JLMParameterization | None = None,
     coeffs_A: FloatArray = A_V0,
     coeffs_B: FloatArray = B_N_RE,
     coeffs_C: FloatArray = C_KMASS,
@@ -507,9 +706,11 @@ def potential_JLMB(
             ``(1, 1)`` for protons.
         target: Target ``(A, Z)`` tuple.
         E: Projectile energy in MeV.
-        coulomb_mode: Coulomb model passed to :meth:`ILDAFolder.V_coulomb`.
-        coulomb_R_C: Coulomb radius override for the uniform-sphere mode.
-        include_exchange: Whether to include the Coulomb exchange correction.
+        V_C: Coulomb potential sampled on ``folder.r_q``. Required for proton
+            projectiles and ignored for neutrons.
+        parameterization: Named kernel bundle. ``'original'`` preserves the
+            existing behavior, while ``'talys'`` enables the revised
+            TALYS-compatible coefficients and low-energy Fermi-energy blend.
         coeffs_A: Real isoscalar coefficient table.
         coeffs_B: Real isovector coefficient table.
         coeffs_C: Momentum-dependent mass coefficient table.
@@ -530,31 +731,60 @@ def potential_JLMB(
         Tuple of folded real and imaginary optical-potential arrays in MeV.
 
     Raises:
-        ValueError: If ``projectile`` is not neutron or proton.
+        ValueError: If ``projectile`` is not neutron or proton, or if ``V_C`` is
+            missing or malformed for proton calls.
     """
 
-    A, Z = target
+    params = resolve_parameterization(parameterization)
+    if params is not None:
+        coeffs_A = params.coeffs_A
+        coeffs_B = params.coeffs_B
+        coeffs_C = params.coeffs_C
+        coeffs_D = params.coeffs_D
+        coeffs_F = params.coeffs_F
+        coeffs_E_F = params.coeffs_E_F
+        D_damping = params.D_damping
+        F_damping = params.F_damping
+        low_energy_offset = params.low_energy_E_F_offset
+        low_energy_coeffs = params.low_energy_E_F_coeffs
+        blend_energy = params.E_F_blend_energy
+        blend_width = params.E_F_blend_width
+    else:
+        low_energy_offset = None
+        low_energy_coeffs = None
+        blend_energy = EPS_F_BLEND_ENERGY
+        blend_width = EPS_F_BLEND_WIDTH
+
     rho_n_array = np.asarray(rho_n_q, dtype=float)
     rho_p_array = np.asarray(rho_p_q, dtype=float)
     rho_q = rho_n_array + rho_p_array
     alpha_q = np.where(rho_q > 1e-12, (rho_n_q - rho_p_q) / rho_q, 0.0)
 
     if projectile == (1, 1):
-        V_C_q = folder.V_coulomb(
-            rho_p_array,
-            mode=coulomb_mode,
-            R_C=coulomb_R_C,
-            include_exchange=include_exchange,
-        )
+        if V_C is None:
+            raise ValueError("V_C is required for proton projectiles.")
+        V_C_q = np.asarray(V_C, dtype=float)
+        if V_C_q.shape != rho_q.shape:
+            raise ValueError("V_C must have the same shape as rho_n_q and rho_p_q.")
         E_eff_q = E - V_C_q
         sign = -1.0
     elif projectile == (1, 0):
+        if V_C is not None:
+            raise ValueError("V_C is only supported for proton projectiles.")
         E_eff_q = np.full_like(folder.r_q, float(E))
         sign = +1.0
     else:
         raise ValueError(f"Projectile must be (1,0) [n] or (1,1) [p], got {projectile}")
 
-    E_F_q = fermi_energy_MeV(rho_q, coeffs=coeffs_E_F)
+    E_F_q = fermi_energy_MeV(
+        rho_q,
+        coeffs=coeffs_E_F,
+        projectile_energy_MeV=E,
+        low_energy_offset=low_energy_offset,
+        low_energy_coeffs=low_energy_coeffs,
+        blend_energy=blend_energy,
+        blend_width=blend_width,
+    )
     V0_q = V0(rho_q, E_eff_q, coeffs=coeffs_A)
     W0_q = W0(rho_q, E_eff_q, E_F=E_F_q, coeffs=coeffs_D, damping=D_damping)
     V1_q = V1(rho_q, E_eff_q, E_F=E_F_q, coeffs_B=coeffs_B, coeffs_C=coeffs_C)
