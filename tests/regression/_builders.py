@@ -20,7 +20,7 @@ class BuiltCase:
     """Concrete workspace and inputs for one regression case."""
 
     workspace: Any
-    xs_kwargs: dict[str, np.ndarray]
+    xs_kwargs: dict[str, np.ndarray | None]
 
 
 def build_case(ref: ReferenceCase) -> BuiltCase:
@@ -94,7 +94,11 @@ def _build_elastic_case(ref: ReferenceCase) -> BuiltCase:
     radial_grid = workspace.radial_grid()
     central_data = potential["central"]
     spin_orbit_data = potential["spin_orbit"]
-    coulomb_data = potential["coulomb"]
+    charge_product = reaction.target.Z * reaction.projectile.Z
+    coulomb_data = potential.get("coulomb")
+    if charge_product != 0 and coulomb_data is None:
+        raise ValueError(f"{ref.case_id} is missing optical_potential.coulomb metadata")
+    coulomb_radius = float(coulomb_data["rC"]) if coulomb_data is not None else 1.0
     central, spin_orbit, coulomb = model.evaluate(
         radial_grid,
         reaction,
@@ -113,14 +117,18 @@ def _build_elastic_case(ref: ReferenceCase) -> BuiltCase:
         float(spin_orbit_data["Wso"]),
         float(spin_orbit_data["rso"]),
         float(spin_orbit_data["aso"]),
-        float(coulomb_data["rC"]),
+        coulomb_radius,
     )
     return BuiltCase(
         workspace=workspace,
         xs_kwargs={
             "central_potential": central,
             "spin_orbit_potential": spin_orbit,
-            "coulomb_potential": np.asarray(coulomb, dtype=np.complex128),
+            "coulomb_potential": (
+                np.asarray(coulomb, dtype=np.complex128)
+                if charge_product != 0
+                else None
+            ),
         },
     )
 

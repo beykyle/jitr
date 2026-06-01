@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from jitr.optical_potentials import chuq, kduq, wlh
+from jitr.optical_potentials import chuq, coulomb_charged_sphere, kduq, wlh
 
 
 @pytest.mark.parametrize(
@@ -70,3 +70,11 @@ def test_global_potential_helpers_return_complex_arrays(
     assert isinstance(result, np.ndarray)
     assert result.dtype == np.complex128
     assert result.shape == (16,)
+
+
+def test_coulomb_charged_sphere_returns_zero_for_neutral_projectiles() -> None:
+    scalar = coulomb_charged_sphere(3.0, 0.0, 0.0)
+    array = coulomb_charged_sphere(np.linspace(0.2, 8.0, 16), 0.0, 0.0)
+
+    assert scalar == 0.0
+    np.testing.assert_array_equal(array, np.zeros(16))

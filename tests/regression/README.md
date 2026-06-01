@@ -5,8 +5,8 @@ committed outputs from independent reaction codes.
 
 ## Current status
 
-- The first landed slice is a single Frescox elastic case in
-  `frescox/reference/`.
+- The landed Frescox elastic slice now covers one upstream proton baseline plus
+  additional proton and neutron elastic energies in `frescox/reference/`.
 - The harness is intentionally small: one manifest, one loader, one builder
   module, and one parametrized pytest entrypoint.
 - The design document's `test/regression/` layout is adapted here to
@@ -30,3 +30,6 @@ committed outputs from independent reaction codes.
   kinematics so the regression matches the upstream deck conventions exactly.
 - Later DWBA and TALYS slices still require public APIs that do not yet exist
   on this branch.
+- Neutral elastic regressions now omit the Coulomb matrix entirely in the
+  builder, so neutron metadata can stay physically literal instead of carrying
+  a dummy Coulomb term for execution.
