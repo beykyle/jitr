@@ -133,6 +133,10 @@ def thomas_mean_square_radius(R: float, a: float) -> float:
 
 def coulomb_charged_sphere(r: ArrayOrScalar, zz: float, r_c: float) -> ArrayOrScalar:
     """Return the Coulomb potential of a uniformly charged sphere."""
+    if zz == 0:
+        if isinstance(r, np.ndarray):
+            return np.zeros_like(r, dtype=np.float64)
+        return 0.0
     return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
 
 
