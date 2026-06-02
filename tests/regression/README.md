@@ -1,37 +1,26 @@
-# External-reference regression tests
+# Regression harness
 
-This package holds end-to-end regression tests that compare `jitr` against
-committed outputs from independent reaction codes.
-
-## Current status
-
-- The landed Frescox elastic slice now covers one upstream proton baseline plus
-  additional proton and neutron elastic energies in `frescox/reference/`.
-- The harness is intentionally small: one manifest, one loader, one builder
-  module, and one parametrized pytest entrypoint.
-- The design document's `test/regression/` layout is adapted here to
-  `tests/regression/` so it works with the repository's existing pytest and CI
-  configuration.
+End-to-end tests comparing `jitr` against committed reference outputs from
+Frescox (F1–F8) and TALYS (T1–T4). See the
+[regression-tests documentation](../../docs/regression-tests.md) for a case
+overview.
 
 ## Layout
 
-- `manifest.json`: committed case inventory
-- `_readers.py`: manifest and reference-data loader
-- `_builders.py`: API-specific workspace/input assembly
-- `test_regression.py`: end-to-end regression assertion
-- `frescox/`: committed Frescox inputs, references, and parser
-- `talys/`: TALYS inputs, references, parser, and provenance notes
+- `manifest.json` — committed case inventory (all active cases)
+- `_readers.py` — manifest and reference-data loader
+- `_builders.py` — API-specific workspace/input assembly
+- `conftest.py` — parametrizes pytest over `manifest.json`
+- `test_regression.py` — Frescox case assertions
+- `test_talys_reference.py` — TALYS parser smoke tests
+- `frescox/` — Frescox inputs, reference CSVs/JSON, and parser
+- `talys/` — TALYS inputs, reference CSVs/JSON, and parser
 
-## Notes
+## Design notes
 
 - Only committed CSV/JSON references are read in pytest; neither Frescox nor
   TALYS is required in CI.
-- Frescox cases use integer-amu input masses (`m = A * AMU`) plus classical
-  kinematics so the regression matches the upstream deck conventions exactly.
-- The first TALYS JLMB reference is checked in, but it stays out of the manifest
-  until the JLM/JLMB elastic builder path exists.
-- Later DWBA and broader TALYS execution paths still require public APIs that do
-  not yet exist on this branch.
-- Neutral elastic regressions now omit the Coulomb matrix entirely in the
-  builder, so neutron metadata can stay physically literal instead of carrying
-  a dummy Coulomb term for execution.
+- Frescox cases use integer-AMU masses (`m = A × AMU`) and classical
+  kinematics, matching the upstream deck convention exactly.
+- Neutral elastic cases omit the Coulomb matrix in the builder; neutron
+  metadata stays physically literal.

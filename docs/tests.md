@@ -1,5 +1,13 @@
 # Tests
 
+```{toctree}
+:hidden:
+:maxdepth: 1
+:titlesonly:
+
+regression-tests
+```
+
 ## Set up the development environment
 
 Clone the repository and install the full development environment:

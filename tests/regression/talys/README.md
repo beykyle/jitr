@@ -1,44 +1,49 @@
-# TALYS regression data
+# TALYS regression references
 
-This directory now carries the first committed TALYS elastic reference case:
-`T2_jlmb_elastic`, a `120Sn(n,n)` JLMB run at 10 MeV.
+Four [TALYS](https://github.com/arjankoning1/talys) 2.2 elastic-scattering
+cases for `120Sn` at 10 MeV are committed and active in the manifest.  All
+adapt samples from `talys/samples/n-Sn120-omp-JLM/`.
 
-## Current status
+| Case | Projectile | `jlmmode` | Source input |
+|------|-----------|-----------|-------------|
+| T1   | n | 0 | `inputs/T1_jlm_elastic.inp` |
+| T2   | n | 2 | `inputs/T2_jlmb_elastic.inp` |
+| T3   | p | 0 | `inputs/T3_jlmb_proton_elastic.inp` |
+| T4   | p | 2 | `inputs/T4_jlmb2_proton_elastic.inp` |
 
-- The committed TALYS slice is **reference-only** for now: input deck, metadata,
-  parser support, and normalized CSV are landed.
-- The case is **not** in `tests/regression/manifest.json` yet because the repo
-  still lacks the `jitr` builder path that evaluates JLM/JLMB elastic potentials
-  end to end.
-- The design note that `jlmomp` alone selects the JLM variant was stale. In the
-  mirrored TALYS source, `jlmomp` enables the semi-microscopic OMP and
-  `jlmmode` selects the JLMB-style imaginary normalization.
+All inputs enable `outangle y` and `fileelastic y`; the parser reads the
+`direct` column from the resulting `[np][np]0010.000ang.L00` YANDF file.
 
-## Source sample
+## Building TALYS locally
 
-The committed input adapts the mirrored TALYS sample
-`talys/samples/n-Sn120-omp-JLM/new/talys.inp` by:
+```bash
+git clone --depth=1 https://github.com/arjankoning1/talys.git /tmp/jitr-talys
+cd /tmp/jitr-talys
+make
+```
 
-- reducing the energy list to a single 10 MeV point,
-- setting `jlmmode 2` for the stronger JLMB modification,
-- enabling `outangle y` and `fileelastic y` so TALYS emits an elastic
-  angular-distribution file with `xs`, `direct`, and `compound` columns.
+The resulting executable is `./source/talys`.  Copy or symlink it to
+`talys/bin/talys` in the repository root so the regeneration commands below
+work unchanged.
 
-## Regeneration
+## Regenerating a CSV reference
 
-From a temporary work directory that contains `T2_jlmb_elastic.inp` and
-`T2_jlmb_elastic.energies`, with `REPO_ROOT` set to the repository root:
+From a temporary work directory, with `REPO_ROOT` pointing to the repo root:
 
 ```bash
 REPO_ROOT=/path/to/jitr
-"$REPO_ROOT"/talys/bin/talys < T2_jlmb_elastic.inp > talys.out
+CASE=T2_jlmb_elastic          # change for each case
+OUTPUT=nn0010.000ang.L00       # nn* for neutron, pp* for proton
+
+cp "$REPO_ROOT"/tests/regression/talys/inputs/${CASE}.inp .
+cp "$REPO_ROOT"/tests/regression/talys/inputs/${CASE}.energies .
+"$REPO_ROOT"/talys/bin/talys < ${CASE}.inp > talys.out
+
 uv run python "$REPO_ROOT"/tests/regression/talys/tools/parse_talys.py \
-    --output nn0010.000ang.L00 \
-    --metadata "$REPO_ROOT"/tests/regression/talys/reference/T2_jlmb_elastic.json \
-    --csv-out "$REPO_ROOT"/tests/regression/talys/reference/T2_jlmb_elastic.csv \
+    --output "$OUTPUT" \
+    --metadata "$REPO_ROOT"/tests/regression/talys/reference/${CASE}.json \
+    --csv-out  "$REPO_ROOT"/tests/regression/talys/reference/${CASE}.csv \
     --column direct
 ```
 
-The parser intentionally reads the `direct` column from the YANDF angle file,
-not `talys.out`, because the angular table is only emitted in the separate
-`fileelastic` artifact.
+Substitute the appropriate `CASE` and `OUTPUT` filename for each of T1–T4.

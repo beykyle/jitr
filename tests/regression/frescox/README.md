@@ -1,28 +1,10 @@
 # Frescox regression references
 
-The first committed Frescox regression case is adapted from the upstream
-`B1-example-el` example published at <http://www.fresco.org.uk/examples/>.
-
-## Landed cases
-
-- `F1_p_ni78_elastic`: proton elastic scattering on `78Ni` at `Elab = 6.9 MeV`
-  from the first energy block in `B1-example-el.out`
-- `F2_p_ni78_elastic_11MeV`: proton elastic scattering on `78Ni` at
-  `Elab = 11.0 MeV` from the second energy block in `B1-example-el.out`
-- `F3_p_ni78_elastic_49p35MeV`: proton elastic scattering on `78Ni` at
-  `Elab = 49.35 MeV` from the third energy block in `B1-example-el.out`
-- `F4_p_ni78_elastic_100MeV` and `F5_p_ni78_elastic_200MeV`: proton elastic
-  scattering on `78Ni` from the repo-local `inputs/B1-high-el.in` deck and its
-  committed `outputs/B1-high-el.out`
-- `F6_n_ni78_elastic_49p35MeV`, `F7_n_ni78_elastic_100MeV`, and
-  `F8_n_ni78_elastic_200MeV`: neutron elastic scattering on `78Ni` from the
-  repo-local `inputs/B1_n-high-el.in` deck and its committed
-  `outputs/B1_n-high-el.out`
+Cases F1–F8 are adapted from the upstream `B1-example-el` example published at
+<http://www.fresco.org.uk/examples/> (F1–F3) and repo-local high-energy decks
+(F4–F8).
 
 ## Building Frescox locally
-
-When Frescox is not already installed in the environment, the following build
-works on this repository's Linux development setup:
 
 ```bash
 mkdir -p /tmp/jitr-frescox
@@ -34,68 +16,48 @@ make MACH=gfortran -j2
 
 The resulting executable is `./frescox`.
 
-## Regenerating the CSV
+## Regenerating the CSV references
 
-1. Download the upstream input and output files, for example:
+**Upstream cases (F1–F3):** download the output and parse:
 
-   ```bash
-   mkdir -p /tmp/jitr-frescox/runs
-   curl -fsSL http://www.fresco.org.uk/examples/B1-example-el.out \
-      -o /tmp/jitr-frescox/runs/B1-example-el.out
-   ```
-2. Run:
+```bash
+mkdir -p /tmp/jitr-frescox/runs
+curl -fsSL http://www.fresco.org.uk/examples/B1-example-el.out \
+   -o /tmp/jitr-frescox/runs/B1-example-el.out
 
-   ```bash
-   uv run python tests/regression/frescox/tools/parse_frescox.py \
-       --output /tmp/jitr-frescox/runs/B1-example-el.out \
-       --metadata tests/regression/frescox/reference/F1_p_ni78_elastic.json \
-       --csv-out tests/regression/frescox/reference/F1_p_ni78_elastic.csv \
-       --case-index 0 \
-       --min-angle-deg 1.0
-   ```
+uv run python tests/regression/frescox/tools/parse_frescox.py \
+    --output /tmp/jitr-frescox/runs/B1-example-el.out \
+    --metadata tests/regression/frescox/reference/F1_p_ni78_elastic.json \
+    --csv-out tests/regression/frescox/reference/F1_p_ni78_elastic.csv \
+    --case-index 0 --min-angle-deg 1.0
+```
 
-3. For the repo-local high-energy decks, run:
+Repeat with `--case-index 1` / `F2_p_ni78_elastic_11MeV` and
+`--case-index 2` / `F3_p_ni78_elastic_49p35MeV`.
 
-   ```bash
-   /tmp/jitr-frescox/Frescox/source/frescox \
-      < tests/regression/frescox/inputs/B1-high-el.in \
-      > tests/regression/frescox/outputs/B1-high-el.out
+**High-energy cases (F4–F8):** run Frescox first, then parse:
 
-   /tmp/jitr-frescox/Frescox/source/frescox \
-      < tests/regression/frescox/inputs/B1_n-high-el.in \
-      > tests/regression/frescox/outputs/B1_n-high-el.out
-   ```
+```bash
+FRESCOX=/tmp/jitr-frescox/Frescox/source/frescox
 
-4. Parse the committed output blocks into CSV references:
+$FRESCOX < tests/regression/frescox/inputs/B1-high-el.in \
+         > tests/regression/frescox/outputs/B1-high-el.out
 
-   ```bash
-   uv run python tests/regression/frescox/tools/parse_frescox.py \
-      --output tests/regression/frescox/outputs/B1-high-el.out \
-      --metadata tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.json \
-      --csv-out tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.csv \
-      --case-index 1 \
-      --min-angle-deg 1.0
+$FRESCOX < tests/regression/frescox/inputs/B1_n-high-el.in \
+         > tests/regression/frescox/outputs/B1_n-high-el.out
 
-   uv run python tests/regression/frescox/tools/parse_frescox.py \
-      --output tests/regression/frescox/outputs/B1_n-high-el.out \
-      --metadata tests/regression/frescox/reference/F8_n_ni78_elastic_200MeV.json \
-      --csv-out tests/regression/frescox/reference/F8_n_ni78_elastic_200MeV.csv \
-      --case-index 2 \
-      --min-angle-deg 1.0
-   ```
+uv run python tests/regression/frescox/tools/parse_frescox.py \
+   --output tests/regression/frescox/outputs/B1-high-el.out \
+   --metadata tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.json \
+   --csv-out tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.csv \
+   --case-index 0 --min-angle-deg 1.0
 
-The parser only reads the committed external output and never edits the
-reference metadata by hand.
+# repeat for F5 (--case-index 1), F6/F7/F8 from B1_n-high-el.out
+```
 
 ## Notes
 
-- Frescox cases use the literal input-deck mass convention in `jitr`: each
-  particle mass is set to `A * AMU`, and the builder uses classical
-  kinematics. This matches the upstream examples more closely than the default
-  tabulated mass model.
-- Frescox's `elab`/`nlab` NAMELIST in the current LLNL build only supports up
-  to four energies in one deck, so the higher-energy proton/neutron ladders are
-  split into dedicated `B1-high-el` and `B1_n-high-el` inputs instead of
-  overloading `B1-example-el.in`.
-- B2 and B5 are not landed yet because this branch still lacks a public
-  `jitr.xs.dwba` workspace.
+- Frescox's `elab`/`nlab` NAMELIST supports at most four energies per deck, so
+  the high-energy proton and neutron ladders are split into separate
+  `B1-high-el` and `B1_n-high-el` input decks.
+- B2 and B5 are not landed yet (requires a public `jitr.xs.dwba` workspace).
