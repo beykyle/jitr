@@ -344,8 +344,7 @@ class TestJLMPotentials:
         expected_vnm = jlm.V0(rho_q, energy) + alpha_q * jlm.V1(rho_q, energy, e_fermi)
         m_tilde_q = jlm.m_tilde_over_m(rho_q, energy)
         expected_wnm = m_tilde_q * (
-            jlm.W0(rho_q, energy, e_fermi)
-            + alpha_q * jlm.W1(rho_q, energy, e_fermi)
+            jlm.W0(rho_q, energy, e_fermi) + alpha_q * jlm.W1(rho_q, energy, e_fermi)
         )
         expected_v = folder.gaussian_fold(expected_vnm, t=1.25, r_out=folder.r_q)
         expected_w = folder.gaussian_fold(expected_wnm, t=1.35, r_out=folder.r_q)

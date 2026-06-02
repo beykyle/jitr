@@ -7,9 +7,14 @@ import numpy as np
 
 from jitr.folding.folding import ILDAFolder
 from jitr.folding.jlm import (
-    lambda_v0, lambda_v1, lambda_w0, lambda_w1,
-    lambda_vso, lambda_wso, spin_orbit_jlmb,
+    lambda_v0,
+    lambda_v1,
+    lambda_vso,
+    lambda_w0,
+    lambda_w1,
+    lambda_wso,
     potential_JLMB,
+    spin_orbit_jlmb,
 )
 from jitr.optical_potentials.omp import LocalOpticalPotential
 from jitr.reactions import ElasticReaction, Nucleus, Particle
@@ -95,9 +100,7 @@ def _build_jlm_elastic_case(
     )
 
     central = np.asarray(central_re + 1j * central_im, dtype=np.complex128)
-    coulomb = (
-        np.asarray(V_C_out, dtype=np.complex128) if charge_product != 0 else None
-    )
+    coulomb = np.asarray(V_C_out, dtype=np.complex128) if charge_product != 0 else None
 
     # Spin-orbit: Scheerbaum Thomas form of the density (no Gaussian folding).
     vso = float(lambda_vso(energy))
@@ -173,9 +176,13 @@ def _build_elastic_case(ref: ReferenceCase) -> BuiltCase:
     potential = metadata["optical_potential"]
     kind = potential["kind"]
     if kind == "woods_saxon_local":
-        return _build_ws_elastic_case(ref, reaction, channel_kinematics, workspace, potential)
+        return _build_ws_elastic_case(
+            ref, reaction, channel_kinematics, workspace, potential
+        )
     elif kind == "jlm":
-        return _build_jlm_elastic_case(ref, reaction, channel_kinematics, workspace, potential)
+        return _build_jlm_elastic_case(
+            ref, reaction, channel_kinematics, workspace, potential
+        )
     else:
         raise NotImplementedError(
             f"{ref.case_id} uses unsupported optical_potential.kind {kind!r}"
