@@ -682,6 +682,7 @@ def lambda_w1(E_MeV: ScalarOrArray, mode: int = 0) -> PolynomialValue:
     """
 
     E = np.asarray(E_MeV, dtype=float)
+    alam: PolynomialValue
     if mode == 0:
         alam = 0.44
     elif mode == 1:
