@@ -1,20 +1,44 @@
-# TALYS regression scaffolding
+# TALYS regression data
 
-The TALYS elastic cases from the design are not landed yet.
+This directory now carries the first committed TALYS elastic reference case:
+`T2_jlmb_elastic`, a `120Sn(n,n)` JLMB run at 10 MeV.
 
-## Current blocker
+## Current status
 
-This branch does not currently expose a public JLM/JLMB elastic builder under
-`jitr.xs.elastic`, so TALYS-backed reference cases cannot run end-to-end yet.
+- The committed TALYS slice is **reference-only** for now: input deck, metadata,
+  parser support, and normalized CSV are landed.
+- The case is **not** in `tests/regression/manifest.json` yet because the repo
+  still lacks the `jitr` builder path that evaluates JLM/JLMB elastic potentials
+  end to end.
+- The design note that `jlmomp` alone selects the JLM variant was stale. In the
+  mirrored TALYS source, `jlmomp` enables the semi-microscopic OMP and
+  `jlmmode` selects the JLMB-style imaginary normalization.
 
-## Candidate upstream sample
+## Source sample
 
-The most promising upstream sample discovered during implementation is
-`samples/n-Sn120-omp-JLM`, which already exercises TALYS with `jlmomp y` and
-ships both input and reference output directories in the TALYS repository.
+The committed input adapts the mirrored TALYS sample
+`talys/samples/n-Sn120-omp-JLM/new/talys.inp` by:
 
-## Next step
+- reducing the energy list to a single 10 MeV point,
+- setting `jlmmode 2` for the stronger JLMB modification,
+- enabling `outangle y` and `fileelastic y` so TALYS emits an elastic
+  angular-distribution file with `xs`, `direct`, and `compound` columns.
 
-Once JLM/JLMB support exists in `jitr`, clone the upstream TALYS input into this
-directory, generate a `direct`-column CSV with `tools/parse_talys.py`, and add
-T1/T2 manifest entries.
+## Regeneration
+
+From a temporary work directory that contains `T2_jlmb_elastic.inp` and
+`T2_jlmb_elastic.energies`, with `REPO_ROOT` set to the repository root:
+
+```bash
+REPO_ROOT=/path/to/jitr
+"$REPO_ROOT"/talys/bin/talys < T2_jlmb_elastic.inp > talys.out
+uv run python "$REPO_ROOT"/tests/regression/talys/tools/parse_talys.py \
+    --output nn0010.000ang.L00 \
+    --metadata "$REPO_ROOT"/tests/regression/talys/reference/T2_jlmb_elastic.json \
+    --csv-out "$REPO_ROOT"/tests/regression/talys/reference/T2_jlmb_elastic.csv \
+    --column direct
+```
+
+The parser intentionally reads the `direct` column from the YANDF angle file,
+not `talys.out`, because the angular table is only emitted in the separate
+`fileelastic` artifact.

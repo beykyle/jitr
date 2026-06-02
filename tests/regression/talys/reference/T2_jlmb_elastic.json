@@ -1,0 +1,62 @@
+{
+  "case_id": "T2_jlmb_elastic",
+  "reference_code": "talys",
+  "observable_type": "elastic",
+  "description": "TALYS JLMB (jlmmode 2) elastic scattering on 120Sn at En = 10 MeV. JLMB spin-orbit (Scheerbaum prescription) included.",
+  "source_example": "T2_jlmb_elastic.inp",
+  "reaction": {
+    "target": {
+      "A": 120,
+      "Z": 50,
+      "name": "120Sn"
+    },
+    "projectile": {
+      "A": 1,
+      "Z": 0,
+      "name": "n"
+    }
+  },
+  "kinematics": {
+    "energy_MeV": 10.0,
+    "frame": "lab",
+    "relativistic": true
+  },
+  "optical_potential": {
+    "kind": "jlm",
+    "variant": "jlmb",
+    "parameterization": "talys",
+    "density_model": "d1m",
+    "radialmodel": 2,
+    "jlmmode": 2,
+    "folding_widths_fm": {
+      "real": 1.25,
+      "imag": 1.35
+    }
+  },
+  "matching": {
+    "channel_radius_fm": 40.0,
+    "lmax": 30,
+    "nbasis": 50
+  },
+  "tolerances": {
+    "dsdo_mb_per_sr": {
+      "rtol": 0.10,
+      "atol": 50.0
+    }
+  },
+  "reference_run": {
+    "code": "talys",
+    "version": "TALYS-2.2",
+    "source_sample": "talys/samples/n-Sn120-omp-JLM/new/talys.inp",
+    "source_mirror": "talys/",
+    "output_file": "nn0010.000ang.L00",
+    "parser": "tests/regression/talys/tools/parse_talys.py",
+    "column": "direct",
+    "input_overrides": [
+      "energy T2_jlmb_elastic.energies",
+      "jlmmode 2",
+      "outangle y",
+      "fileelastic y"
+    ]
+  }
+}

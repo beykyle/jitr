@@ -7,6 +7,7 @@ from typing import Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.interpolate import CubicSpline
 
 from ..utils import poly
 
@@ -622,11 +623,14 @@ def lambda_v0(E_MeV: ScalarOrArray) -> PolynomialValue:
     return 0.951 + 0.0008 * log_E + 0.00018 * log_E**2
 
 
-def lambda_w0(E_MeV: ScalarOrArray) -> PolynomialValue:
+def lambda_w0(E_MeV: ScalarOrArray, mode: int = 0) -> PolynomialValue:
     """Return the JLMB imaginary-isoscalar normalization factor.
 
     Args:
         E_MeV: Projectile energy in MeV.
+        mode: TALYS ``jlmmode`` selector (0–3). Mode 3 doubles the result
+            relative to mode 2 to improve low-energy (E < 1 MeV) accuracy.
+            Modes 0, 1, 2 do not affect λW; see :func:`lambda_w1` for those.
 
     Returns:
         Imaginary isoscalar normalization values.
@@ -637,7 +641,10 @@ def lambda_w0(E_MeV: ScalarOrArray) -> PolynomialValue:
     f2 = 1.0 + 0.06 * np.exp(-(((E - 14.0) / 3.7) ** 2))
     f3 = 1.0 - 0.09 * np.exp(-(((E - 80.0) / 78.0) ** 2))
     f4 = 1.0 + np.maximum(E - 80.0, 0.0) / 400.0  # Θ(E-80)·(E-80)/400
-    return f1 * f2 * f3 * f4
+    result = f1 * f2 * f3 * f4
+    if mode == 3:
+        result = result * 2.0
+    return result
 
 
 def lambda_v1(E_MeV: ScalarOrArray) -> PolynomialValue:
@@ -653,22 +660,131 @@ def lambda_v1(E_MeV: ScalarOrArray) -> PolynomialValue:
     return 1.5 - 0.65 / (1.0 + np.exp((E_MeV - 1.3) / 3.0))
 
 
-def lambda_w1(E_MeV: ScalarOrArray) -> PolynomialValue:
+def lambda_w1(E_MeV: ScalarOrArray, mode: int = 0) -> PolynomialValue:
     """Return the JLMB imaginary-isovector normalization factor.
+
+    The ``mode`` parameter selects the TALYS ``jlmmode`` prescription for the
+    ``alam`` amplitude in the sigmoid correction to the 1.1 base value.
+    Coefficients taken from ``talys/source/mom.f90`` (authoritative; the TALYS
+    manual has typographical errors for modes 1 and 2).
 
     Args:
         E_MeV: Projectile energy in MeV.
+        mode: TALYS ``jlmmode`` selector:
+
+            - ``0`` (default): ``alam = 0.44`` (Eq. 11.47 standard)
+            - ``1``: ``alam = 1.10 * exp(-0.4 * E**0.25)``
+            - ``2``: ``alam = 1.375 * exp(-0.2 * sqrt(E))``
+            - ``3``: same ``alam`` as mode 2 (λW doubled via :func:`lambda_w0`)
 
     Returns:
         Imaginary isovector normalization values.
     """
 
-    E = E_MeV
+    E = np.asarray(E_MeV, dtype=float)
+    if mode == 0:
+        alam = 0.44
+    elif mode == 1:
+        alam = 1.10 * np.exp(-0.4 * E**0.25)
+    elif mode in (2, 3):
+        alam = 1.375 * np.exp(-0.2 * np.sqrt(E))
+    else:
+        raise ValueError(f"mode must be 0–3, got {mode}")
     # paper: [1 + (e^((E-40)/50.9))^4]^-1  →  1 / (1 + e^(4(E-40)/50.9))
-    f1 = 1.1 + 0.44 / (1.0 + np.exp(4.0 * (E - 40.0) / 50.9))
+    f1 = 1.1 + alam / (1.0 + np.exp(4.0 * (E - 40.0) / 50.9))
     f2 = 1.0 - 0.065 * np.exp(-(((E - 40.0) / 13.0) ** 2))
     f3 = 1.0 - 0.083 * np.exp(-(((E - 200.0) / 80.0) ** 2))
     return f1 * f2 * f3
+
+
+def lambda_vso(E_MeV: ScalarOrArray) -> PolynomialValue:
+    """Return the JLMB real spin-orbit normalization depth.
+
+    From ``talys/source/mom.f90``: ``lvso = 40 + exp(-E*0.013)*130``.
+
+    Args:
+        E_MeV: Projectile energy in MeV.
+
+    Returns:
+        Real spin-orbit depth in MeV.
+    """
+    return 40.0 + 130.0 * np.exp(-0.013 * np.asarray(E_MeV, dtype=float))
+
+
+def lambda_wso(E_MeV: ScalarOrArray) -> PolynomialValue:
+    """Return the JLMB imaginary spin-orbit normalization depth.
+
+    From ``talys/source/mom.f90``: ``lwso = -0.2*(E - 20)``.  Zero at E = 20 MeV.
+
+    Args:
+        E_MeV: Projectile energy in MeV.
+
+    Returns:
+        Imaginary spin-orbit depth in MeV.
+    """
+    return -0.2 * (np.asarray(E_MeV, dtype=float) - 20.0)
+
+
+def spin_orbit_jlmb(
+    r_q: FloatArray,
+    rho_n_q: FloatArray,
+    rho_p_q: FloatArray,
+    projectile: Projectile,
+    r_out: FloatArray | None = None,
+) -> FloatArray:
+    """Return the JLMB spin-orbit form factor F(r) = -½ (1/r) dρ_SO/dr.
+
+    Uses the Scheerbaum prescription (Nucl. Phys. A257, 77, 1976): the
+    effective spin-orbit density up-weights the minority species:
+
+    - neutron projectile: ``ρ_SO = (2ρ_p + ρ_n) / 3``
+    - proton  projectile: ``ρ_SO = (2ρ_n + ρ_p) / 3``
+
+    The derivative dρ_SO/dr is evaluated via :class:`~scipy.interpolate.CubicSpline`
+    fitted to the density values at ``r_q``.  The leading factor of −½ matches
+    the TALYS/ECIS type-5 spin-orbit convention (Scheerbaum form stored with
+    opposite sign and halved, confirmed numerically against ECIS output for
+    n + ¹²⁰Sn at 10 MeV).
+
+    The full complex spin-orbit potential is assembled by the caller as:
+
+    .. code-block:: python
+
+        V_SO(r) = (lambda_vso(E) + 1j * lambda_wso(E)) * spin_orbit_jlmb(...)
+
+    and passed to ``workspace.xs(spin_orbit_potential=...)``.  jitr applies
+    the L·S eigenvalue (l/2 for j=l+½, −(l+1)/2 for j=l−½) internally.
+
+    Args:
+        r_q: Radial grid in fm on which ``rho_n_q`` and ``rho_p_q`` are
+            sampled (e.g. ``ILDAFolder.r_q``).
+        rho_n_q: Neutron density on ``r_q``, in fm⁻³.
+        rho_p_q: Proton density on ``r_q``, in fm⁻³.
+        projectile: ``(1, 0)`` for neutrons, ``(1, 1)`` for protons.
+        r_out: Output radial grid in fm.  Defaults to ``r_q``.
+
+    Returns:
+        Form factor F(r) sampled on ``r_out``, in fm⁻⁴.
+    """
+    rho_n_arr = np.asarray(rho_n_q, dtype=float)
+    rho_p_arr = np.asarray(rho_p_q, dtype=float)
+    r_arr = np.asarray(r_q, dtype=float)
+
+    if projectile == (1, 0):
+        rho_so = (2.0 * rho_p_arr + rho_n_arr) / 3.0
+    elif projectile == (1, 1):
+        rho_so = (2.0 * rho_n_arr + rho_p_arr) / 3.0
+    else:
+        raise ValueError(f"Projectile must be (1,0) [n] or (1,1) [p], got {projectile}")
+
+    drho_dr = CubicSpline(r_arr, rho_so)(r_arr, 1)
+
+    # Thomas form (1/r) dρ_SO/dr; use the L'Hôpital limit dρ/dr at r→0.
+    form = np.where(r_arr > 1e-10, drho_dr / r_arr, drho_dr)
+
+    result = -0.5 * form
+    r_eval = r_arr if r_out is None else np.asarray(r_out, dtype=float)
+    return np.interp(r_eval, r_arr, result)
 
 
 def potential_JLMB(
@@ -797,8 +913,12 @@ def potential_JLMB(
         coeffs_C=coeffs_C,
         damping=F_damping,
     )
+    # k-mass correction to the imaginary potential per Bauge et al. PRC 58, 1118 (1998).
+    # The imaginary NM terms are scaled by m̃/m before folding, which produces
+    # the surface-peaked imaginary potential characteristic of the JLMB prescription.
+    m_tilde_q = m_tilde_over_m(rho_q, E_eff_q, coeffs=coeffs_C)
     V_NM_q = lambda_V * (V0_q + sign * lambda_V1 * alpha_q * V1_q)
-    W_NM_q = lambda_W * (W0_q + sign * lambda_W1 * alpha_q * W1_q)
+    W_NM_q = lambda_W * m_tilde_q * (W0_q + sign * lambda_W1 * alpha_q * W1_q)
 
     V_r = folder.gaussian_fold(V_NM_q, t=t_r, r_out=r_out)
     W_r = folder.gaussian_fold(W_NM_q, t=t_i, r_out=r_out)

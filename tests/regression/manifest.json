@@ -46,5 +46,29 @@
     "reference_code": "frescox",
     "csv": "frescox/reference/F8_n_ni78_elastic_200MeV.csv",
     "json": "frescox/reference/F8_n_ni78_elastic_200MeV.json"
+  },
+  {
+    "case_id": "T1_jlm_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T1_jlm_elastic.csv",
+    "json": "talys/reference/T1_jlm_elastic.json"
+  },
+  {
+    "case_id": "T2_jlmb_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T2_jlmb_elastic.csv",
+    "json": "talys/reference/T2_jlmb_elastic.json"
+  },
+  {
+    "case_id": "T3_jlmb_proton_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T3_jlmb_proton_elastic.csv",
+    "json": "talys/reference/T3_jlmb_proton_elastic.json"
+  },
+  {
+    "case_id": "T4_jlmb2_proton_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T4_jlmb2_proton_elastic.csv",
+    "json": "talys/reference/T4_jlmb2_proton_elastic.json"
   }
 ]

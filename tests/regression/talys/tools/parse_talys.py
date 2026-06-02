@@ -20,13 +20,15 @@ def find_table(
 ) -> tuple[list[str], list[tuple[float, float]]]:
     requested = column.lower()
     for index, line in enumerate(lines):
-        normalized = line.lower().split()
+        normalized = line.lstrip("#").lower().split()
         if "angle" not in normalized or requested not in normalized:
             continue
         angle_index = normalized.index("angle")
         value_index = normalized.index(requested)
         rows: list[tuple[float, float]] = []
         for data_line in lines[index + 1 :]:
+            if data_line.lstrip().startswith("#"):
+                continue
             if not data_line.strip():
                 break
             parts = data_line.split()

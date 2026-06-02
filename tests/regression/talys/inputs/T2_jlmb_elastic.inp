@@ -1,0 +1,16 @@
+#
+# T2_jlmb_elastic
+#
+# Adapted from TALYS sample n-Sn120-omp-JLM
+#
+projectile n
+element    sn
+mass       120
+energy     T2_jlmb_elastic.energies
+#
+# Parameters
+#
+jlmomp y
+jlmmode 2
+outangle y
+fileelastic y

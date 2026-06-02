@@ -20,7 +20,7 @@ committed outputs from independent reaction codes.
 - `_builders.py`: API-specific workspace/input assembly
 - `test_regression.py`: end-to-end regression assertion
 - `frescox/`: committed Frescox inputs, references, and parser
-- `talys/`: TALYS scaffolding and sample-selection notes
+- `talys/`: TALYS inputs, references, parser, and provenance notes
 
 ## Notes
 
@@ -28,8 +28,10 @@ committed outputs from independent reaction codes.
   TALYS is required in CI.
 - Frescox cases use integer-amu input masses (`m = A * AMU`) plus classical
   kinematics so the regression matches the upstream deck conventions exactly.
-- Later DWBA and TALYS slices still require public APIs that do not yet exist
-  on this branch.
+- The first TALYS JLMB reference is checked in, but it stays out of the manifest
+  until the JLM/JLMB elastic builder path exists.
+- Later DWBA and broader TALYS execution paths still require public APIs that do
+  not yet exist on this branch.
 - Neutral elastic regressions now omit the Coulomb matrix entirely in the
   builder, so neutron metadata can stay physically literal instead of carrying
   a dummy Coulomb term for execution.

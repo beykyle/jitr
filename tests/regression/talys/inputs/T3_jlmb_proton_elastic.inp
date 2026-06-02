@@ -1,0 +1,15 @@
+#
+# T3_jlmb_proton_elastic
+#
+# TALYS JLMB (jlmmode 0, default) proton elastic scattering on 120Sn at Ep = 10 MeV.
+# Tests the Coulomb pathway: jitr must supply density-derived Coulomb to both
+# the JLM delta_C correction and workspace.xs(coulomb_potential=...).
+# jlmmode defaults to 0 (alam = 0.44, Eq. 11.47 standard).
+#
+projectile p
+element    sn
+mass       120
+energy     T3_jlmb_proton_elastic.energies
+jlmomp y
+outangle y
+fileelastic y

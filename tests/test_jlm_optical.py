@@ -342,10 +342,10 @@ class TestJLMPotentials:
         e_fermi = jlm.fermi_energy_MeV(rho_q)
 
         expected_vnm = jlm.V0(rho_q, energy) + alpha_q * jlm.V1(rho_q, energy, e_fermi)
-        expected_wnm = jlm.W0(rho_q, energy, e_fermi) + alpha_q * jlm.W1(
-            rho_q,
-            energy,
-            e_fermi,
+        m_tilde_q = jlm.m_tilde_over_m(rho_q, energy)
+        expected_wnm = m_tilde_q * (
+            jlm.W0(rho_q, energy, e_fermi)
+            + alpha_q * jlm.W1(rho_q, energy, e_fermi)
         )
         expected_v = folder.gaussian_fold(expected_vnm, t=1.25, r_out=folder.r_q)
         expected_w = folder.gaussian_fold(expected_wnm, t=1.35, r_out=folder.r_q)
@@ -395,20 +395,27 @@ class TestJLMPotentials:
             coeffs_B=jlm.TALYS_PARAMETERIZATION.coeffs_B,
             coeffs_C=jlm.TALYS_PARAMETERIZATION.coeffs_C,
         )
-        expected_wnm = jlm.W0(
-            rho_q,
-            e_eff_q,
-            e_fermi,
-            coeffs=jlm.TALYS_PARAMETERIZATION.coeffs_D,
-            damping=jlm.TALYS_PARAMETERIZATION.D_damping,
-        ) - alpha_q * jlm.W1(
-            rho_q,
-            e_eff_q,
-            e_fermi,
-            coeffs_F=jlm.TALYS_PARAMETERIZATION.coeffs_F,
-            coeffs_A=jlm.TALYS_PARAMETERIZATION.coeffs_A,
-            coeffs_C=jlm.TALYS_PARAMETERIZATION.coeffs_C,
-            damping=jlm.TALYS_PARAMETERIZATION.F_damping,
+        m_tilde_q = jlm.m_tilde_over_m(
+            rho_q, e_eff_q, coeffs=jlm.TALYS_PARAMETERIZATION.coeffs_C
+        )
+        expected_wnm = m_tilde_q * (
+            jlm.W0(
+                rho_q,
+                e_eff_q,
+                e_fermi,
+                coeffs=jlm.TALYS_PARAMETERIZATION.coeffs_D,
+                damping=jlm.TALYS_PARAMETERIZATION.D_damping,
+            )
+            - alpha_q
+            * jlm.W1(
+                rho_q,
+                e_eff_q,
+                e_fermi,
+                coeffs_F=jlm.TALYS_PARAMETERIZATION.coeffs_F,
+                coeffs_A=jlm.TALYS_PARAMETERIZATION.coeffs_A,
+                coeffs_C=jlm.TALYS_PARAMETERIZATION.coeffs_C,
+                damping=jlm.TALYS_PARAMETERIZATION.F_damping,
+            )
         )
         expected_v = folder.gaussian_fold(expected_vnm, t=1.25, r_out=folder.r_q)
         expected_w = folder.gaussian_fold(expected_wnm, t=1.35, r_out=folder.r_q)
