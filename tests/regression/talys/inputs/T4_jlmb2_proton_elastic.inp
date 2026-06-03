@@ -1,0 +1,14 @@
+#
+# T4_jlmb2_proton_elastic
+#
+# TALYS JLMB (jlmmode 2) proton elastic scattering on 120Sn at Ep = 10 MeV.
+# Tests Coulomb + updated imaginary normalization (alam = 1.375*exp(-0.2*sqrt(E))).
+#
+projectile p
+element    sn
+mass       120
+energy     T4_jlmb2_proton_elastic.energies
+jlmomp y
+jlmmode 2
+outangle y
+fileelastic y

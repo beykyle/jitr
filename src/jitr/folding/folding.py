@@ -48,6 +48,20 @@ class ILDAFolder:
         nodes, weights = leggauss(self.n_quad)
         self.r_q = np.asarray(0.5 * self.r_max * (nodes + 1.0), dtype=float)
         self.w_q = np.asarray(0.5 * self.r_max * weights, dtype=float)
+        self._D = self._build_diff_matrix()
+
+    def _build_diff_matrix(self) -> FloatArray:
+        r = self.r_q
+        w = self.w_q
+        idx = np.arange(len(r))
+        lam = np.sqrt(r * (self.r_max - r) * w)
+        signs = (-1.0) ** (idx[:, None] + idx[None, :])
+        lam_ratio = lam[None, :] / lam[:, None]
+        r_diff = r[:, None] - r[None, :]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            D = np.where(r_diff != 0.0, signs * lam_ratio / r_diff, 0.0)
+        np.fill_diagonal(D, -D.sum(axis=1))
+        return D
 
     def interp_to_quad(self, r_grid: ArrayLike, f_grid: ArrayLike) -> FloatArray:
         """Interpolate tabulated data onto the quadrature grid.
@@ -73,6 +87,29 @@ class ILDAFolder:
         """
 
         return float(np.sum(self.w_q * np.asarray(f_q, float)))
+
+    def differentiate(self, f_q: ArrayLike) -> FloatArray:
+        """Differentiate a quantity sampled on the quadrature grid.
+
+        Uses the Lagrange–Gauss-Legendre differentiation matrix (Baye 2015).
+        Exact for polynomials of degree ≤ ``n_quad`` − 1; requires no
+        grid-uniformity assumption.
+
+        The off-diagonal elements are derived from the Lagrange-Legendre
+        barycentric weights λ̃_j = √(r_j (r_max − r_j) w_j):
+
+            D_{ij} = (−1)^(i+j) λ̃_j / (λ̃_i (r_i − r_j))   i ≠ j
+
+        The diagonal is set by the row-sum condition ∑_j D_{ij} = 0,
+        which holds because d/dr [∑_j l_j(r)] = 0 for any Lagrange basis.
+
+        Args:
+            f_q: Function values sampled on ``self.r_q``.
+
+        Returns:
+            Derivative df/dr sampled on ``self.r_q``.
+        """
+        return self._D @ np.asarray(f_q, dtype=float)
 
     def Z_from_density(self, rho_q: ArrayLike) -> float:
         """Compute the particle number implied by a spherical density.

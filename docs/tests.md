@@ -1,5 +1,13 @@
 # Tests
 
+```{toctree}
+:hidden:
+:maxdepth: 1
+:titlesonly:
+
+regression-tests
+```
+
 ## Set up the development environment
 
 Clone the repository and install the full development environment:
@@ -40,6 +48,12 @@ The example notebooks are tested with `pytest` and `nbval`:
 ```bash
 uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
+
+## Run the regression tests
+
+End-to-end regression tests compare `jitr` against committed outputs from
+Frescox and TALYS.  See [Regression tests](regression-tests.md) for the full
+layout, the landed cases, and regeneration instructions.
 
 ## Browse the published examples
 

@@ -1,0 +1,74 @@
+[
+  {
+    "case_id": "F1_p_ni78_elastic",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F1_p_ni78_elastic.csv",
+    "json": "frescox/reference/F1_p_ni78_elastic.json"
+  },
+  {
+    "case_id": "F2_p_ni78_elastic_11MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F2_p_ni78_elastic_11MeV.csv",
+    "json": "frescox/reference/F2_p_ni78_elastic_11MeV.json"
+  },
+  {
+    "case_id": "F3_p_ni78_elastic_49p35MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F3_p_ni78_elastic_49p35MeV.csv",
+    "json": "frescox/reference/F3_p_ni78_elastic_49p35MeV.json"
+  },
+  {
+    "case_id": "F4_p_ni78_elastic_100MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F4_p_ni78_elastic_100MeV.csv",
+    "json": "frescox/reference/F4_p_ni78_elastic_100MeV.json"
+  },
+  {
+    "case_id": "F5_p_ni78_elastic_200MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F5_p_ni78_elastic_200MeV.csv",
+    "json": "frescox/reference/F5_p_ni78_elastic_200MeV.json"
+  },
+  {
+    "case_id": "F6_n_ni78_elastic_49p35MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F6_n_ni78_elastic_49p35MeV.csv",
+    "json": "frescox/reference/F6_n_ni78_elastic_49p35MeV.json"
+  },
+  {
+    "case_id": "F7_n_ni78_elastic_100MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F7_n_ni78_elastic_100MeV.csv",
+    "json": "frescox/reference/F7_n_ni78_elastic_100MeV.json"
+  },
+  {
+    "case_id": "F8_n_ni78_elastic_200MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F8_n_ni78_elastic_200MeV.csv",
+    "json": "frescox/reference/F8_n_ni78_elastic_200MeV.json"
+  },
+  {
+    "case_id": "T1_jlm_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T1_jlm_elastic.csv",
+    "json": "talys/reference/T1_jlm_elastic.json"
+  },
+  {
+    "case_id": "T2_jlmb_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T2_jlmb_elastic.csv",
+    "json": "talys/reference/T2_jlmb_elastic.json"
+  },
+  {
+    "case_id": "T3_jlmb_proton_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T3_jlmb_proton_elastic.csv",
+    "json": "talys/reference/T3_jlmb_proton_elastic.json"
+  },
+  {
+    "case_id": "T4_jlmb2_proton_elastic",
+    "reference_code": "talys",
+    "csv": "talys/reference/T4_jlmb2_proton_elastic.csv",
+    "json": "talys/reference/T4_jlmb2_proton_elastic.json"
+  }
+]

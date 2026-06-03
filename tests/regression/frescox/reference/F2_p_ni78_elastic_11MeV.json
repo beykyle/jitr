@@ -1,0 +1,72 @@
+{
+  "case_id": "F2_p_ni78_elastic_11MeV",
+  "reference_code": "frescox",
+  "observable_type": "elastic",
+  "description": "Frescox B1 proton elastic scattering on 78Ni at Elab = 11.0 MeV.",
+  "source_example": "B1-example-el.in",
+  "reaction": {
+    "target": {
+      "A": 78,
+      "Z": 28,
+      "name": "78Ni"
+    },
+    "projectile": {
+      "A": 1,
+      "Z": 1,
+      "name": "p"
+    }
+  },
+  "mass_kwargs": {
+    "model": "BMA"
+  },
+  "mass_model": "integer_amu",
+  "kinematics": {
+    "energy_MeV": 11.0,
+    "frame": "lab",
+    "relativistic": false
+  },
+  "optical_potential": {
+    "kind": "woods_saxon_local",
+    "scale_radii_by_At_and_Ap": true,
+    "central": {
+      "Vv": 40.0,
+      "rv": 1.2,
+      "av": 0.65,
+      "Wv": 10.0,
+      "rw": 1.2,
+      "aw": 0.5,
+      "Wd": 0.0,
+      "Vd": 0.0,
+      "rd": 1.2,
+      "ad": 0.65
+    },
+    "spin_orbit": {
+      "Vso": 0.0,
+      "Wso": 0.0,
+      "rso": 1.2,
+      "aso": 0.65
+    },
+    "coulomb": {
+      "rC": 1.2
+    }
+  },
+  "matching": {
+    "channel_radius_fm": 40.0,
+    "lmax": 40,
+    "nbasis": 50
+  },
+  "tolerances": {
+    "dsdo_mb_per_sr": {
+      "rtol": 0.02,
+      "atol": 1e-06
+    }
+  },
+  "reference_run": {
+    "code": "frescox",
+    "version": "website example output (undated)",
+    "source_url": "http://www.fresco.org.uk/examples/B1-example-el.out",
+    "parser": "tests/regression/frescox/tools/parse_frescox.py",
+    "case_index": 1,
+    "min_angle_deg": 1.0
+  }
+}

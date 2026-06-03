@@ -1,0 +1,15 @@
+#
+# T1_jlm_elastic
+#
+# TALYS JLMB (jlmmode 0, default) elastic scattering on 120Sn at En = 10 MeV.
+# Adapted from talys/samples/n-Sn120-omp-JLM/org/talys.inp.
+# Adds outangle y and fileelastic y to produce angular distributions.
+# jlmmode defaults to 0 (alam = 0.44, Eq. 11.47 standard).
+#
+projectile n
+element    sn
+mass       120
+energy     T1_jlm_elastic.energies
+jlmomp y
+outangle y
+fileelastic y
