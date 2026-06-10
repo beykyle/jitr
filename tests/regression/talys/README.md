@@ -17,14 +17,19 @@ All inputs enable `outangle y` and `fileelastic y`; the parser reads the
 ## Building TALYS locally
 
 ```bash
-git clone --depth=1 https://github.com/arjankoning1/talys.git /tmp/jitr-talys
-cd /tmp/jitr-talys
+git clone --depth=1 https://github.com/arjankoning1/talys.git ${PATH_TO_TALYS}
+cd ${PATH_TO_TALYS}
 make
 ```
 
-The resulting executable is `./source/talys`.  Copy or symlink it to
-`talys/bin/talys` in the repository root so the regeneration commands below
-work unchanged.
+The resulting executable is `${PATH_TO_TALYS}/source/talys`.
+
+```
+export PATH="${PATH_TO_TALYS}/source:$PATH"
+which talys
+```
+
+should print the path to the executable.
 
 ## Regenerating a CSV reference
 
@@ -37,7 +42,7 @@ OUTPUT=nn0010.000ang.L00       # nn* for neutron, pp* for proton
 
 cp "$REPO_ROOT"/tests/regression/talys/inputs/${CASE}.inp .
 cp "$REPO_ROOT"/tests/regression/talys/inputs/${CASE}.energies .
-"$REPO_ROOT"/talys/bin/talys < ${CASE}.inp > talys.out
+talys < ${CASE}.inp > talys.out
 
 uv run python "$REPO_ROOT"/tests/regression/talys/tools/parse_talys.py \
     --output "$OUTPUT" \
