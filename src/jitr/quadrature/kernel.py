@@ -71,8 +71,7 @@ class Kernel:
         values_array = np.asarray(values, dtype=np.complex128)
         if values_array.shape != (self.quadrature.nbasis,):
             raise ValueError(
-                "local quadrature values must have shape "
-                f"({self.quadrature.nbasis},)"
+                f"local quadrature values must have shape ({self.quadrature.nbasis},)"
             )
         return np.sum(values_array * self.quadrature.weights) * radius
 
@@ -87,7 +86,7 @@ class Kernel:
         expected_shape = (self.quadrature.nbasis, self.quadrature.nbasis)
         if values_array.shape != expected_shape:
             raise ValueError(
-                "nonlocal quadrature values must have shape " f"{expected_shape}"
+                f"nonlocal quadrature values must have shape {expected_shape}"
             )
 
         if is_symmetric:
@@ -120,8 +119,7 @@ class Kernel:
         r = self.radial_grid(radius)
         if values_array.shape != r.shape:
             raise ValueError(
-                "local values for a Fourier-Bessel transform must have shape "
-                f"{r.shape}"
+                f"local values for a Fourier-Bessel transform must have shape {r.shape}"
             )
         k_grid = self._validate_k_grid(k)
         kr = np.outer(k_grid, r)
