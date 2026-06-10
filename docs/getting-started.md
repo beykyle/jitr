@@ -39,10 +39,10 @@ Browse the curated [example notebooks](examples/index.md).
 
 ### Quick start
 
-The [quickstart example](/examples/notebooks/quickstart) gives a full end-to-end walk-through for:
-- compiling a solver for a given reaction system
+The [quickstart example](/examples/notebooks/quickstart) gives a full end-to-end walk-through afor:
+- compiling a solver for a given reaction system ($\alpha$ + $^{48}$Ca)
 - defining a parametric interaction potential
-- calculating an elastic scattering cross section for an ensemble of potential parameters
+- fitting and full Bayesian calibration of the potential parameters to real experimental data
 
 ## API reference and development
 

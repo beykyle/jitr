@@ -19,7 +19,13 @@ Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
 ## Documentation
 
-The documentation site is available at <https://beykyle.github.io/jitr/>. 
+The documentation site is available at <https://beykyle.github.io/jitr/>.
+
+To build the docs locally:
+
+```bash
+uv run --group docs sphinx-build -W -b html docs docs/_build/html
+```
 
 ## Installation and Development
 

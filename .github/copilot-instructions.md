@@ -23,6 +23,21 @@ uv sync --all-groups
 ```
 
 
+## Building documentation
+
+Build the docs locally:
+
+```bash
+uv run --group docs sphinx-build -W -b html docs docs/_build/html
+```
+
+Output lands in `docs/_build/html/`. The `docs/examples/notebooks` and `docs/tests` symlinks are gitignored; create them once before building:
+
+```bash
+mkdir -p docs/examples && ln -sf "$(pwd)/examples/notebooks" docs/examples/notebooks
+ln -sf "$(pwd)/tests" docs/tests
+```
+
 ## Testing and validation
 
 Run unit tests:
