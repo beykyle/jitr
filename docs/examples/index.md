@@ -26,7 +26,7 @@
 
 ## Start here
 
-- [quickstart](/examples/notebooks/quickstart)
+- [Quickstart](/examples/notebooks/quickstart)
   gives a full end-to-end example for compiling a solver for a given reaction system, defining a parametric interaction potential, and calculating an elastic scattering cross section for an ensemble of potential parameters.
 - [Reactions and kinematics](/examples/notebooks/reaction)
   introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
