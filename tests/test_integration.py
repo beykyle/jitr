@@ -168,9 +168,9 @@ def test_matrix_helpers_and_dwba() -> None:
     local_values = np.linspace(1.0, 2.0, KERNEL.quadrature.nbasis)
     np.testing.assert_allclose(KERNEL.matrix_local(local_values), local_values)
 
-    nonlocal_values = np.arange(KERNEL.quadrature.nbasis**2, dtype=np.float64).reshape(
-        KERNEL.quadrature.nbasis, KERNEL.quadrature.nbasis
-    )
+    nonlocal_values = np.arange(
+        KERNEL.quadrature.nbasis**2, dtype=np.float64
+    ).reshape(KERNEL.quadrature.nbasis, KERNEL.quadrature.nbasis)
     expected_matrix = np.sqrt(KERNEL.weight_matrix) * nonlocal_values * CHANNEL_RADIUS
     np.testing.assert_allclose(
         KERNEL.matrix_nonlocal(nonlocal_values, CHANNEL_RADIUS), expected_matrix
