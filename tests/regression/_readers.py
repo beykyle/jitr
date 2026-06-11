@@ -82,7 +82,7 @@ def load_case(case: ManifestEntry) -> ReferenceCase:
 
     if not rows or rows[0] != ["theta_cm_deg", "dsdo_mb_per_sr"]:
         raise ValueError(
-            f"{case['case_id']} CSV must start with " "theta_cm_deg,dsdo_mb_per_sr"
+            f"{case['case_id']} CSV must start with theta_cm_deg,dsdo_mb_per_sr"
         )
 
     data = np.asarray(rows[1:], dtype=np.float64)

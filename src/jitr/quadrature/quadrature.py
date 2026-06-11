@@ -106,7 +106,11 @@ class LagrangeLaguerreQuadrature:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: int, m: int, a: float, l: int  # noqa: E741
+        self,
+        n: int,
+        m: int,
+        a: float,
+        l: int,  # noqa: E741
     ) -> float:
         """
         Return the (n,m)th matrix element for the kinetic energy operator at
@@ -174,7 +178,11 @@ class LagrangeLegendreQuadrature:
             self.overlap = overlap
 
     def kinetic_operator_element(
-        self, n: int, m: int, a: float, l: int  # noqa: E741
+        self,
+        n: int,
+        m: int,
+        a: float,
+        l: int,  # noqa: E741
     ) -> float:
         """
         Return the (n,m)th matrix element for the kinetic energy + Bloch
