@@ -99,7 +99,7 @@ class Solver:
         for i in range(n_channels):
             energy[
                 (i * n_basis) : (i + 1) * n_basis, (i * n_basis) : (i + 1) * n_basis
-            ] += (self.kernel.overlap * energy_scale[i])
+            ] += self.kernel.overlap * energy_scale[i]
 
         return energy / energy_scale[0]
 
