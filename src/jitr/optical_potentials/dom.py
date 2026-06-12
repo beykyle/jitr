@@ -474,7 +474,7 @@ def extract_params(
     return calculate_params(
         (reaction.projectile.A, reaction.projectile.Z),
         (reaction.target.A, reaction.target.Z),
-        kinematics.Ecm,
+        float(np.asarray(kinematics.Ecm)),
         Ef,
         *params,
     )
@@ -518,7 +518,7 @@ class DOM(SingleChannelOpticalModel):
         central_params, spin_orbit_params, coulomb_params = calculate_params(
             (reaction.projectile.A, reaction.projectile.Z),
             (reaction.target.A, reaction.target.Z),
-            kinematics.Ecm,
+            float(np.asarray(kinematics.Ecm)),
             Ef,
             *params,
         )

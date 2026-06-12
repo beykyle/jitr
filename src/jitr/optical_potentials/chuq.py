@@ -333,7 +333,7 @@ class CHUQ(SingleChannelOpticalModel):
         central_params, spin_orbit_params, coulomb_params = calculate_params(
             (reaction.projectile.A, reaction.projectile.Z),
             (reaction.target.A, reaction.target.Z),
-            kinematics.Elab,
+            float(np.asarray(kinematics.Elab)),
             *params,
         )
         return (

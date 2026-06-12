@@ -56,7 +56,7 @@ class System:
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
 
         self.entrance = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm * kinematics_entrance.k,
+            channel_radius=self.channel_radius_fm * float(np.asarray(kinematics_entrance.k)),
             lmax=self.lmax,
             mass_target=reaction.target.m0,
             mass_projectile=reaction.projectile.m0,
@@ -70,7 +70,7 @@ class System:
                 "Reaction must define both residual and product for (p,n) scattering"
             )
         self.exit = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm * kinematics_exit.k,
+            channel_radius=self.channel_radius_fm * float(np.asarray(kinematics_exit.k)),
             lmax=self.lmax,
             mass_target=reaction.residual.m0,
             mass_projectile=reaction.product.m0,
@@ -219,7 +219,7 @@ class Workspace:
     def radial_grid(self) -> FloatArray:
         """Return the physical quadrature grid used for local potentials."""
         return self.solver.radial_grid(
-            self.p_channels[0][0].a, self.kinematics_entrance.k
+            self.p_channels[0][0].a, float(np.asarray(self.kinematics_entrance.k))
         )
 
     def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:

@@ -154,6 +154,12 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+# lax uses PEP 695 type aliases (3.12+); skip it under the 3.10 target
+module = ["lax", "lax.*", "jax", "jax.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = [
     "jitr.reactions.wavefunction",
     "jitr.rmatrix.rmatrix",
