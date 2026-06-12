@@ -16,6 +16,11 @@ FloatArray = npt.NDArray[np.float64]
 class ChannelKinematics:
     """Kinematic quantities for a single reaction channel.
 
+    Every field is either a scalar (single energy) or an ``(N_E,)`` array
+    (energy grid); the constructors below vectorize over ``Elab``/``Ecm``,
+    so all array-valued fields share one shape. Note ``mu`` may stay scalar
+    for classical kinematics while the other fields are arrays.
+
     Attributes:
         Elab: Laboratory-frame kinetic energy in MeV.
         Ecm: Center-of-mass kinetic energy in MeV.
@@ -24,11 +29,11 @@ class ChannelKinematics:
         eta: Sommerfeld parameter.
     """
 
-    Elab: float
-    Ecm: float
-    mu: float
-    k: float
-    eta: float
+    Elab: float | FloatArray
+    Ecm: float | FloatArray
+    mu: float | FloatArray
+    k: float | FloatArray
+    eta: float | FloatArray
 
     def __iter__(self):
         """Iterate over the stored kinematic values in field order."""
@@ -38,7 +43,7 @@ class ChannelKinematics:
 def semi_relativistic_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: float | FloatArray,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute semi-relativistic entrance-channel kinematics.
@@ -76,7 +81,7 @@ def semi_relativistic_kinematics(
 def classical_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: float | FloatArray,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a laboratory energy.
@@ -100,7 +105,7 @@ def classical_kinematics(
 def classical_kinematics_cm(
     mass_target: float,
     mass_projectile: float,
-    Ecm: float,
+    Ecm: float | FloatArray,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a center-of-mass energy.

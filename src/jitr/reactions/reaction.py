@@ -537,7 +537,7 @@ class Reaction:
             )
             self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
 
-    def kinematics(self, Elab: float) -> ChannelKinematics:
+    def kinematics(self, Elab: float | np.ndarray) -> ChannelKinematics:
         """
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
@@ -555,7 +555,7 @@ class Reaction:
             Zz=self.target.Z * self.projectile.Z,
         )
 
-    def kinematics_cm(self, Ecm: float) -> ChannelKinematics:
+    def kinematics_cm(self, Ecm: float | np.ndarray) -> ChannelKinematics:
         """
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
@@ -573,7 +573,7 @@ class Reaction:
             Elab,
             Zz=self.target.Z * self.projectile.Z,
         )
-        assert np.isclose(Ecm, result.Ecm)
+        assert np.allclose(Ecm, result.Ecm)
 
         return result
 
