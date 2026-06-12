@@ -275,17 +275,15 @@ def compute_dispersion_case() -> dict[str, np.ndarray]:
 
 
 def compute_grid_case() -> dict[str, np.ndarray]:
-    """Public radial grids per elastic energy + one wavefunction.
+    """Public radial grids per elastic energy.
 
     The public grid is energy-independent fm (the k-scaling cancels) and
     matches lax's ``MeshSpec("legendre", "x")`` radii bitwise — pinned here.
-    The wavefunction is the Phase 6 oracle for the rebuilt
-    ``reactions.wavefunction`` (convention conversion per lax DESIGN.md
-    Appendix C.12 expected).
+    The ``wf_*`` fields of the golden npz (legacy-engine wavefunction, in
+    s = k·r) are the oracle for ``tests/test_wavefunction.py``; they are not
+    recomputed here.
     """
-    from jitr.optical_potentials import potential_forms as potentials
-    from jitr.reactions import ElasticReaction, wavefunction
-    from jitr.rmatrix import Solver
+    from jitr.reactions import ElasticReaction
     from jitr.xs.elastic import IntegralWorkspace
 
     reaction = ElasticReaction(ELASTIC_TARGET, ELASTIC_PROJECTILE)
@@ -300,45 +298,6 @@ def compute_grid_case() -> dict[str, np.ndarray]:
     for i in range(ELASTIC_ELAB.size):
         # the new grid is energy-independent; the golden rows agree to 1 ulp
         out[f"rgrid_{i}"] = workspace.radial_grid()
-
-    # one wavefunction: l=1, Elab=35 MeV, complex Woods-Saxon + Coulomb
-    from jitr.reactions import ProjectileTargetSystem
-    from jitr.utils import kinematics as kin_mod
-
-    sys = ProjectileTargetSystem(
-        channel_radius=5 * (2 * np.pi),
-        lmax=ELASTIC_LMAX,
-        mass_target=reaction.target.m0,
-        mass_projectile=reaction.projectile.m0,
-        Ztarget=reaction.target.Z,
-        Zproj=reaction.projectile.Z,
-    )
-    channel_kinematics = kin_mod.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, 35.0, sys.Zproj * sys.Ztarget
-    )
-    channels, asymptotics = sys.get_partial_wave_channels(*channel_kinematics)
-    l = 1
-    ch = channels[l]
-    asym = asymptotics[l]
-    wf_solver = Solver(60)
-    rgrid = wf_solver.radial_grid(ch.a, ch.k[0])
-    local = -potentials.woods_saxon_potential(
-        rgrid, 70.0, 40.0, 6.0, 1.2
-    ) + potentials.coulomb_charged_sphere(rgrid, sys.Zproj * sys.Ztarget, 6.0)
-    R, S, x, uext_prime_boundary = wf_solver.solve(
-        ch, asym, local_potential=local, wavefunction=True
-    )
-    s_values = np.linspace(0.05, sys.channel_radius, 200)
-    u = wavefunction.Wavefunctions(wf_solver, x, S, uext_prime_boundary, ch).uint()[0](
-        s_values
-    )
-
-    out["wf_l"] = np.array(l)
-    out["wf_Elab"] = np.array(35.0)
-    out["wf_s_values"] = s_values
-    out["wf_u"] = np.asarray(u, dtype=np.complex128)
-    out["wf_S"] = np.asarray(S)
-    out["wf_R"] = np.asarray(R)
     return out
 
 

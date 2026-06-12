@@ -81,15 +81,10 @@ class Workspace:
         check_angles(angles)
         self.angles = angles
 
-        solvers = (
-            ("rmatrix_direct", "wavefunction")
-            if method == "linear_solve"
-            else ("spectrum", "smatrix", "wavefunction")
-        )
         engine_kwargs = dict(
             V_is_complex=V_is_complex,
             method=method,
-            solvers=solvers,
+            wavefunctions=True,
             dps=dps,
             dtype=dtype,
             device=device,
@@ -260,29 +255,6 @@ class Workspace:
             out.append(total)
         return out[0], out[1]
 
-    def _distorted_waves(self, engine: BlockedEngine, interaction):
-        """Return (χ (N_b, N_E, M), S (N_b, N_E), conv (N_b, N_E))."""
-        solver = engine.solver
-        if self.method == "linear_solve":
-            s = solver.smatrix_direct(interaction)[:, :, 0, 0]
-            chi = solver.wavefunction_direct_grid(interaction)
-        else:
-            spectrum = solver.spectrum(interaction)
-            use_grid = (
-                interaction.energy_dependent or not engine.grid.uniform_mass_factor
-            )
-            if use_grid:
-                s = solver.smatrix_grid(spectrum)[:, :, 0, 0]
-            else:
-                s = solver.smatrix(spectrum)[:, :, 0, 0]
-            chi = solver.wavefunction_grid(spectrum)
-        boundary = solver.boundary
-        h_minus = np.asarray(boundary.H_minus)[:, :, 0]
-        h_minus_p = np.asarray(boundary.H_minus_p)[:, :, 0]
-        h_plus_p = np.asarray(boundary.H_plus_p)[:, :, 0]
-        conv = 0.5j * (h_minus_p - np.asarray(s) * h_plus_p) / h_minus
-        return chi, np.asarray(s), conv
-
     def tmatrix(
         self,
         U_p_coulomb: Any,
@@ -372,8 +344,8 @@ class Workspace:
         for ij, u1 in ((0, u1_plus), (1, u1_minus)):
             v_p_j = _pair_member(v_p, ij)
             v_n_j = _pair_member(v_n, ij)
-            chi_p, s_p, conv_p = self._distorted_waves(self.engine_p, v_p_j)
-            chi_n, s_n, conv_n = self._distorted_waves(self.engine_n, v_n_j)
+            chi_p, s_p, conv_p = self.engine_p.distorted_waves(v_p_j)
+            chi_n, s_n, conv_n = self.engine_n.distorted_waves(v_n_j)
             element = np.asarray(
                 self.engine_p.solver.matrix_element(chi_p, chi_n, u1, conjugate=False)
             )  # (N_b, N_E)

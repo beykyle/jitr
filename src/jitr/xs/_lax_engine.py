@@ -247,6 +247,7 @@ class BlockedEngine:
         V_is_complex: bool = True,
         method: str | None = None,
         solvers: tuple[str, ...] | None = None,
+        wavefunctions: bool = False,
         energy_dependent: bool = False,
         dps: int = 40,
         dtype: Any = None,
@@ -264,11 +265,12 @@ class BlockedEngine:
         if solvers is None:
             # the spectral S-matrix path is eigh/eig-only; linear_solve uses
             # the direct observables (lax compile contract)
-            solvers = (
-                ("rmatrix_direct",)
-                if method == "linear_solve"
-                else ("spectrum", "smatrix")
-            )
+            if method == "linear_solve":
+                solvers = ("rmatrix_direct",)
+            else:
+                solvers = ("spectrum", "smatrix")
+            if wavefunctions:
+                solvers = (*solvers, "wavefunction")
 
         mass_factors = self.grid.mass_factors
         compile_kwargs: dict[str, Any] = {}
@@ -560,6 +562,37 @@ class BlockedEngine:
             else:
                 s = self.solver.smatrix(spectrum)
         return s[:, :, 0, 0]
+
+    def distorted_waves(
+        self, interaction: Any
+    ) -> tuple[Any, ComplexArray, ComplexArray]:
+        """Return ``(χ, S, conv)`` for one Interaction (not a pair).
+
+        ``χ`` are the raw lax wavefunction mesh coefficients ``(N_b, N_E, M)``
+        (boundary-value-driven); ``S`` and ``conv`` are ``(N_b, N_E)``, where
+        ``conv = (i/2)(H⁻′ − S·H⁺′)/H⁻`` is the closed-form source-convention
+        factor (lax DESIGN.md Appendix C.12): ``conv·χ`` is the physically
+        normalized distorted wave of the legacy engine. Requires the engine to
+        be built with ``wavefunctions=True``.
+        """
+        solver = self.solver
+        if self.method == "linear_solve":
+            s = solver.smatrix_direct(interaction)[:, :, 0, 0]
+            chi = solver.wavefunction_direct_grid(interaction)
+        else:
+            spectrum = solver.spectrum(interaction)
+            use_grid = interaction.energy_dependent or not self.grid.uniform_mass_factor
+            if use_grid:
+                s = solver.smatrix_grid(spectrum)[:, :, 0, 0]
+            else:
+                s = solver.smatrix(spectrum)[:, :, 0, 0]
+            chi = solver.wavefunction_grid(spectrum)
+        boundary = solver.boundary
+        h_minus = np.asarray(boundary.H_minus)[:, :, 0]
+        h_minus_p = np.asarray(boundary.H_minus_p)[:, :, 0]
+        h_plus_p = np.asarray(boundary.H_plus_p)[:, :, 0]
+        conv = 0.5j * (h_minus_p - np.asarray(s) * h_plus_p) / h_minus
+        return chi, np.asarray(s), conv
 
     def smatrix(self, interaction: Any) -> tuple[ComplexArray, ComplexArray]:
         """Return (S⁺, S⁻), each ``(lmax+1, N_E)``.

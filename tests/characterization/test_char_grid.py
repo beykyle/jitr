@@ -16,8 +16,13 @@ from ._cases import assert_matches_golden, compute_grid_case, load_golden
 pytestmark = requires_lax
 
 
-def test_grids_and_wavefunction_match_golden() -> None:
-    assert_matches_golden(compute_grid_case(), load_golden("grids"))
+def test_grids_match_golden() -> None:
+    computed = compute_grid_case()
+    golden = load_golden("grids")
+    # wf_* fields are the legacy-engine wavefunction oracle consumed by
+    # tests/test_wavefunction.py, not recomputed here
+    golden = {key: value for key, value in golden.items() if not key.startswith("wf_")}
+    assert_matches_golden(computed, golden)
 
 
 def test_grid_is_energy_independent_fm() -> None:

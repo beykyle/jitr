@@ -26,7 +26,7 @@ from .system import (
     scalar_couplings,
     spin_half_orbit_coupling,
 )
-from .wavefunction import Wavefunctions
+from .wavefunction import DistortedWaves
 
 __all__ = [
     "AbsorptionReaction",
@@ -45,7 +45,7 @@ __all__ = [
     "Reaction",
     "SingleChannelData",
     "TotalReaction",
-    "Wavefunctions",
+    "DistortedWaves",
     "cluster_separation_energy",
     "get_latex",
     "get_symbol",
