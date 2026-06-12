@@ -1,6 +1,5 @@
 """Reaction models, channels, and wavefunction helpers."""
 
-from .channel_on_grid import SingleChannelData, make_channel_data
 from .reaction import (
     AbsorptionReaction,
     ElasticReaction,
@@ -43,13 +42,11 @@ __all__ = [
     "Positron",
     "ProjectileTargetSystem",
     "Reaction",
-    "SingleChannelData",
     "TotalReaction",
     "DistortedWaves",
     "cluster_separation_energy",
     "get_latex",
     "get_symbol",
-    "make_channel_data",
     "scalar_couplings",
     "spin_half_orbit_coupling",
     "these_things_are_all_nuclei",

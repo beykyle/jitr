@@ -4,6 +4,74 @@ Release Notes
 
 Below are the notes from all `jitr` releases. For more details see https://github.com/beykyle/jitr/releases
 
+Release 2.0 (unreleased)
+------------------------
+:Date: TBD
+
+The internal R-matrix engine (``jitr.rmatrix``, ``jitr.quadrature``,
+``jitr.reactions.channel_on_grid``) has been removed and the ``jitr.xs``
+workspaces rebuilt on the external `lax <https://github.com/beykyle/lax>`_
+solver package. This is a breaking release; old workspace call sites fail
+loudly rather than silently misbehave.
+
+**New capabilities**
+
+* Non-local interaction kernels (``(N, N)`` arrays or ``f(r, r')``
+  callables), energy-dependent and ℓ-dependent terms, all composable via
+  ``+`` — see ``docs/potential-contract.md``.
+* Energy-vectorized workspaces: ``ChannelKinematics`` fields may be
+  ``(N_E,)`` arrays; one workspace solves the whole energy grid at once.
+* All partial waves solved as a single vectorized block on the JAX
+  backend; the potential → observable pipeline is differentiable with
+  ``method="linear_solve"``.
+* Semi-relativistic (energy-dependent effective mass) kinematics are
+  mapped onto the solver exactly, including the interior equation.
+
+**Migration recipe**
+
+* ``IntegralWorkspace`` / ``DifferentialWorkspace`` /
+  ``quasielastic_pn.Workspace`` constructors: the ``solver=Solver(n)``
+  argument is replaced by ``nbasis=n``; pass ``channel_radius_fm`` in fm
+  (was the dimensionless ``a = k·R``); kinematics may now be arrays.
+* ``smatrix_abs_tol`` / ``tmatrix_abs_tol`` are removed — there is no
+  per-ℓ early exit. All waves up to ``lmax`` are computed; use the new
+  ``jitr.xs.elastic.suggest_lmax`` to choose ``lmax`` for the highest
+  grid energy.
+* ``radial_grid()`` is now documented as energy-independent physical fm.
+  Numerically it is identical to the old public grid, so potential
+  sampling code is unchanged — but it is now sampled once for all
+  energies, not per energy.
+* Axis conventions (no scalar-energy mode): partial-wave arrays are
+  trailing-energy (``Splus`` is ``(lmax+1, N_E)``, ``Sminus`` is
+  ``(lmax, N_E)``); observables are leading-energy (``dsdo``/``Ay``/``Q``
+  are ``(N_E, N_θ)``; ``t``/``rxn`` are ``(N_E,)``). For a scalar
+  ``Elab``, take ``[0]`` / ``[..., 0]`` slices.
+* ``jitr.reactions.Wavefunctions`` is replaced by
+  ``jitr.reactions.DistortedWaves`` (interior + exterior evaluation from
+  a workspace and an interaction).
+* The surviving quadrature transforms (Fourier–Bessel, double
+  Fourier–Bessel, Legendre/Laguerre meshes) moved to pure NumPy in
+  ``jitr.utils.transforms``; everything else from ``jitr.quadrature``
+  lives upstream in ``lax``.
+* ``numba`` is no longer a dependency; ``jax`` is. ``import jitr`` works
+  without ``lax`` installed — only constructing an ``xs`` workspace (or
+  ``DistortedWaves``) requires it. Until ``lax`` is published to PyPI,
+  install it from source (``pip install -e <path-to-lax>``); tests that
+  need it are marked ``requires_lax`` and auto-skip.
+* Coupled-channels support (``examples/coupled.py`` and the coupled
+  notebooks) was an explicit non-goal and is retired to
+  ``examples/legacy/`` / ``examples/notebooks/legacy/`` pending upstream
+  ``lax`` support.
+
+**Bug fixes**
+
+* The legacy non-local solver path was incorrect (and untested); the new
+  engine reproduces published Yamaguchi-potential phase shifts
+  (Descouvemont, 2016) to four decimal places. Results obtained from the
+  old non-local path should be regenerated.
+* ``σ_l`` Coulomb phases now vary with energy across the grid (previously
+  computed at a single scalar η).
+
 Release 1.3
 -------------
 :Date: Aug 1, 2024

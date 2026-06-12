@@ -378,7 +378,7 @@ class TestPerformance(unittest.TestCase):
         E = 12.0
         solver = DispersionSolver(r_grid, E=E)
 
-        # warm up numba
+        # warm up the kernel
         W_grid = np.array([[W_surface(r, x) for x in solver.x_quad] for r in r_grid])
         W_at_E = np.array([W_surface(r, E) for r in r_grid])
         _ = solver(W_grid, W_at_E)

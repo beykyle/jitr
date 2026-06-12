@@ -97,8 +97,8 @@ def _dispersion_kernel(
 ) -> np.ndarray:
     """Evaluate the preconditioned dispersion sum.
 
-    Plain-NumPy fast path for concrete arrays (one BLAS matvec — beats the
-    retired numba kernel's dispatch budget); the jitted JAX path engages
+    Plain-NumPy fast path for concrete arrays (a single BLAS matvec, so
+    per-call dispatch overhead stays negligible); the jitted JAX path engages
     when the inputs are JAX arrays/tracers, so dispersive potentials sit
     inside the differentiable potential → observable pipeline (§4).
     """

@@ -18,6 +18,7 @@ If you are new to the project, start with
 :caption: Documentation
 
 getting-started
+potential-contract
 tests
 advanced-users
 api/index

@@ -218,23 +218,28 @@ TRANSFORMS_KGRID = np.array([0.0, 0.2, 0.35, 0.75, 0.9, 1.3, 1.7])
 
 
 def compute_transforms_case() -> dict[str, np.ndarray]:
-    from jitr import quadrature
+    """Originally generated with the retired ``jitr.quadrature.Kernel``;
+    recomputed with the successor ``jitr.utils.transforms`` helpers."""
+    from jitr.utils.transforms import (
+        double_fourier_bessel_transform,
+        fourier_bessel_transform,
+        legendre_mesh,
+    )
 
-    kernel = quadrature.Kernel(TRANSFORMS_NBASIS, basis="Legendre")
-    rgrid = kernel.radial_grid(TRANSFORMS_RADIUS)
+    rgrid, weights = legendre_mesh(TRANSFORMS_NBASIS, TRANSFORMS_RADIUS)
     gaussian = np.exp(-0.3 * rgrid**2)
 
     return {
         "k_grid": TRANSFORMS_KGRID,
         "rgrid": rgrid,
-        "fb_l0_linear": kernel.fourier_bessel_transform(
-            0, rgrid, TRANSFORMS_KGRID, TRANSFORMS_RADIUS
+        "fb_l0_linear": fourier_bessel_transform(
+            0, rgrid, TRANSFORMS_KGRID, rgrid, weights
         ),
-        "fb_l1_gaussian": kernel.fourier_bessel_transform(
-            1, gaussian, TRANSFORMS_KGRID, TRANSFORMS_RADIUS
+        "fb_l1_gaussian": fourier_bessel_transform(
+            1, gaussian, TRANSFORMS_KGRID, rgrid, weights
         ),
-        "dfb_l0_separable": kernel.double_fourier_bessel_transform(
-            0, np.outer(rgrid, rgrid), TRANSFORMS_KGRID, TRANSFORMS_RADIUS
+        "dfb_l0_separable": double_fourier_bessel_transform(
+            0, np.outer(rgrid, rgrid), TRANSFORMS_KGRID, rgrid, weights
         ),
     }
 

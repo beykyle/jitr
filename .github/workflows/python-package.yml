@@ -52,11 +52,29 @@ jobs:
       - name: Mypy
         run: uv run mypy src
 
+      - name: Import without numba or lax
+        run: uv run python -c "import jitr; import sys; assert 'numba' not in sys.modules and 'lax' not in sys.modules"
+
       - name: Run unit tests
+        # lax is not yet on PyPI; tests marked requires_lax auto-skip without it
         run: uv run pytest
 
       - name: Run notebook tests
-        run: uv run --group examples pytest --nbval-lax --current-env examples/notebooks/
+        # legacy/ targets the removed rmatrix engine; the other ignores need
+        # the lax solver package and rejoin CI once lax is published
+        run: >-
+          uv run --group examples pytest --nbval-lax --current-env
+          examples/notebooks/
+          --ignore=examples/notebooks/legacy
+          --ignore=examples/notebooks/quickstart.ipynb
+          --ignore=examples/notebooks/chex_jitr_validation.ipynb
+          --ignore=examples/notebooks/local_omp_demo.ipynb
+          --ignore=examples/notebooks/kduq_uq_demo.ipynb
+          --ignore=examples/notebooks/example_jlm.ipynb
+          --ignore=examples/notebooks/builtin_omps_uq.ipynb
+          --ignore=examples/notebooks/angular_reaction_xs.ipynb
+          --ignore=examples/notebooks/mass_exploration.ipynb
+          --ignore=examples/notebooks/convergence_channel_radius.ipynb
 
       - name: Build package
         run: uv build

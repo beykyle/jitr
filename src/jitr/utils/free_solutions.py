@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import scipy.special as sc
@@ -58,7 +59,7 @@ def H_plus(
     s: float,
     l: int,
     eta: float,
-    asym: type = CoulombAsymptotics,
+    asym: Any = CoulombAsymptotics,
 ) -> complex:
     """Return the outgoing Coulomb-Hankel function."""
     return asym.G(s, l, eta) + 1j * asym.F(s, l, eta)
@@ -68,7 +69,7 @@ def H_minus(
     s: float,
     l: int,
     eta: float,
-    asym: type = CoulombAsymptotics,
+    asym: Any = CoulombAsymptotics,
 ) -> complex:
     """Return the incoming Coulomb-Hankel function."""
     return asym.G(s, l, eta) - 1j * asym.F(s, l, eta)
@@ -92,7 +93,7 @@ def H_plus_prime(
     s: float,
     l: int,
     eta: float,
-    asym: type = CoulombAsymptotics,
+    asym: Any = CoulombAsymptotics,
 ) -> complex:
     """Return the derivative of the outgoing Coulomb-Hankel function."""
     return coulomb_func_deriv(
@@ -105,7 +106,7 @@ def H_minus_prime(
     l: int,
     eta: float,
     dx: float = 1e-6,
-    asym: type = CoulombAsymptotics,
+    asym: Any = CoulombAsymptotics,
 ) -> complex:
     """Return the derivative of the incoming Coulomb-Hankel function."""
     return coulomb_func_deriv(
