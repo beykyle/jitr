@@ -246,7 +246,7 @@ class BlockedEngine:
         *,
         V_is_complex: bool = True,
         method: str | None = None,
-        solvers: tuple[str, ...] = ("spectrum", "smatrix"),
+        solvers: tuple[str, ...] | None = None,
         energy_dependent: bool = False,
         dps: int = 40,
         dtype: Any = None,
@@ -259,7 +259,16 @@ class BlockedEngine:
         self.lmax = int(lmax)
         self.nbasis = int(nbasis)
         self.channel_radius_fm = float(channel_radius_fm)
+        self.method = method
         self._ldots_plus, self._ldots_minus = ldots(self.lmax)
+        if solvers is None:
+            # the spectral S-matrix path is eigh/eig-only; linear_solve uses
+            # the direct observables (lax compile contract)
+            solvers = (
+                ("rmatrix_direct",)
+                if method == "linear_solve"
+                else ("spectrum", "smatrix")
+            )
 
         mass_factors = self.grid.mass_factors
         compile_kwargs: dict[str, Any] = {}
@@ -312,10 +321,12 @@ class BlockedEngine:
         Returns ``(values, energy_dependent, is_nonlocal)``. Energy-dependent
         callables are evaluated on the *physical* ``Ecm`` grid.
         """
+        import jax.numpy as jnp
+
         r = self.radial_grid()
         arity = _call_arity(fn)
         if arity == 1:
-            return np.asarray(fn(r)), False, False
+            return fn(r), False, False
         if arity == 2:
             if energy_dependent is None:
                 raise ValueError(
@@ -324,13 +335,13 @@ class BlockedEngine:
                     "energy_dependent=False for a non-local f(r, r')"
                 )
             if energy_dependent:
-                values = np.stack([fn(r, e) for e in self.grid.Ecm])
+                values = jnp.stack([fn(r, e) for e in self.grid.Ecm])
                 return values, True, False
             ri, rj = np.meshgrid(r, r, indexing="ij")
-            return np.asarray(fn(ri, rj)), False, True
+            return fn(ri, rj), False, True
         if arity == 3:
             ri, rj = np.meshgrid(r, r, indexing="ij")
-            values = np.stack([fn(ri, rj, e) for e in self.grid.Ecm])
+            values = jnp.stack([fn(ri, rj, e) for e in self.grid.Ecm])
             return values, True, True
         raise ValueError(
             f"{name}: potential callables must take (r), (r, E), (r, r'), or "
@@ -383,10 +394,13 @@ class BlockedEngine:
             if len(flags) != 1:
                 raise ValueError(f"{name}: per-l callables must share one signature")
             e_dep, nonloc = next(iter(flags))
-            values = np.stack([v for v, _, _ in evaluated])
+            import jax.numpy as jnp
+
+            values = jnp.stack([v for v, _, _ in evaluated])
             return values, _Interpretation(True, e_dep, nonloc)
 
-        values = np.asarray(term)
+        # keep JAX tracers intact (differentiable pipelines); coerce the rest
+        values = term if hasattr(term, "shape") else np.asarray(term)
         interp = _infer_interpretation(
             values.shape,
             self.nbasis,
@@ -411,7 +425,11 @@ class BlockedEngine:
         mesh_axes = 2 if interp.is_nonlocal else 1
         scale_shape = (-1,) + (1,) * mesh_axes
         if not interp.energy_dependent:
-            values = np.expand_dims(values, axis=-mesh_axes - 1)
+            # tracer-safe axis insertion before the mesh axes
+            shape = tuple(values.shape)
+            values = values.reshape(
+                shape[: len(shape) - mesh_axes] + (1,) + shape[len(shape) - mesh_axes:]
+            )
             interp = _Interpretation(interp.l_dependent, True, interp.is_nonlocal)
         return values * scale.reshape(scale_shape), interp
 
@@ -528,14 +546,22 @@ class BlockedEngine:
     # -- observables ---------------------------------------------------------
 
     def _smatrix_single(self, interaction: Any) -> ComplexArray:
-        """(lmax+1, N_E) S-matrix for one Interaction, regime-dispatched."""
-        spectrum = self.solver.spectrum(interaction)
-        use_grid = interaction.energy_dependent or not self.grid.uniform_mass_factor
-        if use_grid:
-            s = self.solver.smatrix_grid(spectrum)
+        """(lmax+1, N_E) S-matrix for one Interaction, regime-dispatched.
+
+        Returns a JAX array so differentiable pipelines stay intact.
+        """
+        if self.method == "linear_solve":
+            s = self.solver.smatrix_direct(interaction)
         else:
-            s = self.solver.smatrix(spectrum)
-        return np.asarray(s)[:, :, 0, 0]
+            spectrum = self.solver.spectrum(interaction)
+            use_grid = (
+                interaction.energy_dependent or not self.grid.uniform_mass_factor
+            )
+            if use_grid:
+                s = self.solver.smatrix_grid(spectrum)
+            else:
+                s = self.solver.smatrix(spectrum)
+        return s[:, :, 0, 0]
 
     def smatrix(self, interaction: Any) -> tuple[ComplexArray, ComplexArray]:
         """Return (S⁺, S⁻), each ``(lmax+1, N_E)``.
