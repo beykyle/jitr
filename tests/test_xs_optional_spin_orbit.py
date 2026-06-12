@@ -2,8 +2,9 @@ import numpy as np
 
 from jitr.reactions import ElasticReaction, Reaction
 from jitr.rmatrix import Solver
-from jitr.xs.elastic import DifferentialWorkspace, IntegralWorkspace
 from jitr.xs.quasielastic_pn import Workspace as QuasielasticWorkspace
+
+from .conftest import requires_lax
 
 
 def _gaussian_potential(
@@ -12,16 +13,18 @@ def _gaussian_potential(
     return np.asarray(strength * np.exp(-((rgrid / radius) ** 2)), dtype=np.complex128)
 
 
+@requires_lax
 def test_elastic_workspaces_treat_missing_spin_orbit_as_zero() -> None:
+    from jitr.xs.elastic import DifferentialWorkspace, IntegralWorkspace
+
     reaction = ElasticReaction((48, 20), (1, 0))
     kinematics = reaction.kinematics(12.0)
-    solver = Solver(16)
     integral = IntegralWorkspace(
         reaction=reaction,
         kinematics=kinematics,
         channel_radius_fm=8.0,
-        solver=solver,
         lmax=4,
+        nbasis=16,
     )
     angles = np.linspace(0.1, np.pi - 0.1, 7)
     differential = DifferentialWorkspace(integral, angles)

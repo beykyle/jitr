@@ -56,7 +56,8 @@ class System:
         self.l = np.arange(0, lmax + 1, dtype=np.int64)
 
         self.entrance = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm * float(np.asarray(kinematics_entrance.k)),
+            channel_radius=self.channel_radius_fm
+            * float(np.asarray(kinematics_entrance.k)),
             lmax=self.lmax,
             mass_target=reaction.target.m0,
             mass_projectile=reaction.projectile.m0,
@@ -70,7 +71,8 @@ class System:
                 "Reaction must define both residual and product for (p,n) scattering"
             )
         self.exit = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm * float(np.asarray(kinematics_exit.k)),
+            channel_radius=self.channel_radius_fm
+            * float(np.asarray(kinematics_exit.k)),
             lmax=self.lmax,
             mass_target=reaction.residual.m0,
             mass_projectile=reaction.product.m0,

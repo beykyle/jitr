@@ -10,7 +10,10 @@ contract therefore survives the rewrite unchanged; these tests pin that.
 
 import numpy as np
 
+from ..conftest import requires_lax
 from ._cases import assert_matches_golden, compute_grid_case, load_golden
+
+pytestmark = requires_lax
 
 
 def test_grids_and_wavefunction_match_golden() -> None:

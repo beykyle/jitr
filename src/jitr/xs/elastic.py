@@ -1,17 +1,36 @@
-"""Elastic-scattering observables built from the R-matrix solver."""
+"""Elastic-scattering observables on the lax solver engine.
+
+Workspaces are energy-vectorized: the ``kinematics`` object passed at
+construction may carry scalar or ``(N_E,)`` fields, and every observable
+gains the energy axis. Axis conventions (design doc §3.3-3.5, §8 Q2):
+
+- partial-wave arrays are trailing-E: ``Splus``/``Tplus`` are
+  ``(lmax+1, N_E)``; ``Sminus``/``Tminus`` are ``(lmax, N_E)`` (the j = l−½
+  branch starts at l = 1);
+- observables are leading-E: ``dsdo``/``Ay``/``Q`` are ``(N_E, N_θ)``,
+  ``t``/``rxn`` are ``(N_E,)``.
+
+The energy grid, ``lmax``, channel radius, and basis size are compile-time:
+changing any of them means a new workspace (seconds, mpmath-dominated for
+charged channels); changing the *potential* re-executes the jitted pipeline
+only. Outputs are JAX arrays so the potential → cross-section pipeline is
+differentiable end-to-end (use ``method="linear_solve"`` for gradients;
+the default complex-potential spectral path is not differentiable).
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from numba import njit
 from scipy.special import eval_legendre, gamma, lpmv
 
-from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
-from ..rmatrix import Solver
+from ..reactions import Reaction
 from ..utils.kinematics import ChannelKinematics
+from ._lax_engine import BlockedEngine, InteractionPair
 
 FloatArray = npt.NDArray[np.float64]
 ComplexArray = npt.NDArray[np.complex128]
@@ -19,286 +38,393 @@ ComplexArray = npt.NDArray[np.complex128]
 
 @dataclass
 class ElasticXS:
-    """Container for elastic-scattering observables.
+    """Elastic observables on the workspace energy × angle grids.
 
     Attributes:
-        dsdo: Differential cross section in mb/sr.
-        Ay: Analyzing power.
-        Q: Spin-rotation function.
-        t: Total cross section in mb.
-        rxn: Reaction cross section in mb.
+        dsdo: Differential cross section in mb/sr, ``(N_E, N_θ)``.
+        Ay: Analyzing power, ``(N_E, N_θ)``.
+        Q: Spin rotation, ``(N_E, N_θ)``.
+        t: Total cross section in mb, ``(N_E,)`` (neutral channels only).
+        rxn: Reaction cross section in mb, ``(N_E,)``.
     """
 
-    dsdo: np.ndarray
-    Ay: np.ndarray
-    Q: np.ndarray
-    t: np.float64
-    rxn: np.float64
+    dsdo: FloatArray
+    Ay: FloatArray
+    Q: FloatArray
+    t: FloatArray
+    rxn: FloatArray
+
+
+@lru_cache(maxsize=1)
+def _kernels():
+    """Build the jitted observable kernels (lazy: keeps jax optional)."""
+    import jax
+    import jax.numpy as jnp
+
+    def _weights(n_l: int):
+        ls = jnp.arange(n_l, dtype=jnp.float64)
+        return ls + 1.0, ls
+
+    @jax.jit
+    def integral(k, splus, sminus_padded):
+        w_plus, w_minus = _weights(splus.shape[0])
+        rxn = w_plus @ (1.0 - jnp.abs(splus) ** 2) + w_minus @ (
+            1.0 - jnp.abs(sminus_padded) ** 2
+        )
+        t = w_plus @ (1.0 - jnp.real(splus)) + w_minus @ (1.0 - jnp.real(sminus_padded))
+        rxn = rxn * 10.0 * jnp.pi / k**2
+        t = t * 10.0 * 2.0 * jnp.pi / k**2
+        return t, rxn
+
+    @jax.jit
+    def differential(k, splus, sminus_padded, p_l, p_1_l, f_c, sigma_l, eps=1e-30):
+        w_plus, w_minus = _weights(splus.shape[0])
+        phase = jnp.exp(2j * sigma_l) / (2j * k[:, None])  # (N_E, L+1)
+        coeff_a = (
+            w_plus[:, None] * (splus - 1.0) + w_minus[:, None] * (sminus_padded - 1.0)
+        ).T  # (N_E, L+1)
+        coeff_b = (splus - sminus_padded).T
+        a = f_c + jnp.einsum("el,lt->et", phase * coeff_a, p_l)
+        b = jnp.einsum("el,lt->et", phase * coeff_b, p_1_l)
+
+        dsdo0 = jnp.abs(a) ** 2 + jnp.abs(b) ** 2
+        denom = jnp.maximum(dsdo0, eps)
+        ay = 2.0 * jnp.imag(jnp.conjugate(a) * b) / denom
+        q = 2.0 * jnp.real(jnp.conjugate(a) * b) / denom
+
+        t, rxn = integral(k, splus, sminus_padded)
+        return dsdo0 * 10.0, ay, q, t, rxn
+
+    return integral, differential
+
+
+def _pad_sminus(splus: Any, sminus: Any) -> Any:
+    """Prepend the zero-weight l = 0 row so both j branches align."""
+    import jax.numpy as jnp
+
+    return jnp.concatenate([jnp.ones_like(splus[:1]), jnp.asarray(sminus)])
+
+
+def integral_elastic_xs(
+    k: npt.ArrayLike, splus: Any, sminus: Any
+) -> tuple[FloatArray, FloatArray]:
+    """Return (σ_total, σ_reaction) in mb, each ``(N_E,)``.
+
+    Args:
+        k: CM wavenumbers, ``(N_E,)``.
+        splus: j = l+½ S-matrix, ``(lmax+1, N_E)``.
+        sminus: j = l−½ S-matrix, ``(lmax, N_E)`` (starting at l = 1).
+    """
+    import jax.numpy as jnp
+
+    integral, _ = _kernels()
+    k_arr = jnp.atleast_1d(jnp.asarray(k, dtype=jnp.float64))
+    return integral(k_arr, jnp.asarray(splus), _pad_sminus(splus, sminus))
+
+
+def differential_elastic_xs(
+    k: npt.ArrayLike,
+    splus: Any,
+    sminus: Any,
+    P_l_costheta: npt.ArrayLike,
+    P_1_l_costheta: npt.ArrayLike,
+    f_c: npt.ArrayLike,
+    sigma_l: npt.ArrayLike,
+) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
+    """Return ``(dσ/dΩ, A_y, Q, σ_total, σ_reaction)`` over (E, θ).
+
+    Args:
+        k: CM wavenumbers, ``(N_E,)``.
+        splus: j = l+½ S-matrix, ``(lmax+1, N_E)``.
+        sminus: j = l−½ S-matrix, ``(lmax, N_E)``.
+        P_l_costheta: Legendre table, ``(lmax+1, N_θ)``.
+        P_1_l_costheta: Associated Legendre table, ``(lmax+1, N_θ)``.
+        f_c: Coulomb amplitude, ``(N_E, N_θ)`` (zeros when neutral).
+        sigma_l: Coulomb phase shifts, ``(N_E, lmax+1)``.
+    """
+    import jax.numpy as jnp
+
+    _, differential = _kernels()
+    k_arr = jnp.atleast_1d(jnp.asarray(k, dtype=jnp.float64))
+    return differential(
+        k_arr,
+        jnp.asarray(splus),
+        _pad_sminus(splus, sminus),
+        jnp.asarray(P_l_costheta),
+        jnp.asarray(P_1_l_costheta),
+        jnp.asarray(f_c),
+        jnp.asarray(sigma_l),
+    )
+
+
+def suggest_lmax(
+    reaction: Reaction,
+    Elab_max: float,
+    channel_radius_fm: float,
+    margin: int = 6,
+) -> int:
+    """Suggest ``lmax`` for the *highest* grid energy (design doc §3.4).
+
+    Blocks are compile-time static — there is no per-l early exit — so the
+    truncation must hold at the largest wavenumber. The grazing partial wave
+    is l_gr ≈ k·R; ``margin`` waves are added for the classically forbidden
+    tail (more may be needed for very sharp forward-angle structure).
+    """
+    kinematics = reaction.kinematics(Elab_max)
+    k_max = float(np.max(np.asarray(kinematics.k)))
+    return int(np.ceil(k_max * channel_radius_fm)) + int(margin)
 
 
 class IntegralWorkspace:
-    """Workspace for integral elastic observables with spin-orbit coupling."""
+    """Energy-vectorized workspace for integral elastic observables.
+
+    One compiled blocked lax solver per (reaction, kinematics grid, lmax,
+    channel radius, nbasis). Potentials are supplied per call — arrays on
+    :meth:`radial_grid` (local ``(N,)``/``(N_E, N)``, non-local ``(N, N)``/
+    ``(N_E, N, N)``, optionally with a leading ``(lmax+1,)`` axis), callables,
+    or pre-built term objects from :meth:`central` & friends.
+    """
 
     def __init__(
         self,
         reaction: Reaction,
         kinematics: ChannelKinematics,
         channel_radius_fm: float,
-        solver: Solver,
         lmax: int,
-        smatrix_abs_tol: float = 1e-6,
+        nbasis: int = 40,
+        *,
+        V_is_complex: bool = True,
+        method: str | None = None,
+        dps: int = 40,
+        dtype: Any = None,
+        device: Any = None,
     ) -> None:
-        """Build the workspace from reaction and kinematic information."""
         if reaction.process is None or reaction.process.lower() != "el":
             raise ValueError("Reaction must be elastic!")
-
-        self.smatrix_abs_tol = smatrix_abs_tol
-        self.lmax = lmax
-        self.channel_radius_fm = channel_radius_fm
-        self.a = channel_radius_fm * kinematics.k
-
-        self.kinematics = kinematics
         self.reaction = reaction
-        self.sys = ProjectileTargetSystem(
-            self.a,
+        self.kinematics = kinematics
+        self.lmax = int(lmax)
+        self.nbasis = int(nbasis)
+        self.channel_radius_fm = float(channel_radius_fm)
+        self.engine = BlockedEngine(
+            kinematics,
+            channel_radius_fm,
             lmax,
-            mass_target=self.reaction.target.m0,
-            mass_projectile=self.reaction.projectile.m0,
-            Ztarget=self.reaction.target.Z,
-            Zproj=self.reaction.projectile.Z,
-            coupling=spin_half_orbit_coupling,
+            nbasis,
+            (reaction.projectile.Z, reaction.target.Z),
+            V_is_complex=V_is_complex,
+            method=method,
+            dps=dps,
+            dtype=dtype,
+            device=device,
         )
-        self.solver = solver
+        self.ls = np.arange(self.lmax + 1, dtype=np.int64)[:, np.newaxis]
 
-        self.free_matrices = self.solver.free_matrix(self.a, self.sys.l, coupled=False)
-        self.basis_boundary = self.solver.precompute_boundaries(self.a)
-
-        channels, asymptotics = self.sys.get_partial_wave_channels(*self.kinematics)
-        self.channels = [channel.decouple() for channel in channels]
-        self.asymptotics = [asym.decouple() for asym in asymptotics]
-        self.l_dot_s = np.array(
-            [np.diag(coupling) for coupling in self.sys.couplings[1:]]
-        )
-        self.ls = self.sys.l[:, np.newaxis]
+    @property
+    def n_energies(self) -> int:
+        return self.engine.grid.n_energies
 
     def radial_grid(self) -> FloatArray:
-        """Return the physical quadrature grid used for local potentials."""
-        return self.solver.radial_grid(self.a, self.kinematics.k)
+        """Physical quadrature grid in fm (energy-independent)."""
+        return self.engine.radial_grid()
 
-    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
-        """Validate and cast a local potential array on the quadrature grid."""
-        potential_array = np.asarray(potential, dtype=np.complex128)
-        expected_shape = (self.solver.kernel.quadrature.nbasis,)
-        if potential_array.shape != expected_shape:
-            raise ValueError(f"{name} must have shape {expected_shape}")
-        return potential_array
+    # -- potential term builders (design doc §3.3) --------------------------
 
-    def _optional_local_potential(
-        self, potential: npt.ArrayLike | None, name: str
-    ) -> ComplexArray:
-        """Return a validated local potential or a zero array when omitted."""
-        if potential is None:
-            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
-        return self._local_potential(potential, name)
+    def central(self, term: Any, **dispatch: Any) -> Any:
+        """Build the central term: local/non-local, static/energy-dependent."""
+        return self.engine.interaction(term, name="central_potential", **dispatch)
+
+    def coulomb(self, term: Any, **dispatch: Any) -> Any:
+        """Build the Coulomb term (same contract as :meth:`central`)."""
+        return self.engine.interaction(term, name="coulomb_potential", **dispatch)
+
+    def nonlocal_(self, term: Any, **dispatch: Any) -> Any:
+        """Build a non-local kernel term K(r, r') (raw values; Gauss scaling
+        is applied by the solver)."""
+        return self.engine.interaction(term, name="nonlocal_potential", **dispatch)
+
+    def spin_orbit(self, term: Any, **dispatch: Any) -> InteractionPair:
+        """Build the ⟨l·σ⟩-scaled (V⁺, V⁻) spin-orbit pair from an unscaled
+        radial form factor."""
+        return self.engine.spin_orbit_pair(
+            term, name="spin_orbit_potential", **dispatch
+        )
+
+    # -- observables ---------------------------------------------------------
+
+    def _assemble(
+        self,
+        central_potential: Any,
+        spin_orbit_potential: Any = None,
+        coulomb_potential: Any = None,
+        **dispatch: Any,
+    ) -> Any:
+        lax = _lax()
+        if isinstance(central_potential, (InteractionPair, lax.Interaction)):
+            potential = central_potential
+        else:
+            potential = self.central(central_potential, **dispatch)
+        if spin_orbit_potential is not None:
+            if isinstance(spin_orbit_potential, InteractionPair):
+                potential = potential + spin_orbit_potential
+            else:
+                potential = potential + self.spin_orbit(spin_orbit_potential)
+        if coulomb_potential is not None:
+            if isinstance(coulomb_potential, lax.Interaction):
+                potential = potential + coulomb_potential
+            else:
+                potential = potential + self.coulomb(coulomb_potential)
+        return potential
 
     def smatrix(
         self,
-        central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike | None = None,
-        coulomb_potential: npt.ArrayLike | None = None,
+        central_potential: Any,
+        spin_orbit_potential: Any = None,
+        coulomb_potential: Any = None,
+        **dispatch: Any,
     ) -> tuple[ComplexArray, ComplexArray]:
-        """Compute the elastic S-matrix for ``j=l±1/2`` channels."""
-        splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
-        sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
-        central_array = self._local_potential(central_potential, "central_potential")
-        spin_orbit_array = self._optional_local_potential(
-            spin_orbit_potential, "spin_orbit_potential"
+        """Compute the elastic S-matrix for ``j = l ± ½`` channels.
+
+        Returns:
+            ``(Splus, Sminus)`` with shapes ``(lmax+1, N_E)`` and
+            ``(lmax, N_E)`` (the j = l−½ branch starts at l = 1).
+        """
+        potential = self._assemble(
+            central_potential, spin_orbit_potential, coulomb_potential, **dispatch
         )
-
-        im_central = self.solver.interaction_matrix(
-            self.channels[0][0].k[0],
-            self.channels[0][0].E[0],
-            self.channels[0][0].a,
-            self.channels[0][0].size,
-            local_potential=central_array,
-        )
-        im_spin_orbit = self.solver.interaction_matrix(
-            self.channels[0][0].k[0],
-            self.channels[0][0].E[0],
-            self.channels[0][0].a,
-            self.channels[0][0].size,
-            local_potential=spin_orbit_array,
-        )
-        if coulomb_potential is not None:
-            coulomb_array = self._local_potential(
-                coulomb_potential, "coulomb_potential"
-            )
-            im_coulomb = self.solver.interaction_matrix(
-                self.channels[0][0].k[0],
-                self.channels[0][0].E[0],
-                self.channels[0][0].a,
-                self.channels[0][0].size,
-                local_potential=coulomb_array,
-            )
-            im_central += im_coulomb
-
-        _, s0, _ = self.solver.solve(
-            self.channels[0][0],
-            self.asymptotics[0][0],
-            free_matrix=self.free_matrices[0],
-            interaction_matrix=im_central,
-            basis_boundary=self.basis_boundary,
-        )
-        splus[0] = s0[0, 0]
-        last_l = 0
-
-        for l in self.sys.l[1:]:
-            channel = self.channels[l]
-            asymptotic = self.asymptotics[l]
-            lds = self.l_dot_s[l - 1]
-            _, sp, _ = self.solver.solve(
-                channel[0],
-                asymptotic[0],
-                free_matrix=self.free_matrices[l],
-                interaction_matrix=im_central + lds[0] * im_spin_orbit,
-                basis_boundary=self.basis_boundary,
-            )
-            splus[l] = sp[0, 0]
-
-            _, sm, _ = self.solver.solve(
-                channel[1],
-                asymptotic[1],
-                free_matrix=self.free_matrices[l],
-                interaction_matrix=im_central + lds[1] * im_spin_orbit,
-                basis_boundary=self.basis_boundary,
-            )
-            sminus[l] = sm[0, 0]
-
-            last_l = int(l)
-            if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
-                np.absolute(1 - sminus[l])
-            ) < self.smatrix_abs_tol:
-                break
-
-        return splus[: last_l + 1], sminus[: last_l + 1]
+        splus, sminus = self.engine.smatrix(potential)
+        return splus, sminus[1:]
 
     def xs(
         self,
-        central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike | None = None,
-        coulomb_potential: npt.ArrayLike | None = None,
-    ) -> tuple[float, float]:
-        """Return total and reaction cross sections in mb."""
+        central_potential: Any,
+        spin_orbit_potential: Any = None,
+        coulomb_potential: Any = None,
+        **dispatch: Any,
+    ) -> tuple[FloatArray, FloatArray]:
+        """Return total and reaction cross sections in mb, each ``(N_E,)``."""
         splus, sminus = self.smatrix(
-            central_potential,
-            spin_orbit_potential,
-            coulomb_potential,
+            central_potential, spin_orbit_potential, coulomb_potential, **dispatch
         )
-        return integral_elastic_xs(self.kinematics.k, splus, sminus, self.ls)
+        return integral_elastic_xs(self.engine.grid.k, splus, sminus)
 
     def transmission_coefficients(
         self,
-        central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike | None = None,
-        coulomb_potential: npt.ArrayLike | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Return transmission coefficients for ``j=l±1/2`` channels."""
+        central_potential: Any,
+        spin_orbit_potential: Any = None,
+        coulomb_potential: Any = None,
+        **dispatch: Any,
+    ) -> tuple[FloatArray, FloatArray]:
+        """Return transmission coefficients for ``j = l ± ½`` channels,
+        shapes ``(lmax+1, N_E)`` and ``(lmax, N_E)``."""
         splus, sminus = self.smatrix(
-            central_potential,
-            spin_orbit_potential,
-            coulomb_potential,
+            central_potential, spin_orbit_potential, coulomb_potential, **dispatch
         )
         return 1.0 - np.absolute(splus) ** 2, 1.0 - np.absolute(sminus) ** 2
 
 
 class DifferentialWorkspace:
-    """Workspace for angular elastic-scattering observables."""
+    """Workspace for angular elastic observables over the energy grid."""
 
     @classmethod
     def build_from_system(
-        cls: type[DifferentialWorkspace],
+        cls,
         reaction: Reaction,
         kinematics: ChannelKinematics,
         channel_radius_fm: float,
-        solver: Solver,
         lmax: int,
         angles: FloatArray,
-        smatrix_abs_tol: float = 1e-6,
+        nbasis: int = 40,
+        **solver_kwargs: Any,
     ) -> DifferentialWorkspace:
         """Construct a differential workspace from the raw system inputs."""
         integral_workspace = IntegralWorkspace(
-            reaction, kinematics, channel_radius_fm, solver, lmax, smatrix_abs_tol
+            reaction,
+            kinematics,
+            channel_radius_fm,
+            lmax,
+            nbasis,
+            **solver_kwargs,
         )
         return cls(integral_workspace, angles)
 
     def __init__(
         self, integral_workspace: IntegralWorkspace, angles: FloatArray
     ) -> None:
-        """Precompute angular factors for differential observables."""
+        """Precompute angular and Coulomb factors for the energy grid."""
         self.integral_workspace = integral_workspace
-        self.reaction = self.integral_workspace.reaction
-        self.kinematics = self.integral_workspace.kinematics
+        self.reaction = integral_workspace.reaction
+        self.kinematics = integral_workspace.kinematics
+        self.grid = integral_workspace.engine.grid
 
         check_angles(angles)
         self.angles = angles
-        self.ls = self.integral_workspace.ls
+        self.ls = integral_workspace.ls
         self.P_l_costheta = eval_legendre(self.ls, np.cos(self.angles))
         self.P_1_l_costheta = lpmv(1, self.ls, np.cos(self.angles))
 
         self.Zz = self.reaction.projectile.Z * self.reaction.target.Z
-        self.sigma_l = self.coulomb_phase_shift(self.ls.astype(np.float64))
+        # (N_E, lmax+1): σ_l(E) through η(E)
+        self.sigma_l = self.coulomb_phase_shift(self.ls[:, 0].astype(np.float64))
         if self.Zz > 0:
             self.rutherford: FloatArray | None = self.rutherford_xs(self.angles)
-            self.f_c: FloatArray | ComplexArray = self.coulomb_amplitude(
-                self.angles, self.sigma_l[0]
+            self.f_c: ComplexArray = self.coulomb_amplitude(
+                self.angles, self.sigma_l[:, 0]
             )
         else:
-            self.f_c = np.zeros_like(angles)
+            self.f_c = np.zeros(
+                (self.grid.n_energies, self.angles.size), dtype=np.complex128
+            )
             self.rutherford = None
 
     def radial_grid(self) -> FloatArray:
-        """Return the physical quadrature grid used for local potentials."""
+        """Physical quadrature grid in fm (energy-independent)."""
         return self.integral_workspace.radial_grid()
 
     def rutherford_xs(self, angles: FloatArray) -> FloatArray:
-        """Return the Rutherford cross section in mb/sr."""
+        """Rutherford cross section in mb/sr, ``(N_E, N_θ)``."""
         check_angles(angles)
         sin2 = np.sin(angles / 2.0) ** 2
-        return 10 * self.kinematics.eta**2 / (4 * self.kinematics.k**2 * sin2**2)
+        eta = self.grid.eta[:, None]
+        k = self.grid.k[:, None]
+        return 10 * eta**2 / (4 * k**2 * sin2[None, :] ** 2)
 
-    def coulomb_amplitude(self, angles: FloatArray, sigma_0: float) -> ComplexArray:
-        """Return the Coulomb scattering amplitude."""
-        sin2 = np.sin(angles / 2.0)
+    def coulomb_amplitude(
+        self, angles: FloatArray, sigma_0: npt.ArrayLike
+    ) -> ComplexArray:
+        """Coulomb scattering amplitude, ``(N_E, N_θ)``."""
+        sin2 = np.sin(angles / 2.0)[None, :]
+        eta = self.grid.eta[:, None]
+        k = self.grid.k[:, None]
+        sigma_0_col = np.asarray(sigma_0, dtype=np.float64).reshape(-1, 1)
         return np.asarray(
-            -self.kinematics.eta
-            / (2 * self.kinematics.k * sin2**2)
-            * np.exp(2j * sigma_0 - 2j * self.kinematics.eta * np.log(sin2)),
+            -eta
+            / (2 * k * sin2**2)
+            * np.exp(2j * sigma_0_col - 2j * eta * np.log(sin2)),
             dtype=np.complex128,
         )
 
     def coulomb_phase_shift(self, ls: FloatArray) -> FloatArray:
-        """Return Coulomb phase shifts for the supplied partial waves."""
-        return np.angle(gamma(1 + ls + 1j * self.kinematics.eta))
+        """Coulomb phase shifts σ_l(E), ``(N_E, len(ls))``."""
+        eta = self.grid.eta[:, None]
+        return np.angle(gamma(1 + ls[None, :] + 1j * eta))
 
     def xs(
         self,
-        central_potential: npt.ArrayLike,
-        spin_orbit_potential: npt.ArrayLike | None = None,
-        coulomb_potential: npt.ArrayLike | None = None,
+        central_potential: Any,
+        spin_orbit_potential: Any = None,
+        coulomb_potential: Any = None,
+        **dispatch: Any,
     ) -> ElasticXS:
         """Return differential and integral elastic observables."""
         splus, sminus = self.integral_workspace.smatrix(
-            central_potential,
-            spin_orbit_potential,
-            coulomb_potential,
+            central_potential, spin_orbit_potential, coulomb_potential, **dispatch
         )
         return ElasticXS(
             *differential_elastic_xs(
-                self.kinematics.k,
-                self.angles,
+                self.grid.k,
                 splus,
                 sminus,
-                self.ls,
                 self.P_l_costheta,
                 self.P_1_l_costheta,
                 self.f_c,
@@ -307,83 +433,16 @@ class DifferentialWorkspace:
         )
 
 
-@njit
-def integral_elastic_xs(
-    k: float,
-    Splus: np.ndarray,
-    Sminus: np.ndarray,
-    ls: np.ndarray,
-) -> tuple[float, float]:
-    """Return total and reaction cross sections for spin-1/2 on spin-0 scattering."""
-    xsrxn = 0.0
-    xst = 0.0
-
-    for l in range(Splus.shape[0]):
-        xsrxn += (l + 1) * (1 - np.absolute(Splus[l]) ** 2) + l * (
-            1 - np.absolute(Sminus[l]) ** 2
-        )
-        xst += (l + 1) * (1 - np.real(Splus[l])) + l * (1 - np.real(Sminus[l]))
-
-    xsrxn *= 10 * np.pi / k**2
-    xst *= 10 * 2 * np.pi / k**2
-    return xst, xsrxn
-
-
-@njit
-def differential_elastic_xs(
-    k: float,
-    angles: np.ndarray,
-    splus: np.ndarray,
-    sminus: np.ndarray,
-    ls: np.ndarray,
-    P_l_costheta: np.ndarray,
-    P_1_l_costheta: np.ndarray,
-    f_c: npt.ArrayLike = 0,
-    sigma_l: npt.ArrayLike = 0,
-    eps: float = 1e-30,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
-    """Return differential and integral elastic observables.
-
-    The returned tuple contains ``(dσ/dΩ, A_y, Q, σ_total, σ_reaction)``.
-    """
-    _sigma_l = np.asarray(sigma_l, dtype=np.float64)
-    _f_c = np.asarray(f_c, dtype=np.complex128)
-    a = np.zeros_like(angles, dtype=np.complex128) + _f_c
-    b = np.zeros_like(angles, dtype=np.complex128)
-
-    xsrxn = 0.0
-    xst = 0.0
-
-    for l in range(splus.shape[0]):
-        phase = np.exp(2j * _sigma_l[l]) / (2j * k)
-
-        a += (
-            P_l_costheta[l, :]
-            * phase
-            * ((l + 1) * (splus[l] - 1) + l * (sminus[l] - 1))
-        )
-        b += P_1_l_costheta[l, :] * phase * (splus[l] - sminus[l])
-
-        xsrxn += (l + 1) * (1 - np.abs(splus[l]) ** 2) + l * (
-            1 - np.abs(sminus[l]) ** 2
-        )
-        xst += (l + 1) * (1 - np.real(splus[l])) + l * (1 - np.real(sminus[l]))
-
-    dsdo0 = np.abs(a) ** 2 + np.abs(b) ** 2
-    dsdo = dsdo0 * 10.0
-    denom = np.maximum(dsdo0, eps)
-
-    Ay = 2.0 * np.imag(np.conjugate(a) * b) / denom
-    Q = 2.0 * np.real(np.conjugate(a) * b) / denom
-
-    xsrxn *= 10.0 * np.pi / k**2
-    xst *= 10.0 * 2.0 * np.pi / k**2
-    return dsdo, Ay, Q, xst, xsrxn
-
-
 def check_angles(angles: FloatArray) -> None:
-    """Validate that the angle grid is one-dimensional and lies on ``[0, π)``."""
-    if angles.ndim != 1:
+    """Validate a 1-D angle array on ``[0, π]``."""
+    angle_array = np.asarray(angles)
+    if angle_array.ndim != 1:
         raise ValueError("angles must be a 1D array")
-    if angles[0] < 0 or angles[-1] > np.pi:
-        raise ValueError("angles must a grid in radians on [0,pi)")
+    if angle_array[0] < 0 or angle_array[-1] > np.pi:
+        raise ValueError("angles must be a grid in radians on [0, pi]")
+
+
+def _lax():
+    from ._lax_engine import _import_lax
+
+    return _import_lax()

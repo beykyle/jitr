@@ -428,7 +428,7 @@ class BlockedEngine:
             # tracer-safe axis insertion before the mesh axes
             shape = tuple(values.shape)
             values = values.reshape(
-                shape[: len(shape) - mesh_axes] + (1,) + shape[len(shape) - mesh_axes:]
+                shape[: len(shape) - mesh_axes] + (1,) + shape[len(shape) - mesh_axes :]
             )
             interp = _Interpretation(interp.l_dependent, True, interp.is_nonlocal)
         return values * scale.reshape(scale_shape), interp
@@ -554,9 +554,7 @@ class BlockedEngine:
             s = self.solver.smatrix_direct(interaction)
         else:
             spectrum = self.solver.spectrum(interaction)
-            use_grid = (
-                interaction.energy_dependent or not self.grid.uniform_mass_factor
-            )
+            use_grid = interaction.energy_dependent or not self.grid.uniform_mass_factor
             if use_grid:
                 s = self.solver.smatrix_grid(spectrum)
             else:

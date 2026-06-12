@@ -122,27 +122,64 @@ def _lax_smatrix_grid(solver, v) -> np.ndarray:
 def _old_engine_smatrix(
     kinematics_list, central, spin_orbit, coulomb
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Per-energy loop over the current engine; (N_E, lmax+1) each."""
+    """Per-energy, per-(l, j) loop over the legacy rmatrix engine.
+
+    Replicates the pre-rewrite ``IntegralWorkspace.smatrix`` (deleted in
+    Phase 3) directly on ``jitr.rmatrix`` internals; removed with the old
+    engine in Phase 7. Returns (N_E, lmax+1) per j.
+    """
+    from jitr.reactions import ProjectileTargetSystem, spin_half_orbit_coupling
     from jitr.rmatrix import Solver
-    from jitr.xs.elastic import IntegralWorkspace
 
     reaction = ElasticReaction(ELASTIC_TARGET, ELASTIC_PROJECTILE)
     solver = Solver(NBASIS)
     splus = np.zeros((len(kinematics_list), LMAX + 1), dtype=np.complex128)
     sminus = np.zeros_like(splus)
     for i, kin in enumerate(kinematics_list):
-        ws = IntegralWorkspace(
-            reaction=reaction,
-            kinematics=kin,
-            channel_radius_fm=RADIUS,
-            solver=solver,
-            lmax=LMAX,
-            smatrix_abs_tol=0.0,
+        a = RADIUS * kin.k
+        sys = ProjectileTargetSystem(
+            a,
+            LMAX,
+            mass_target=reaction.target.m0,
+            mass_projectile=reaction.projectile.m0,
+            Ztarget=reaction.target.Z,
+            Zproj=reaction.projectile.Z,
+            coupling=spin_half_orbit_coupling,
         )
-        c = central[i] if central.ndim == 2 else central
-        so = spin_orbit[i] if spin_orbit.ndim == 2 else spin_orbit
-        cl = coulomb[i] if coulomb.ndim == 2 else coulomb
-        splus[i], sminus[i] = ws.smatrix(c, so, cl)
+        free_matrices = solver.free_matrix(a, sys.l, coupled=False)
+        basis_boundary = solver.precompute_boundaries(a)
+        channels, asymptotics = sys.get_partial_wave_channels(*kin)
+        channels = [ch.decouple() for ch in channels]
+        asymptotics = [asym.decouple() for asym in asymptotics]
+        l_dot_s = np.array([np.diag(c) for c in sys.couplings[1:]])
+
+        def im(values, ch):
+            return solver.interaction_matrix(
+                ch.k[0], ch.E[0], ch.a, ch.size, local_potential=values
+            )
+
+        ch0 = channels[0][0]
+        im_central = im(central + coulomb, ch0)
+        im_so = im(spin_orbit, ch0)
+        _, s0, _ = solver.solve(
+            ch0,
+            asymptotics[0][0],
+            free_matrix=free_matrices[0],
+            interaction_matrix=im_central,
+            basis_boundary=basis_boundary,
+        )
+        splus[i, 0] = s0[0, 0]
+        for ell in sys.l[1:]:
+            lds = l_dot_s[ell - 1]
+            for j_index, target in ((0, splus), (1, sminus)):
+                _, s, _ = solver.solve(
+                    channels[ell][j_index],
+                    asymptotics[ell][j_index],
+                    free_matrix=free_matrices[ell],
+                    interaction_matrix=im_central + lds[j_index] * im_so,
+                    basis_boundary=basis_boundary,
+                )
+                target[i, ell] = s[0, 0]
     return splus, sminus
 
 

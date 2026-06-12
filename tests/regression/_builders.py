@@ -18,7 +18,6 @@ from jitr.folding.jlm import (
 )
 from jitr.optical_potentials.omp import LocalOpticalPotential
 from jitr.reactions import ElasticReaction, Nucleus, Particle
-from jitr.rmatrix import Solver
 from jitr.utils.constants import AMU
 from jitr.utils.density import density_table
 from jitr.utils.kinematics import classical_kinematics, classical_kinematics_cm
@@ -163,14 +162,13 @@ def _build_elastic_case(ref: ReferenceCase) -> BuiltCase:
         raise ValueError(f"{ref.case_id} uses unsupported frame {frame!r}")
 
     matching = metadata["matching"]
-    solver = Solver(int(matching["nbasis"]))
     workspace = DifferentialWorkspace.build_from_system(
         reaction=reaction,
         kinematics=channel_kinematics,
         channel_radius_fm=float(matching["channel_radius_fm"]),
-        solver=solver,
         lmax=int(matching["lmax"]),
         angles=ref.theta_cm_rad,
+        nbasis=int(matching["nbasis"]),
     )
 
     potential = metadata["optical_potential"]
