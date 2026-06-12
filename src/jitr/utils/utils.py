@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from numba import njit
 
 from .free_solutions import (
     CoulombAsymptotics,
@@ -21,14 +20,12 @@ ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
 
 
-@njit
 def complex_det(matrix: np.ndarray) -> np.complex128:
     """Return ``sqrt(det(A A^\u2020))`` for a complex matrix."""
     determinant = np.linalg.det(matrix @ np.conj(matrix).T)
     return np.sqrt(determinant)
 
 
-@njit
 def block(
     matrix: np.ndarray,
     block_index: tuple[int, int],

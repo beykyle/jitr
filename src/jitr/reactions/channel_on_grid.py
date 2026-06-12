@@ -3,11 +3,30 @@
 from __future__ import annotations
 
 import numpy as np
-from numba import float64, int64
+from numba import float64, int64, njit
 from numba.experimental import jitclass
 
-from ..utils.free_solutions import Gamow_factor
 from .system import Channels
+
+
+@njit
+def _gamow_factor(l: int, eta: float) -> float:
+    """numba copy of ``utils.free_solutions.Gamow_factor`` for the jitclass.
+
+    Lives here (not in utils) so this legacy module is the only numba site
+    outside ``jitr.rmatrix``; both are deleted together in the retirement
+    phase of the lax-core rewrite.
+    """
+    if eta == 0.0:
+        result = 1.0
+        for m in range(1, l + 1):
+            result /= 2 * m + 1
+        return result
+    result = np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
+    for m in range(1, l + 1):
+        result *= np.sqrt(m**2 + eta**2) / (m * (2 * m + 1))
+    return result
+
 
 spec_ch = [
     ("l", int64),
@@ -57,7 +76,7 @@ class SingleChannelData:
 
     def initial_conditions(self) -> tuple[np.ndarray, np.ndarray]:
         """Return stable inward-boundary initial conditions in ``s = k r``."""
-        C_l = Gamow_factor(self.l, self.eta)
+        C_l = _gamow_factor(self.l, self.eta)
         min_rho_0 = (np.finfo(np.float64).eps * 10 / C_l) ** (1 / (self.l + 1))
         s_0 = max(self.domain[0], min_rho_0)
         u0 = C_l * s_0 ** (self.l + 1)

@@ -2,7 +2,7 @@
 
 The solver is optimized for repeated evaluation at a fixed radial grid and a
 fixed scalar energy. Quantities that depend only on ``(r_grid, E, segments)``
-are precomputed at construction time, leaving a single numba-compiled inner
+are precomputed at construction time, leaving a single jitted (JAX) inner
 loop for each online evaluation.
 
 This makes the module useful for non-analytic or non-separable imaginary
@@ -12,9 +12,9 @@ potentials ``W(r, E)`` where an analytic dispersive correction is unavailable.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from functools import lru_cache
 
 import numpy as np
-from numba import njit
 from numpy.polynomial.legendre import leggauss
 
 from .._types import FloatArray
@@ -73,27 +73,39 @@ def build_quadrature(
     return x_quad, w_quad, E_cut
 
 
-@njit(cache=True, fastmath=True)
+@lru_cache(maxsize=1)
+def _jitted_dispersion_kernel():
+    """Build the jitted dispersion reduction (lazy so jax loads on demand)."""
+    import jax
+    import jax.numpy as jnp
+
+    jax.config.update("jax_enable_x64", True)
+
+    @jax.jit
+    def kernel(W_grid, W_at_E, dx_inv_w, log_term):
+        total = (W_grid - W_at_E[:, None]) @ dx_inv_w
+        return (total + W_at_E * log_term) / jnp.pi
+
+    return kernel
+
+
 def _dispersion_kernel(
     W_grid: np.ndarray,
     W_at_E: np.ndarray,
     dx_inv_w: np.ndarray,
     log_term: float,
 ) -> np.ndarray:
-    """Evaluate the preconditioned dispersion sum in numba."""
+    """Evaluate the preconditioned dispersion sum.
 
-    N_r, N_q = W_grid.shape
-    inv_pi = 1.0 / np.pi
-    dV = np.empty(N_r, dtype=np.float64)
-
-    for i in range(N_r):
-        W_E = W_at_E[i]
-        total = 0.0
-        for k in range(N_q):
-            total += dx_inv_w[k] * (W_grid[i, k] - W_E)
-        dV[i] = (total + W_E * log_term) * inv_pi
-
-    return dV
+    Plain-NumPy fast path for concrete arrays (one BLAS matvec — beats the
+    retired numba kernel's dispatch budget); the jitted JAX path engages
+    when the inputs are JAX arrays/tracers, so dispersive potentials sit
+    inside the differentiable potential → observable pipeline (§4).
+    """
+    if isinstance(W_grid, np.ndarray) and isinstance(W_at_E, np.ndarray):
+        # Σ_k w_k (W_ik − W_E,i) + W_E,i·L = (W @ w)_i + W_E,i (L − Σ_k w_k)
+        return (W_grid @ dx_inv_w + W_at_E * (log_term - dx_inv_w.sum())) / np.pi
+    return _jitted_dispersion_kernel()(W_grid, W_at_E, dx_inv_w, log_term)
 
 
 class DispersionSolver:

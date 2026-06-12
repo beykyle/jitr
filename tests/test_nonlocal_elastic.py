@@ -117,3 +117,36 @@ def test_l_dependent_nonlocal_kernel(workspace):
         np.asarray(splus_stack)[0], np.asarray(splus_base)[0], rtol=1e-12
     )
     assert not np.allclose(np.asarray(splus_stack)[1:], np.asarray(splus_base)[1:])
+
+
+def test_yamaguchi_matches_published_reference():
+    """Value anchor: Descouvemont (2016) Example 5, N=10, a=8 fm.
+
+    The legacy rmatrix engine's non-local path did NOT reproduce these
+    published values (it was untested); the lax-backed workspace does.
+    """
+    from jitr.optical_potentials.potential_forms import yamaguchi_potential
+    from jitr.utils.constants import HBARC
+    from jitr.utils.kinematics import ChannelKinematics
+    from jitr.xs.elastic import IntegralWorkspace
+
+    w0 = 41.472  # MeV fm^2 = hbar^2/2mu
+    params = (w0, 1.3918324, 0.2316053)
+    mu = HBARC**2 / (2 * w0)
+    reaction = ElasticReaction((48, 20), (1, 0))
+    for ecom, reference in [(0.1, -15.0770), (10.0, 85.6370)]:
+        k = np.sqrt(2 * mu * ecom) / HBARC
+        kin = ChannelKinematics(Elab=ecom, Ecm=ecom, mu=mu, k=k, eta=0.0)
+        workspace = IntegralWorkspace(
+            reaction=reaction,
+            kinematics=kin,
+            channel_radius_fm=8.0,
+            lmax=0,
+            nbasis=10,
+        )
+        splus, _ = workspace.smatrix(
+            lambda r, rp: yamaguchi_potential(r, rp, *params),
+            energy_dependent=False,
+        )
+        delta = np.rad2deg(np.real(np.log(complex(np.asarray(splus)[0, 0])) / 2j))
+        np.testing.assert_allclose(delta, reference, atol=5e-4)

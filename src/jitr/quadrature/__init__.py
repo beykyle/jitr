@@ -1,5 +1,7 @@
 """Quadrature rules and kernels used by the R-matrix solver."""
 
+import warnings
+
 from .kernel import Kernel
 from .quadrature import (
     LagrangeLaguerreQuadrature,
@@ -19,3 +21,11 @@ __all__ = [
     "laguerre",
     "legendre",
 ]
+
+warnings.warn(
+    "jitr.quadrature is deprecated: the lax-backed jitr.xs workspaces replace the "
+    "internal R-matrix engine, and jitr.quadrature will be removed in the next major "
+    "release (see the lax-core rewrite CHANGELOG entry)",
+    DeprecationWarning,
+    stacklevel=2,
+)

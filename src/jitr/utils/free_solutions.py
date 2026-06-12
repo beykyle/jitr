@@ -7,19 +7,23 @@ from collections.abc import Callable
 import numpy as np
 import scipy.special as sc
 from mpmath import coulombf, coulombg
-from numba import njit
 
 
-@njit
 def Gamow_factor(l: int, eta: float) -> float:
-    """Return the Coulomb Gamow factor for angular momentum ``l``."""
+    """Return the Coulomb Gamow factor for angular momentum ``l``.
+
+    Iterative form of the textbook recursion (setup-time helper; called
+    O(lmax) times, so compilation buys nothing).
+    """
     if eta == 0.0:
-        if l == 0:
-            return 1.0
-        return 1.0 / (2 * l + 1) * Gamow_factor(l - 1, 0.0)
-    if l == 0:
-        return np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
-    return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
+        result = 1.0
+        for m in range(1, l + 1):
+            result /= 2 * m + 1
+        return result
+    result = float(np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1)))
+    for m in range(1, l + 1):
+        result *= np.sqrt(m**2 + eta**2) / (m * (2 * m + 1))
+    return result
 
 
 class FreeAsymptotics:
