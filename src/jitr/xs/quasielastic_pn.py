@@ -1,423 +1,433 @@
-"""DWBA workspaces for quasi-elastic ``(p,n)`` scattering observables."""
+"""DWBA workspaces for quasi-elastic ``(p,n)`` scattering on the lax engine.
+
+The workspace owns two blocked solvers (proton entrance, neutron exit) on
+the same mesh and energy grid (design doc §3.6). Distorted waves come from
+``wavefunction_grid`` (or ``wavefunction_direct_grid`` under
+``method="linear_solve"``); the isovector transition element is the
+non-conjugated bilinear ``matrix_element(χp, χn, U₁, conjugate=False)``.
+
+T-matrix normalization: lax's interior solution is driven by the boundary
+*value* ``H⁻(a)`` while the legacy engine was driven by the matched exterior
+*derivative*. The per-(l, j, E) conversion is the closed form
+``(i/2)(H⁻′ − S·H⁺′)/H⁻`` from the solver's boundary cache (lax DESIGN.md
+Appendix C.12, machine-verified in lax ``tests/acceptance``), giving
+
+    T_lj(E) = conv_p · conv_n · matrix_element(χp, χn, U₁) / R²
+
+identical to the legacy node sum. The conversion is per-(l, j, E), so the
+relative phases entering the coherent ``xs()`` sum are preserved exactly and
+the angular reduction is unchanged from the validated legacy form.
+
+Shapes: ``tmatrix()`` returns ``(Tpn, Sn, Sp)``, each ``(lmax+1, 2, N_E)``
+with the ``[l=0, j=l−½]`` entries zero (no such channel); ``xs()`` returns
+``(N_E, N_θ)`` in mb/sr.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from scipy.special import gamma, sph_harm_y
 from sympy.physics.wigner import clebsch_gordan
 
-from ..reactions import ProjectileTargetSystem, Reaction, spin_half_orbit_coupling
-from ..rmatrix import Solver
+from ..reactions import Reaction
 from ..utils import constants
 from ..utils.kinematics import ChannelKinematics
+from ._lax_engine import BlockedEngine, ldots
 from .elastic import check_angles
 
 ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
 
 
-class System:
-    r"""
-    System for (p,n) quasi-elastic scattering observables for local interactions
-    This system contains the entrance and exit channels, which are defined by the
-    projectile and target masses, charges, and the channel radius.
+class Workspace:
+    r"""Workspace for (p,n) quasi-elastic DWBA observables.
 
-    Attributes:
-        channel_radius_fm: The channel radius in femtometers.
-        lmax: The maximum angular momentum quantum number.
-        l: An array of angular momentum quantum numbers from 0 to lmax.
-        entrance: The entrance channel system, including projectile/target
-            masses, charges, and the channel radius.
-        exit: The exit channel system, including product/residual masses,
-            charges, and the channel radius.
+    Energy-vectorized: both kinematics objects may carry scalar or ``(N_E,)``
+    fields (the grids must be index-aligned: entry ``e`` of the exit grid is
+    the exit channel for entry ``e`` of the entrance grid).
     """
 
     def __init__(
         self,
-        channel_radius_fm: float,
-        lmax: int,
         reaction: Reaction,
         kinematics_entrance: ChannelKinematics,
         kinematics_exit: ChannelKinematics,
+        angles: FloatArray,
+        lmax: int,
+        channel_radius_fm: float,
+        nbasis: int = 40,
+        *,
+        V_is_complex: bool = True,
+        method: str | None = None,
+        dps: int = 40,
+        dtype: Any = None,
+        device: Any = None,
     ) -> None:
-        r"""
-        Initialize the System for (p,n) quasi-elastic scattering observables.
-
-        Args:
-            channel_radius_fm: The channel radius in femtometers.
-            lmax: The maximum angular momentum quantum number.
-            reaction: Reaction object containing information about the target,
-                projectile, residual, and product.
-            kinematics_entrance: Kinematics for the entrance channel.
-            kinematics_exit: Kinematics for the exit channel.
-        """
-
-        self.channel_radius_fm = channel_radius_fm
-        self.lmax = lmax
-        self.l = np.arange(0, lmax + 1, dtype=np.int64)
-
-        self.entrance = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm
-            * float(np.asarray(kinematics_entrance.k)),
-            lmax=self.lmax,
-            mass_target=reaction.target.m0,
-            mass_projectile=reaction.projectile.m0,
-            Ztarget=reaction.target.Z,
-            Zproj=reaction.projectile.Z,
-            coupling=spin_half_orbit_coupling,
-        )
-
         if reaction.residual is None or reaction.product is None:
             raise ValueError(
                 "Reaction must define both residual and product for (p,n) scattering"
             )
-        self.exit = ProjectileTargetSystem(
-            channel_radius=self.channel_radius_fm
-            * float(np.asarray(kinematics_exit.k)),
-            lmax=self.lmax,
-            mass_target=reaction.residual.m0,
-            mass_projectile=reaction.product.m0,
-            Ztarget=reaction.residual.Z,
-            Zproj=reaction.product.Z,
-            coupling=spin_half_orbit_coupling,
-        )
-
-
-class Workspace:
-    r"""
-    Workspace for (p,n) quasi-elastic scattering observables in the DWBA.
-    This class computes the transition matrix and differential cross section
-    for the (p,n) reaction using the distorted wave Born approximation (DWBA).
-    """
-
-    def __init__(
-        self,
-        reaction: Reaction,
-        kinematics_entrance: ChannelKinematics,
-        kinematics_exit: ChannelKinematics,
-        solver: Solver,
-        angles: FloatArray,
-        lmax: int,
-        channel_radius_fm: float,
-        tmatrix_abs_tol: float = 1e-6,
-    ) -> None:
-        r"""
-        Initialize the Workspace for (p,n) quasi-elastic scattering observables.
-
-        Args:
-            reaction: Reaction object containing information about the target,
-                projectile, residual, and product.
-            kinematics_entrance: Kinematics for the entrance channel.
-            kinematics_exit: Kinematics for the exit channel.
-            solver: Solver used to compute the distorted waves and interaction
-                matrices.
-            angles: Angles in radians at which to compute the differential
-                cross section.
-            lmax: The maximum angular momentum quantum number.
-            channel_radius_fm: The channel radius in femtometers.
-            tmatrix_abs_tol: The absolute tolerance for the transition matrix
-                elements.
-        """
-
-        # params
-        self.lmax = lmax
-        self.channel_radius_fm = channel_radius_fm
-        self.tmatrix_abs_tol = tmatrix_abs_tol
-
-        # system
         self.reaction = reaction
-        self.sys = System(
-            channel_radius_fm,
-            lmax,
-            reaction,
-            kinematics_entrance,
-            kinematics_exit,
-        )
-
-        # kinematics
+        self.lmax = int(lmax)
+        self.nbasis = int(nbasis)
+        self.channel_radius_fm = float(channel_radius_fm)
         self.kinematics_entrance = kinematics_entrance
         self.kinematics_exit = kinematics_exit
-        self.solver = solver
+        self.method = method
 
-        # angles
         check_angles(angles)
         self.angles = angles
 
-        # precompute for DWBA matrix element
-        A = self.reaction.target.A
-        Z = self.reaction.target.Z
+        solvers = (
+            ("rmatrix_direct", "wavefunction")
+            if method == "linear_solve"
+            else ("spectrum", "smatrix", "wavefunction")
+        )
+        engine_kwargs = dict(
+            V_is_complex=V_is_complex,
+            method=method,
+            solvers=solvers,
+            dps=dps,
+            dtype=dtype,
+            device=device,
+        )
+        self.engine_p = BlockedEngine(
+            kinematics_entrance,
+            channel_radius_fm,
+            lmax,
+            nbasis,
+            (reaction.projectile.Z, reaction.target.Z),
+            **engine_kwargs,
+        )
+        self.engine_n = BlockedEngine(
+            kinematics_exit,
+            channel_radius_fm,
+            lmax,
+            nbasis,
+            (reaction.product.Z, reaction.residual.Z),
+            **engine_kwargs,
+        )
+        if self.engine_p.grid.n_energies != self.engine_n.grid.n_energies:
+            raise ValueError(
+                "entrance and exit kinematics must have the same number of energies"
+            )
+
+        # isovector factor of the Lane-consistent transition operator
+        A = reaction.target.A
+        Z = reaction.target.Z
         N = A - Z
         self.isovector_factor = np.sqrt(np.fabs(N - Z)) / (N - Z - 1)
 
-        # precompute things for entrance channel
-        self.free_matrices_p = self.solver.free_matrix(
-            self.sys.entrance.channel_radius, self.sys.l, coupled=False
-        )
-        self.basis_boundary_p = self.solver.precompute_boundaries(
-            self.sys.entrance.channel_radius
-        )
+        self._ldots_plus, self._ldots_minus = ldots(self.lmax)
+        self._precompute_geometry()
 
-        # precompute things for exit channel
-        self.free_matrices_n = self.solver.free_matrix(
-            self.sys.exit.channel_radius, self.sys.l, coupled=False
-        )
-        self.basis_boundary_n = self.solver.precompute_boundaries(
-            self.sys.exit.channel_radius
-        )
+    def _precompute_geometry(self) -> None:
+        """Purely geometric/Coulomb factors of the angular reduction."""
+        k_p = self.engine_p.grid.k
+        k_n = self.engine_n.grid.k
+        mu_p = self.engine_p.grid.mu
+        mu_n = self.engine_n.grid.mu
+        eta_p = self.engine_p.grid.eta
+        n_e = self.engine_p.grid.n_energies
+        ls = np.arange(self.lmax + 1)
 
-        # get partial wave information for entrance channel
-        channels, asymptotics = self.sys.entrance.get_partial_wave_channels(
-            *self.kinematics_entrance
-        )
-        self.p_channels = [ch.decouple() for ch in channels]
-        self.p_asymptotics = [asym.decouple() for asym in asymptotics]
-
-        # get partial wave information for exit channel
-        channels, asymptotics = self.sys.exit.get_partial_wave_channels(
-            *self.kinematics_exit
-        )
-        self.n_channels = [ch.decouple() for ch in channels]
-        self.n_asymptotics = [asym.decouple() for asym in asymptotics]
-
-        # l . s for p-wave and up
-        self.l_dot_s = np.array(
-            [np.diag(coupling) for coupling in self.sys.entrance.couplings[1:]]
-        )
-
-        # pre-compute purely geometric factors
         self.xs_factor = (
-            (self.kinematics_exit.k / self.kinematics_entrance.k)
-            * self.kinematics_entrance.mu
-            * self.kinematics_exit.mu
-            / (4 * np.pi**2 * constants.HBARC**4 * (2 * 1.0 / 2 + 1))
+            (k_n / k_p) * mu_p * mu_n / (4 * np.pi**2 * constants.HBARC**4 * 2.0)
         )
+        # σ_c(E, l) with the entrance-channel η(E)
+        self.sigma_c = np.angle(gamma(1 + ls[None, :] + 1j * eta_p[:, None]))
+
         self.geometric_factor = np.zeros(
-            (2, 2, self.sys.lmax + 1, 2, self.angles.shape[0]), dtype=np.complex128
+            (2, 2, self.lmax + 1, 2, n_e, self.angles.shape[0]),
+            dtype=np.complex128,
         )
-        self.sigma_c = np.angle(
-            gamma(1 + self.sys.l + 1j * self.kinematics_entrance.eta)
-        )
+        kinematic = (4 * np.pi) ** 1.5 / (k_p * k_n)  # (N_E,)
         for im, m in enumerate([-0.5, 0.5]):
             for imp, mp in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax + 1):
-                    for ijp, jp in enumerate(
-                        [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
-                    ):
-                        if abs(m - mp) <= l and jp >= 0:
-                            ylm = sph_harm_y(l, int(m - mp), self.angles, 0)
-                            cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, m, mp)
-                            cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
-
-                            self.geometric_factor[im, imp, l, ijp, :] = (
-                                (4 * np.pi) ** (3.0 / 2.0)
-                                / (self.kinematics_entrance.k * self.kinematics_exit.k)
-                                * np.exp(1j * self.sigma_c[l])
-                                * cg1
-                                * cg0
-                                * np.sqrt(2 * l + 1)
+                for ell in range(self.lmax + 1):
+                    j_values = [ell + 1 / 2, ell - 1 / 2] if ell > 0 else [ell + 1 / 2]
+                    for ijp, jp in enumerate(j_values):
+                        if abs(m - mp) <= ell and jp >= 0:
+                            ylm = sph_harm_y(ell, int(m - mp), self.angles, 0)
+                            cg0 = clebsch_gordan(ell, 1 / 2, jp, m - mp, m, mp)
+                            cg1 = clebsch_gordan(ell, 1 / 2, jp, 0, m, m)
+                            self.geometric_factor[im, imp, ell, ijp] = (
+                                kinematic[:, None]
+                                * np.exp(1j * self.sigma_c[:, ell])[:, None]
+                                * float(cg1)
+                                * float(cg0)
+                                * np.sqrt(2 * ell + 1)
                                 * (-1) ** (2 * jp + 1)
-                                * ylm
+                                * ylm[None, :]
                             )
 
     def radial_grid(self) -> FloatArray:
-        """Return the physical quadrature grid used for local potentials."""
-        return self.solver.radial_grid(
-            self.p_channels[0][0].a, float(np.asarray(self.kinematics_entrance.k))
+        """Physical quadrature grid in fm (energy-independent, shared)."""
+        return self.engine_p.radial_grid()
+
+    # -- internals -----------------------------------------------------------
+
+    def _raw_term(
+        self,
+        engine: BlockedEngine,
+        term: Any,
+        name: str,
+        *,
+        energy_dependent: bool | None,
+        optional: bool = False,
+    ):
+        """Normalize one *unscaled* potential term to (values, interp).
+
+        The interior rescale is deliberately NOT applied: these raw values
+        feed the U₁ transition operator, which enters the bilinear matrix
+        element (physical, not interior-scaled).
+        """
+        if term is None:
+            if not optional:
+                raise TypeError(f"{name} is required")
+            return None
+        return engine._term_arrays(
+            term, energy_dependent=energy_dependent, l_dependent=False, name=name
         )
 
-    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
-        """Validate and cast a local potential array on the quadrature grid."""
-        potential_array = np.asarray(potential, dtype=np.complex128)
-        expected_shape = (self.solver.kernel.quadrature.nbasis,)
-        if potential_array.shape != expected_shape:
-            raise ValueError(f"{name} must have shape {expected_shape}")
-        return potential_array
+    def _u1_interactions(self, terms_p, terms_n):
+        """Build the per-j isovector operator U₁ = −(U_n − U_p)·factor.
 
-    def _optional_local_potential(
-        self, potential: npt.ArrayLike | None, name: str
-    ) -> ComplexArray:
-        """Return a validated local potential or a zero array when omitted."""
-        if potential is None:
-            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
-        return self._local_potential(potential, name)
+        ``terms_*`` are dicts with optional ``central``/``spin_orbit``
+        (values, interp) pairs. Returns ``(U1_plus, U1_minus)`` Interactions
+        on the proton solver (both solvers share the mesh).
+        """
+        import jax.numpy as jnp
+
+        solver = self.engine_p.solver
+        factor = self.isovector_factor
+        signed_terms = []
+        for sign, terms in ((-1.0, terms_n), (+1.0, terms_p)):
+            if terms.get("central") is not None:
+                signed_terms.append((*terms["central"], sign, False))
+            if terms.get("spin_orbit") is not None:
+                signed_terms.append((*terms["spin_orbit"], sign, True))
+
+        out = []
+        for couplings in (self._ldots_plus, self._ldots_minus):
+            local_terms: list[Any] = []
+            nonlocal_terms: list[Any] = []
+            e_dep = {"local": False, "nonlocal": False}
+            for values, interp, sign, l_scaled in signed_terms:
+                kind = "nonlocal" if interp.is_nonlocal else "local"
+                scaled = sign * factor * values
+                if l_scaled:
+                    expand = (slice(None),) + (None,) * np.ndim(values)
+                    scaled = couplings[expand] * scaled[None]
+                target = nonlocal_terms if interp.is_nonlocal else local_terms
+                target.append((scaled, interp.energy_dependent, l_scaled))
+                e_dep[kind] = e_dep[kind] or interp.energy_dependent
+
+            interactions = []
+            n_e = self.engine_p.grid.n_energies
+            for kind, terms_list in (
+                ("local", local_terms),
+                ("nonlocal", nonlocal_terms),
+            ):
+                mesh_axes = 2 if kind == "nonlocal" else 1
+                for values, term_e_dep, l_scaled in terms_list:
+                    promote_e = e_dep[kind] and not term_e_dep
+                    if promote_e:
+                        shape = tuple(values.shape)
+                        cut = len(shape) - mesh_axes
+                        values = jnp.broadcast_to(
+                            values.reshape(shape[:cut] + (1,) + shape[cut:]),
+                            shape[:cut] + (n_e,) + shape[cut:],
+                        )
+                    kwargs = {
+                        "energy_dependent": e_dep[kind],
+                        "block_dependent": l_scaled,
+                    }
+                    term_kw = (
+                        {"nonlocal_": [jnp.asarray(values)]}
+                        if kind == "nonlocal"
+                        else {"local": [jnp.asarray(values)]}
+                    )
+                    interactions.append(
+                        solver.interaction_from_array(**term_kw, **kwargs)
+                    )
+            total = interactions[0]
+            for interaction in interactions[1:]:
+                total = total + interaction
+            out.append(total)
+        return out[0], out[1]
+
+    def _distorted_waves(self, engine: BlockedEngine, interaction):
+        """Return (χ (N_b, N_E, M), S (N_b, N_E), conv (N_b, N_E))."""
+        solver = engine.solver
+        if self.method == "linear_solve":
+            s = solver.smatrix_direct(interaction)[:, :, 0, 0]
+            chi = solver.wavefunction_direct_grid(interaction)
+        else:
+            spectrum = solver.spectrum(interaction)
+            use_grid = (
+                interaction.energy_dependent or not engine.grid.uniform_mass_factor
+            )
+            if use_grid:
+                s = solver.smatrix_grid(spectrum)[:, :, 0, 0]
+            else:
+                s = solver.smatrix(spectrum)[:, :, 0, 0]
+            chi = solver.wavefunction_grid(spectrum)
+        boundary = solver.boundary
+        h_minus = np.asarray(boundary.H_minus)[:, :, 0]
+        h_minus_p = np.asarray(boundary.H_minus_p)[:, :, 0]
+        h_plus_p = np.asarray(boundary.H_plus_p)[:, :, 0]
+        conv = 0.5j * (h_minus_p - np.asarray(s) * h_plus_p) / h_minus
+        return chi, np.asarray(s), conv
 
     def tmatrix(
         self,
-        U_p_coulomb: npt.ArrayLike,
-        U_p_central: npt.ArrayLike,
-        U_p_spin_orbit: npt.ArrayLike | None = None,
-        U_n_central: npt.ArrayLike | None = None,
-        U_n_spin_orbit: npt.ArrayLike | None = None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Calculate the transition matrix for (p,n) quasi-elastic scattering
-        using the distorted wave Born approximation (DWBA).
+        U_p_coulomb: Any,
+        U_p_central: Any,
+        U_p_spin_orbit: Any = None,
+        U_n_central: Any = None,
+        U_n_spin_orbit: Any = None,
+        *,
+        energy_dependent: bool | None = None,
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
+        """DWBA transition matrix for (p,n) quasi-elastic scattering.
 
         Args:
-            U_p_coulomb: Coulomb interaction for the proton.
-            U_p_central: Central interaction for the proton.
-            U_p_spin_orbit: Spin-orbit interaction for the proton.
-            U_n_central: Central interaction for the neutron.
-            U_n_spin_orbit: Spin-orbit interaction for the neutron.
+            U_p_coulomb: proton Coulomb term (arrays/callables per the
+                §3.3 potential contract).
+            U_p_central: proton central term.
+            U_p_spin_orbit: proton spin-orbit form factor (unscaled).
+            U_n_central: neutron central term (required).
+            U_n_spin_orbit: neutron spin-orbit form factor (unscaled).
+            energy_dependent: explicit dispatch flag forwarded to ambiguous
+                array shapes / two-argument callables.
 
         Returns:
-            Tuple (Tpn, Sn, Sp) where Tpn is the transition matrix for the
-            (p,n) reaction, Sn is the S-matrix for the neutron elastic exit
-            channel, and Sp is the S-matrix for the proton elastic entrance
-            channel.
+            ``(Tpn, Sn, Sp)``, each ``(lmax+1, 2, N_E)``; index 0/1 of the
+            second axis is j = l ± ½ and the ``[0, 1]`` entries are zero.
         """
-        Tpn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
-        Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
-        Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
-
-        # precomute central, spin-obit, and Coulomb interaction matrices
-        # for entrance channel distorted waves
         if U_n_central is None:
             raise TypeError("U_n_central is required")
 
-        proton_central = self._local_potential(U_p_central, "U_p_central")
-        proton_spin_orbit = self._optional_local_potential(
-            U_p_spin_orbit, "U_p_spin_orbit"
-        )
-        proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
-        neutron_central = self._local_potential(U_n_central, "U_n_central")
-        neutron_spin_orbit = self._optional_local_potential(
-            U_n_spin_orbit, "U_n_spin_orbit"
-        )
+        terms_p = {
+            "central": self._raw_term(
+                self.engine_p,
+                U_p_central,
+                "U_p_central",
+                energy_dependent=energy_dependent,
+            ),
+            "spin_orbit": self._raw_term(
+                self.engine_p,
+                U_p_spin_orbit,
+                "U_p_spin_orbit",
+                energy_dependent=energy_dependent,
+                optional=True,
+            ),
+        }
+        terms_n = {
+            "central": self._raw_term(
+                self.engine_n,
+                U_n_central,
+                "U_n_central",
+                energy_dependent=energy_dependent,
+            ),
+            "spin_orbit": self._raw_term(
+                self.engine_n,
+                U_n_spin_orbit,
+                "U_n_spin_orbit",
+                energy_dependent=energy_dependent,
+                optional=True,
+            ),
+        }
 
-        im_central_p = self.solver.interaction_matrix(
-            self.p_channels[0][0].k[0],
-            self.p_channels[0][0].E[0],
-            self.p_channels[0][0].a,
-            self.p_channels[0][0].size,
-            local_potential=proton_central,
+        # distorting potentials (interior-rescaled by the engines)
+        v_p = self.engine_p.interaction(
+            U_p_central, energy_dependent=energy_dependent, name="U_p_central"
+        ) + self.engine_p.interaction(
+            U_p_coulomb, energy_dependent=energy_dependent, name="U_p_coulomb"
         )
-        im_spin_orbit_p = self.solver.interaction_matrix(
-            self.p_channels[0][0].k[0],
-            self.p_channels[0][0].E[0],
-            self.p_channels[0][0].a,
-            self.p_channels[0][0].size,
-            local_potential=proton_spin_orbit,
-        )
-        im_coulomb_p = self.solver.interaction_matrix(
-            self.p_channels[0][0].k[0],
-            self.p_channels[0][0].E[0],
-            self.p_channels[0][0].a,
-            self.p_channels[0][0].size,
-            local_potential=proton_coulomb,
-        )
-
-        # precomute central and spin-obit interaction matrices
-        # for exit channel distorted waves
-        im_central_n = self.solver.interaction_matrix(
-            self.n_channels[0][0].k[0],
-            self.n_channels[0][0].E[0],
-            self.n_channels[0][0].a,
-            self.n_channels[0][0].size,
-            local_potential=neutron_central,
-        )
-        im_spin_orbit_n = self.solver.interaction_matrix(
-            self.n_channels[0][0].k[0],
-            self.n_channels[0][0].E[0],
-            self.n_channels[0][0].a,
-            self.n_channels[0][0].size,
-            local_potential=neutron_spin_orbit,
-        )
-
-        U1_central = -(neutron_central - proton_central) * self.isovector_factor
-        U1_spin_orbit = (
-            -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
-        )
-
-        def tmatrix_element(l, ji, l_dot_s):
-            nch = self.n_channels[l]
-            pch = self.p_channels[l]
-            Fn = self.free_matrices_n[l]
-            Fp = self.free_matrices_p[l]
-            nasym = self.n_asymptotics[l]
-            pasym = self.p_asymptotics[l]
-
-            _, snlj, xn, un = self.solver.solve(
-                nch[ji],
-                nasym[ji],
-                free_matrix=Fn,
-                interaction_matrix=im_central_n + l_dot_s * im_spin_orbit_n,
-                basis_boundary=self.basis_boundary_n,
-                wavefunction=True,
+        if U_p_spin_orbit is not None:
+            v_p = v_p + self.engine_p.spin_orbit_pair(
+                U_p_spin_orbit, energy_dependent=energy_dependent, name="U_p_spin_orbit"
             )
-            _, splj, xp, up = self.solver.solve(
-                pch[ji],
-                pasym[ji],
-                free_matrix=Fp,
-                interaction_matrix=(
-                    im_central_p + im_coulomb_p + l_dot_s * im_spin_orbit_p
-                ),
-                basis_boundary=self.basis_boundary_p,
-                wavefunction=True,
+        v_n = self.engine_n.interaction(
+            U_n_central, energy_dependent=energy_dependent, name="U_n_central"
+        )
+        if U_n_spin_orbit is not None:
+            v_n = v_n + self.engine_n.spin_orbit_pair(
+                U_n_spin_orbit, energy_dependent=energy_dependent, name="U_n_spin_orbit"
             )
 
-            tlj = (
-                np.sum(xp * (U1_central + l_dot_s * U1_spin_orbit) * xn)
-                / self.sys.channel_radius_fm
-                / self.kinematics_entrance.k
-                / self.kinematics_exit.k
-            )
-            return tlj, snlj[0, 0], splj[0, 0]
+        u1_plus, u1_minus = self._u1_interactions(terms_p, terms_n)
 
-        # S-wave
-        Tpn[0, 0], Sn[0, 0], Sp[0, 0] = tmatrix_element(0, 0, 0)
+        n_e = self.engine_p.grid.n_energies
+        Tpn = np.zeros((self.lmax + 1, 2, n_e), dtype=np.complex128)
+        Sn = np.zeros_like(Tpn)
+        Sp = np.zeros_like(Tpn)
 
-        # higher partial waves
-        for l in self.sys.l[1:]:
-            l_dot_s = self.l_dot_s[l - 1]
-            Tpn[l, 0], Sn[l, 0], Sp[l, 0] = tmatrix_element(l, 0, l_dot_s[0])
-            Tpn[l, 1], Sn[l, 1], Sp[l, 1] = tmatrix_element(l, 1, l_dot_s[1])
+        radius_sq = self.channel_radius_fm**2
+        for ij, u1 in ((0, u1_plus), (1, u1_minus)):
+            v_p_j = _pair_member(v_p, ij)
+            v_n_j = _pair_member(v_n, ij)
+            chi_p, s_p, conv_p = self._distorted_waves(self.engine_p, v_p_j)
+            chi_n, s_n, conv_n = self._distorted_waves(self.engine_n, v_n_j)
+            element = np.asarray(
+                self.engine_p.solver.matrix_element(chi_p, chi_n, u1, conjugate=False)
+            )  # (N_b, N_E)
+            Tpn[:, ij, :] = conv_p * conv_n * element / radius_sq
+            Sn[:, ij, :] = s_n
+            Sp[:, ij, :] = s_p
 
-            if (
-                np.absolute(Tpn[l, 0]) < self.tmatrix_abs_tol
-                and np.absolute(Tpn[l, 1]) < self.tmatrix_abs_tol
-            ):
-                break
-
+        # there is no j = l − ½ channel at l = 0
+        Tpn[0, 1] = Sn[0, 1] = Sp[0, 1] = 0.0
         return Tpn, Sn, Sp
 
     def xs(
         self,
-        U_p_coulomb: npt.ArrayLike,
-        U_p_central: npt.ArrayLike,
-        U_p_spin_orbit: npt.ArrayLike | None = None,
-        U_n_central: npt.ArrayLike | None = None,
-        U_n_spin_orbit: npt.ArrayLike | None = None,
-    ) -> np.ndarray:
-        """
-        Calculate the differential cross section for (p,n) quasi-elastic
-        scattering in mb/Sr in the outgoing neutron angle using DWBA.
-
-        Args:
-            U_p_coulomb: Coulomb interaction for the proton.
-            U_p_central: Central interaction for the proton.
-            U_p_spin_orbit: Spin-orbit interaction for the proton.
-            U_n_central: Central interaction for the neutron.
-            U_n_spin_orbit: Spin-orbit interaction for the neutron.
-
-        Returns:
-            Differential cross section for the (p,n) reaction in mb/Sr.
-        """
-
-        Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
+        U_p_coulomb: Any,
+        U_p_central: Any,
+        U_p_spin_orbit: Any = None,
+        U_n_central: Any = None,
+        U_n_spin_orbit: Any = None,
+        *,
+        energy_dependent: bool | None = None,
+    ) -> FloatArray:
+        """Differential (p,n) cross section in mb/sr, shape ``(N_E, N_θ)``."""
         Tlj, Sn, Sp = self.tmatrix(
-            U_p_coulomb=U_p_coulomb,
-            U_p_central=U_p_central,
-            U_p_spin_orbit=U_p_spin_orbit,
-            U_n_central=U_n_central,
-            U_n_spin_orbit=U_n_spin_orbit,
+            U_p_coulomb,
+            U_p_central,
+            U_p_spin_orbit,
+            U_n_central,
+            U_n_spin_orbit,
+            energy_dependent=energy_dependent,
         )
-        # TODO cast into a np.sum
-        for im, m in enumerate([-0.5, 0.5]):
-            for imp, mp in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax):
-                    for ijp, jp in enumerate([l + 0.5, l - 0.5]):
-                        if abs(m - mp) <= l and jp >= 0:
-                            Tmmp[im, imp, :] += (
-                                self.geometric_factor[im, imp, l, ijp, :] * Tlj[l, ijp]
+        n_e = self.engine_p.grid.n_energies
+        Tmmp = np.zeros((2, 2, n_e, self.angles.shape[0]), dtype=np.complex128)
+        # NOTE: the l-sum runs to lmax-1, matching the legacy engine (and the
+        # goldens); the highest compiled wave acts as a convergence buffer.
+        for im in range(2):
+            for imp in range(2):
+                for ell in range(self.lmax):
+                    for ijp, jp in enumerate([ell + 0.5, ell - 0.5]):
+                        m = -0.5 + im
+                        mp = -0.5 + imp
+                        if abs(m - mp) <= ell and jp >= 0:
+                            Tmmp[im, imp] += (
+                                self.geometric_factor[im, imp, ell, ijp]
+                                * Tlj[ell, ijp][:, None]
                             )
-        return self.xs_factor * 10 * np.sum(np.absolute(Tmmp) ** 2, axis=(0, 1))
+        return (
+            self.xs_factor[:, None] * 10.0 * np.sum(np.absolute(Tmmp) ** 2, axis=(0, 1))
+        )
+
+
+def _pair_member(potential: Any, ij: int) -> Any:
+    """Select the j = l ± ½ member from an Interaction or InteractionPair."""
+    from ._lax_engine import InteractionPair
+
+    if isinstance(potential, InteractionPair):
+        return potential.plus if ij == 0 else potential.minus
+    return potential

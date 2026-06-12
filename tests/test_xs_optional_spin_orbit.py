@@ -1,7 +1,6 @@
 import numpy as np
 
 from jitr.reactions import ElasticReaction, Reaction
-from jitr.rmatrix import Solver
 from jitr.xs.quasielastic_pn import Workspace as QuasielasticWorkspace
 
 from .conftest import requires_lax
@@ -56,19 +55,19 @@ def test_elastic_workspaces_treat_missing_spin_orbit_as_zero() -> None:
     np.testing.assert_allclose(omitted_differential.rxn, explicit_differential.rxn)
 
 
+@requires_lax
 def test_quasielastic_workspace_treats_missing_spin_orbit_as_zero() -> None:
     reaction = Reaction((48, 20), (1, 1), (1, 0), (48, 21))
     kinematics_entrance = reaction.kinematics(20.0)
     kinematics_exit = reaction.kinematics_exit(kinematics_entrance, 2.0)
-    solver = Solver(14)
     workspace = QuasielasticWorkspace(
         reaction=reaction,
         kinematics_entrance=kinematics_entrance,
         kinematics_exit=kinematics_exit,
-        solver=solver,
         angles=np.linspace(0.15, np.pi - 0.15, 5),
         lmax=3,
         channel_radius_fm=8.0,
+        nbasis=14,
     )
 
     rgrid = workspace.radial_grid()
