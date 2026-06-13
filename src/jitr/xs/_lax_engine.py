@@ -490,6 +490,7 @@ class BlockedEngine:
         term: Any,
         *,
         energy_dependent: bool | None = None,
+        l_dependent: bool | None = None,
         name: str = "spin_orbit",
     ) -> InteractionPair:
         """Build the ⟨l·σ⟩-scaled (V⁺, V⁻) pair from a radial form factor.
@@ -497,7 +498,11 @@ class BlockedEngine:
         ``term`` is the *unscaled* spin-orbit form factor — ``(N,)`` or
         ``(N_E, N)`` array, ``f(r)``/``f(r, E)`` callable, or ``(N, N)`` /
         ``(N_E, N, N)`` non-local kernel — exactly as for the legacy
-        workspaces. The per-l scaling and j = l ± ½ split happen here.
+        workspaces. A leading ``(lmax+1,)`` axis is also accepted for
+        intrinsically l-dependent form factors (e.g. Perey–Buck-type
+        non-local spin-orbit kernels, whose partial-wave projection depends
+        on l). The per-l ⟨l·σ⟩ scaling and the j = l ± ½ split happen here
+        in either case.
         """
         import jax.numpy as jnp
 
@@ -510,17 +515,17 @@ class BlockedEngine:
             values, interp = self._term_arrays(
                 term,
                 energy_dependent=energy_dependent,
-                l_dependent=False,
+                l_dependent=l_dependent,
                 name=name,
             )
-            if interp.l_dependent:
-                raise ValueError(
-                    f"{name}: spin-orbit form factors cannot carry their own "
-                    "l axis; the engine applies the per-l ⟨l·σ⟩ scaling"
-                )
         values, interp = self._apply_interior_scale(values, interp)
 
-        expand = (slice(None),) + (None,) * values.ndim
+        if interp.l_dependent:
+            # the term already carries the (lmax+1,) block axis: scale it
+            # per block instead of prepending a new axis
+            expand = (slice(None),) + (None,) * (values.ndim - 1)
+        else:
+            expand = (slice(None),) + (None,) * values.ndim
         scaled_interp = _Interpretation(
             True, interp.energy_dependent, interp.is_nonlocal
         )
@@ -530,7 +535,9 @@ class BlockedEngine:
         }
         members = []
         for couplings in (self._ldots_plus, self._ldots_minus):
-            scaled = couplings[expand] * values[None]
+            scaled = couplings[expand] * (
+                values if interp.l_dependent else values[None]
+            )
             if scaled_interp.is_nonlocal:
                 members.append(
                     self.solver.interaction_from_array(

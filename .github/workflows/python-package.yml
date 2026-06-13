@@ -66,6 +66,7 @@ jobs:
           uv run --group examples pytest --nbval-lax --current-env
           examples/notebooks/
           --ignore=examples/notebooks/quickstart.ipynb
+          --ignore=examples/notebooks/nonlocal_dispersive_omp.ipynb
           --ignore=examples/notebooks/chex_jitr_validation.ipynb
           --ignore=examples/notebooks/local_omp_demo.ipynb
           --ignore=examples/notebooks/kduq_uq_demo.ipynb

@@ -203,3 +203,35 @@ def test_interaction_pair_addition_and_smatrix(engine):
 
     splus_plain, sminus_plain = engine.smatrix(central)
     np.testing.assert_array_equal(splus_plain, sminus_plain)
+
+
+def test_spin_orbit_pair_l_dependent_kernel(engine):
+    """An intrinsically l-dependent SO form factor (e.g. a Perey-Buck
+    nonlocal kernel) rides the block axis and still gets the per-l
+    ⟨l·σ⟩ scaling — a tiled l-independent stack must reproduce the
+    plain (N, N) path exactly."""
+    ri, rj = np.meshgrid(engine.radial_grid(), engine.radial_grid(), indexing="ij")
+    kernel = _kernel(ri, rj)
+    tiled = np.broadcast_to(kernel, (LMAX + 1,) + kernel.shape)
+
+    pair_plain = engine.spin_orbit_pair(kernel, energy_dependent=False)
+    pair_tiled = engine.spin_orbit_pair(
+        np.ascontiguousarray(tiled), energy_dependent=False, l_dependent=True
+    )
+    for member in ("plus", "minus"):
+        np.testing.assert_allclose(
+            np.asarray(getattr(pair_tiled, member).block),
+            np.asarray(getattr(pair_plain, member).block),
+            rtol=1e-13,
+        )
+
+    # genuinely l-dependent input scales per block
+    stack = np.stack([_kernel(ri, rj, -30.0 - 5.0 * l) for l in range(LMAX + 1)])
+    pair = engine.spin_orbit_pair(stack, energy_dependent=False, l_dependent=True)
+    ls = np.arange(LMAX + 1, dtype=np.float64)
+    expected_plus = engine.interaction(
+        ls[:, None, None] * stack, energy_dependent=False, l_dependent=True
+    )
+    np.testing.assert_allclose(
+        np.asarray(pair.plus.block), np.asarray(expected_plus.block), rtol=1e-13
+    )

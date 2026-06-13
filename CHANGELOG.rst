@@ -19,6 +19,12 @@ loudly rather than silently misbehave.
 * Non-local interaction kernels (``(N, N)`` arrays or ``f(r, r')``
   callables), energy-dependent and ℓ-dependent terms, all composable via
   ``+`` — see ``docs/potential-contract.md``.
+* New built-in potential ``jitr.optical_potentials.mbra``: the global
+  nonlocal dispersive neutron optical model of Morillon, Blanchon, Romain
+  & Arellano (arXiv:2403.05843), with ℓ-dependent Perey–Buck kernels and
+  numerically/analytically dispersed depths. Demonstrated against the
+  published figures and EXFOR data in
+  ``examples/notebooks/nonlocal_dispersive_omp.ipynb``.
 * Energy-vectorized workspaces: ``ChannelKinematics`` fields may be
   ``(N_E,)`` arrays; one workspace solves the whole energy grid at once.
 * All partial waves solved as a single vectorized block on the JAX

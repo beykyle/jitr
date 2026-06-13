@@ -21,6 +21,7 @@
 /examples/notebooks/local_omp_demo
 /examples/notebooks/angular_reaction_xs
 /examples/notebooks/mass_exploration
+/examples/notebooks/nonlocal_dispersive_omp
 ```
 
 
@@ -59,3 +60,8 @@
   performs uncertainty quantification for partial wave transmission coefficients
 - [Mass-model effects on transmission-coefficient uncertainty](/examples/notebooks/mass_exploration)
   explores how mass-model choices propagate into transmission coefficients.
+- [The MBRA global nonlocal dispersive optical potential](/examples/notebooks/nonlocal_dispersive_omp)
+  demonstrates `jitr.optical_potentials.mbra` (Morillon, Blanchon, Romain & Arellano,
+  arXiv:2403.05843): the ℓ-dependent Perey–Buck nonlocal kernels, the dispersive
+  depths, and differential/total neutron cross sections compared with EXFOR data
+  and the published figures.
