@@ -60,12 +60,11 @@ jobs:
         run: uv run pytest
 
       - name: Run notebook tests
-        # legacy/ targets the removed rmatrix engine; the other ignores need
-        # the lax solver package and rejoin CI once lax is published
+        # the ignored notebooks need the lax solver package and rejoin CI
+        # once lax is published
         run: >-
           uv run --group examples pytest --nbval-lax --current-env
           examples/notebooks/
-          --ignore=examples/notebooks/legacy
           --ignore=examples/notebooks/quickstart.ipynb
           --ignore=examples/notebooks/chex_jitr_validation.ipynb
           --ignore=examples/notebooks/local_omp_demo.ipynb

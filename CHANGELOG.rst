@@ -58,10 +58,12 @@ loudly rather than silently misbehave.
   ``DistortedWaves``) requires it. Until ``lax`` is published to PyPI,
   install it from source (``pip install -e <path-to-lax>``); tests that
   need it are marked ``requires_lax`` and auto-skip.
-* Coupled-channels support (``examples/coupled.py`` and the coupled
-  notebooks) was an explicit non-goal and is retired to
-  ``examples/legacy/`` / ``examples/notebooks/legacy/`` pending upstream
-  ``lax`` support.
+* Coupled-channels support was an explicit non-goal of the rewrite:
+  ``examples/coupled.py`` and the solver-level/coupled-channels notebooks
+  (``integration``, ``how_to_define_your_interaction``,
+  ``comparison_to_Runge_Kutta``, ``test_coupled_single_dwba``) are removed
+  with the engine they demonstrated; they remain available in the 1.x git
+  history pending upstream ``lax`` coupled-channel support.
 
 **Bug fixes**
 
