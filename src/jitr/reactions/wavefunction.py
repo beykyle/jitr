@@ -19,6 +19,7 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+from lax.transforms import compute_B_grid
 
 from ..utils.free_solutions import CoulombAsymptotics, H_minus, H_plus
 
@@ -72,8 +73,6 @@ class DistortedWaves:
         # physical normalization (module docstring): scale the raw mesh
         # solution so its boundary value equals (i/2)[H⁻(kR) − S·H⁺(kR)],
         # using the solver's own boundary cache and basis values
-        from lax.transforms import compute_B_grid
-
         boundary = engine.solver.boundary
         h_minus = np.asarray(boundary.H_minus)[:, :, 0]
         h_plus = np.asarray(boundary.H_plus)[:, :, 0]
@@ -97,8 +96,6 @@ class DistortedWaves:
         ``(lmax, N_E, len(r))`` for ``j="minus"`` (the j = l−½ branch
         starts at l = 1).
         """
-        from lax.transforms import compute_B_grid
-
         r_arr = np.atleast_1d(np.asarray(r, dtype=np.float64))
         if np.any(r_arr < 0) or np.any(r_arr > self.engine.channel_radius_fm):
             raise ValueError("interior radii must lie within [0, channel radius]")

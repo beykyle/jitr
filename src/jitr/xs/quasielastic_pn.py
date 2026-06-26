@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt
 from scipy.special import gamma, sph_harm_y
@@ -61,7 +62,7 @@ class Workspace:
         nbasis: int = 40,
         *,
         V_is_complex: bool = True,
-        method: str | None = None,
+        method: str | None = "linear_solve",
         dps: int = 40,
         dtype: Any = None,
         device: Any = None,
@@ -195,8 +196,6 @@ class Workspace:
         (values, interp) pairs. Returns ``(U1_plus, U1_minus)`` Interactions
         on the proton solver (both solvers share the mesh).
         """
-        import jax.numpy as jnp
-
         solver = self.engine_p.solver
         factor = self.isovector_factor
         signed_terms = []

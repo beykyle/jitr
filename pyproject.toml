@@ -24,8 +24,15 @@ dependencies = [
     "sympy",
     "periodictable",
     "jax>=0.4.36",
+    "lax",
     "pandas",
 ]
+
+[tool.uv.sources]
+# lax is not yet on PyPI; install the pinned commit from GitHub for now (the
+# v0.1.6 branch tip). Drop this entry and pin a PyPI version once lax ships.
+# The repo is public, so CI clones it over https without credentials.
+lax = { git = "https://github.com/beykyle/lax.git", rev = "2c4672038ebd3ab586d636bd10f7ab349d90d81d" }
 
 [dependency-groups]
 test = [

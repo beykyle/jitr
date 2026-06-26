@@ -14,6 +14,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from functools import lru_cache
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
@@ -75,11 +77,7 @@ def build_quadrature(
 
 @lru_cache(maxsize=1)
 def _jitted_dispersion_kernel():
-    """Build the jitted dispersion reduction (lazy so jax loads on demand)."""
-    import jax
-    import jax.numpy as jnp
-
-    jax.config.update("jax_enable_x64", True)
+    """Build the jitted dispersion reduction (cached so tracing happens once)."""
 
     @jax.jit
     def kernel(W_grid, W_at_E, dx_inv_w, log_term):

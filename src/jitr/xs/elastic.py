@@ -13,9 +13,14 @@ gains the energy axis. Axis conventions (design doc §3.3-3.5, §8 Q2):
 The energy grid, ``lmax``, channel radius, and basis size are compile-time:
 changing any of them means a new workspace (seconds, mpmath-dominated for
 charged channels); changing the *potential* re-executes the jitted pipeline
-only. Outputs are JAX arrays so the potential → cross-section pipeline is
-differentiable end-to-end (use ``method="linear_solve"`` for gradients;
-the default complex-potential spectral path is not differentiable).
+only. The default ``method="linear_solve"`` is the direct R-matrix solve
+(one linear solve per partial wave) used by the legacy engine: it is the
+fastest path for the usual single-/few-energy complex optical potential and
+is differentiable end-to-end (outputs are JAX arrays). The spectral path is
+opt-in via ``method="eigh"`` (real ``V``, GPU-friendly) or ``method="eig"``
+(complex ``V``); it diagonalizes once per partial wave to amortize a dense
+energy grid, but the complex-``V`` eig variant runs on a slow CPU host
+callback and is not differentiable.
 """
 
 from __future__ import annotations
@@ -24,6 +29,9 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+import jax
+import jax.numpy as jnp
+import lax
 import numpy as np
 import numpy.typing as npt
 from scipy.special import eval_legendre, gamma, lpmv
@@ -57,9 +65,7 @@ class ElasticXS:
 
 @lru_cache(maxsize=1)
 def _kernels():
-    """Build the jitted observable kernels (lazy: keeps jax optional)."""
-    import jax
-    import jax.numpy as jnp
+    """Build the jitted observable kernels (cached so tracing happens once)."""
 
     def _weights(n_l: int):
         ls = jnp.arange(n_l, dtype=jnp.float64)
@@ -100,8 +106,6 @@ def _kernels():
 
 def _pad_sminus(splus: Any, sminus: Any) -> Any:
     """Prepend the zero-weight l = 0 row so both j branches align."""
-    import jax.numpy as jnp
-
     return jnp.concatenate([jnp.ones_like(splus[:1]), jnp.asarray(sminus)])
 
 
@@ -115,8 +119,6 @@ def integral_elastic_xs(
         splus: j = l+½ S-matrix, ``(lmax+1, N_E)``.
         sminus: j = l−½ S-matrix, ``(lmax, N_E)`` (starting at l = 1).
     """
-    import jax.numpy as jnp
-
     integral, _ = _kernels()
     k_arr = jnp.atleast_1d(jnp.asarray(k, dtype=jnp.float64))
     return integral(k_arr, jnp.asarray(splus), _pad_sminus(splus, sminus))
@@ -142,8 +144,6 @@ def differential_elastic_xs(
         f_c: Coulomb amplitude, ``(N_E, N_θ)`` (zeros when neutral).
         sigma_l: Coulomb phase shifts, ``(N_E, lmax+1)``.
     """
-    import jax.numpy as jnp
-
     _, differential = _kernels()
     k_arr = jnp.atleast_1d(jnp.asarray(k, dtype=jnp.float64))
     return differential(
@@ -194,7 +194,7 @@ class IntegralWorkspace:
         nbasis: int = 40,
         *,
         V_is_complex: bool = True,
-        method: str | None = None,
+        method: str | None = "linear_solve",
         wavefunctions: bool = False,
         dps: int = 40,
         dtype: Any = None,
@@ -261,7 +261,6 @@ class IntegralWorkspace:
         coulomb_potential: Any = None,
         **dispatch: Any,
     ) -> Any:
-        lax = _lax()
         if isinstance(central_potential, (InteractionPair, lax.Interaction)):
             potential = central_potential
         else:
@@ -379,6 +378,16 @@ class DifferentialWorkspace:
             )
             self.rutherford = None
 
+        # Device copies consumed by the jitted differential kernel. These tables
+        # are constant for the workspace lifetime, so building them once keeps
+        # the per-call jnp.asarray() in differential_elastic_xs a no-op (no
+        # repeated host->device upload of the ~(lmax+1, N_θ) angular tables).
+        self._k_jax = jnp.asarray(self.grid.k, dtype=jnp.float64)
+        self._P_l_jax = jnp.asarray(self.P_l_costheta)
+        self._P_1_l_jax = jnp.asarray(self.P_1_l_costheta)
+        self._f_c_jax = jnp.asarray(self.f_c)
+        self._sigma_l_jax = jnp.asarray(self.sigma_l)
+
     def radial_grid(self) -> FloatArray:
         """Physical quadrature grid in fm (energy-independent)."""
         return self.integral_workspace.radial_grid()
@@ -424,13 +433,13 @@ class DifferentialWorkspace:
         )
         return ElasticXS(
             *differential_elastic_xs(
-                self.grid.k,
+                self._k_jax,
                 splus,
                 sminus,
-                self.P_l_costheta,
-                self.P_1_l_costheta,
-                self.f_c,
-                self.sigma_l,
+                self._P_l_jax,
+                self._P_1_l_jax,
+                self._f_c_jax,
+                self._sigma_l_jax,
             )
         )
 
@@ -442,9 +451,3 @@ def check_angles(angles: FloatArray) -> None:
         raise ValueError("angles must be a 1D array")
     if angle_array[0] < 0 or angle_array[-1] > np.pi:
         raise ValueError("angles must be a grid in radians on [0, pi]")
-
-
-def _lax():
-    from ._lax_engine import _import_lax
-
-    return _import_lax()

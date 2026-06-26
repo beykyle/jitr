@@ -33,6 +33,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import jax
+import jax.numpy as jnp
+import lax
 import numpy as np
 import numpy.typing as npt
 
@@ -41,30 +44,6 @@ from ..utils.kinematics import ChannelKinematics
 
 ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
-
-_LAX_IMPORT_ERROR = (
-    "the jitr.xs workspaces require the 'lax' solver package; "
-    "install it with `pip install -e <path-to-lax>` (not yet on PyPI)"
-)
-
-_x64_enabled = False
-
-
-def _import_lax():
-    """Import lax lazily with a clear error, enabling jax x64 first."""
-    global _x64_enabled
-    try:
-        import jax
-    except ImportError as err:  # pragma: no cover - exercised without jax only
-        raise ImportError(_LAX_IMPORT_ERROR) from err
-    if not _x64_enabled:
-        jax.config.update("jax_enable_x64", True)
-        _x64_enabled = True
-    try:
-        import lax
-    except ImportError as err:  # pragma: no cover - exercised without lax only
-        raise ImportError(_LAX_IMPORT_ERROR) from err
-    return lax
 
 
 def ldots(lmax: int) -> tuple[FloatArray, FloatArray]:
@@ -253,9 +232,6 @@ class BlockedEngine:
         dtype: Any = None,
         device: Any = None,
     ) -> None:
-        lax = _import_lax()
-        import jax.numpy as jnp
-
         self.grid = normalize_kinematics(kinematics)
         self.lmax = int(lmax)
         self.nbasis = int(nbasis)
@@ -302,6 +278,10 @@ class BlockedEngine:
             dps=dps,
             **compile_kwargs,
         )
+        # Cache of jitted ``interaction_from_array`` builders, keyed by the
+        # structural signature ``(is_nonlocal, energy_dependent,
+        # block_dependent)``; see :meth:`_array_interaction`.
+        self._array_builders: dict[tuple[bool, bool, bool], Callable[[Any], Any]] = {}
 
     # -- grids -------------------------------------------------------------
 
@@ -323,8 +303,6 @@ class BlockedEngine:
         Returns ``(values, energy_dependent, is_nonlocal)``. Energy-dependent
         callables are evaluated on the *physical* ``Ecm`` grid.
         """
-        import jax.numpy as jnp
-
         r = self.radial_grid()
         arity = _call_arity(fn)
         if arity == 1:
@@ -396,8 +374,6 @@ class BlockedEngine:
             if len(flags) != 1:
                 raise ValueError(f"{name}: per-l callables must share one signature")
             e_dep, nonloc = next(iter(flags))
-            import jax.numpy as jnp
-
             values = jnp.stack([v for v, _, _ in evaluated])
             return values, _Interpretation(True, e_dep, nonloc)
 
@@ -435,6 +411,64 @@ class BlockedEngine:
             interp = _Interpretation(interp.l_dependent, True, interp.is_nonlocal)
         return values * scale.reshape(scale_shape), interp
 
+    def _array_interaction(
+        self,
+        values: Any,
+        *,
+        energy_dependent: bool,
+        block_dependent: bool,
+        is_nonlocal: bool,
+    ) -> Any:
+        """Build a lax ``Interaction`` from an array via a cached jitted builder.
+
+        The eager ``solver.interaction_from_array`` path runs several
+        un-jitted JAX ops (``eye``/einsum/``zeros``) plus concrete symmetry &
+        coupling checks — each a device→host sync — costing milliseconds per
+        term. Tracing the build under ``jax.jit`` fuses those ops and skips the
+        concrete-only checks (the assembled block is a tracer), so repeated
+        ``xs``/``smatrix`` calls with new potential *values* of the same shape
+        reuse one compiled builder instead of rebuilding eagerly. One builder
+        is cached per structural signature; the static shape/leading-axis
+        contract is still enforced (those checks do not depend on values).
+        """
+        key = (is_nonlocal, energy_dependent, block_dependent)
+        builder = self._array_builders.get(key)
+        if builder is None:
+            builder = self._make_array_builder(
+                is_nonlocal=is_nonlocal,
+                energy_dependent=energy_dependent,
+                block_dependent=block_dependent,
+            )
+            self._array_builders[key] = builder
+        return builder(jnp.asarray(values))
+
+    def _make_array_builder(
+        self, *, is_nonlocal: bool, energy_dependent: bool, block_dependent: bool
+    ) -> Callable[[Any], Any]:
+        """Compile the jitted ``interaction_from_array`` builder for one signature."""
+        solver = self.solver
+        if is_nonlocal:
+
+            @jax.jit
+            def builder(array: Any) -> Any:
+                return solver.interaction_from_array(
+                    nonlocal_=[array],
+                    energy_dependent=energy_dependent,
+                    block_dependent=block_dependent,
+                )
+
+        else:
+
+            @jax.jit
+            def builder(array: Any) -> Any:
+                return solver.interaction_from_array(
+                    local=[array],
+                    energy_dependent=energy_dependent,
+                    block_dependent=block_dependent,
+                )
+
+        return builder
+
     def interaction(
         self,
         term: Any,
@@ -451,9 +485,6 @@ class BlockedEngine:
         already-built ``Interaction`` (passed through; only allowed when the
         interior rescale is 1, i.e. classical kinematics).
         """
-        lax = _import_lax()
-        import jax.numpy as jnp
-
         if isinstance(term, lax.Interaction):
             if not np.all(self.grid.interior_scale == 1.0):
                 raise ValueError(
@@ -475,15 +506,12 @@ class BlockedEngine:
             name=name,
         )
         values, interp = self._apply_interior_scale(values, interp)
-        kwargs = {
-            "energy_dependent": interp.energy_dependent,
-            "block_dependent": interp.l_dependent,
-        }
-        if interp.is_nonlocal:
-            return self.solver.interaction_from_array(
-                nonlocal_=[jnp.asarray(values)], **kwargs
-            )
-        return self.solver.interaction_from_array(local=[jnp.asarray(values)], **kwargs)
+        return self._array_interaction(
+            values,
+            energy_dependent=interp.energy_dependent,
+            block_dependent=interp.l_dependent,
+            is_nonlocal=interp.is_nonlocal,
+        )
 
     def spin_orbit_pair(
         self,
@@ -504,8 +532,6 @@ class BlockedEngine:
         on l). The per-l ⟨l·σ⟩ scaling and the j = l ± ½ split happen here
         in either case.
         """
-        import jax.numpy as jnp
-
         if callable(term):
             values, e_dep, nonloc = self._evaluate_callable(
                 term, energy_dependent=energy_dependent, name=name
@@ -529,27 +555,19 @@ class BlockedEngine:
         scaled_interp = _Interpretation(
             True, interp.energy_dependent, interp.is_nonlocal
         )
-        kwargs = {
-            "energy_dependent": scaled_interp.energy_dependent,
-            "block_dependent": True,
-        }
         members = []
         for couplings in (self._ldots_plus, self._ldots_minus):
             scaled = couplings[expand] * (
                 values if interp.l_dependent else values[None]
             )
-            if scaled_interp.is_nonlocal:
-                members.append(
-                    self.solver.interaction_from_array(
-                        nonlocal_=[jnp.asarray(scaled)], **kwargs
-                    )
+            members.append(
+                self._array_interaction(
+                    scaled,
+                    energy_dependent=scaled_interp.energy_dependent,
+                    block_dependent=True,
+                    is_nonlocal=scaled_interp.is_nonlocal,
                 )
-            else:
-                members.append(
-                    self.solver.interaction_from_array(
-                        local=[jnp.asarray(scaled)], **kwargs
-                    )
-                )
+            )
         return InteractionPair(plus=members[0], minus=members[1])
 
     # -- observables ---------------------------------------------------------
