@@ -173,6 +173,7 @@ class Workspace:
         name: str,
         *,
         energy_dependent: bool | None,
+        l_dependent: bool | None = None,
         optional: bool = False,
     ):
         """Normalize one *unscaled* potential term to (values, interp).
@@ -180,13 +181,18 @@ class Workspace:
         The interior rescale is deliberately NOT applied: these raw values
         feed the U₁ transition operator, which enters the bilinear matrix
         element (physical, not interior-scaled).
+
+        ``l_dependent=None`` (default) lets the shape inference decide, so an
+        ``(lmax+1, N, N)`` partial-wave kernel stack (the same contract the
+        elastic workspaces take with ``l_dependent=True``) is accepted for
+        the central terms; pass the flag explicitly for ambiguous shapes.
         """
         if term is None:
             if not optional:
                 raise TypeError(f"{name} is required")
             return None
         return engine._term_arrays(
-            term, energy_dependent=energy_dependent, l_dependent=False, name=name
+            term, energy_dependent=energy_dependent, l_dependent=l_dependent, name=name
         )
 
     def _u1_interactions(self, terms_p, terms_n):
@@ -214,10 +220,19 @@ class Workspace:
                 kind = "nonlocal" if interp.is_nonlocal else "local"
                 scaled = sign * factor * values
                 if l_scaled:
+                    if interp.l_dependent:
+                        raise NotImplementedError(
+                            "l-dependent spin-orbit form factors are not "
+                            "supported in the (p,n) U1 operator"
+                        )
                     expand = (slice(None),) + (None,) * np.ndim(values)
                     scaled = couplings[expand] * scaled[None]
+                # an l-dependent central already carries its (lmax+1) leading
+                # axis and enters block-dependently WITHOUT the l.s couplings
                 target = nonlocal_terms if interp.is_nonlocal else local_terms
-                target.append((scaled, interp.energy_dependent, l_scaled))
+                target.append(
+                    (scaled, interp.energy_dependent, l_scaled or interp.l_dependent)
+                )
                 e_dep[kind] = e_dep[kind] or interp.energy_dependent
 
             interactions = []
@@ -227,7 +242,7 @@ class Workspace:
                 ("nonlocal", nonlocal_terms),
             ):
                 mesh_axes = 2 if kind == "nonlocal" else 1
-                for values, term_e_dep, l_scaled in terms_list:
+                for values, term_e_dep, block_dep in terms_list:
                     promote_e = e_dep[kind] and not term_e_dep
                     if promote_e:
                         shape = tuple(values.shape)
@@ -238,7 +253,7 @@ class Workspace:
                         )
                     kwargs = {
                         "energy_dependent": e_dep[kind],
-                        "block_dependent": l_scaled,
+                        "block_dependent": block_dep,
                     }
                     term_kw = (
                         {"nonlocal_": [jnp.asarray(values)]}
@@ -263,6 +278,7 @@ class Workspace:
         U_n_spin_orbit: Any = None,
         *,
         energy_dependent: bool | None = None,
+        l_dependent: bool | None = None,
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
         """DWBA transition matrix for (p,n) quasi-elastic scattering.
 
@@ -272,9 +288,14 @@ class Workspace:
             U_p_central: proton central term.
             U_p_spin_orbit: proton spin-orbit form factor (unscaled).
             U_n_central: neutron central term (required).
-            U_n_spin_orbit: neutron spin-orbit form factor (unscaled).
+            U_n_spin_orbit: unscaled neutron spin-orbit form factor.
             energy_dependent: explicit dispatch flag forwarded to ambiguous
                 array shapes / two-argument callables.
+            l_dependent: explicit dispatch flag for the *central* terms; an
+                ``(lmax+1, N, N)`` partial-wave kernel stack per channel (the
+                elastic-workspace contract) enters both the distorted waves
+                and the U₁ transition operator. Default ``None`` infers from
+                the shape.
 
         Returns:
             ``(Tpn, Sn, Sp)``, each ``(lmax+1, 2, N_E)``; index 0/1 of the
@@ -289,6 +310,7 @@ class Workspace:
                 U_p_central,
                 "U_p_central",
                 energy_dependent=energy_dependent,
+                l_dependent=l_dependent,
             ),
             "spin_orbit": self._raw_term(
                 self.engine_p,
@@ -304,6 +326,7 @@ class Workspace:
                 U_n_central,
                 "U_n_central",
                 energy_dependent=energy_dependent,
+                l_dependent=l_dependent,
             ),
             "spin_orbit": self._raw_term(
                 self.engine_n,
@@ -316,7 +339,10 @@ class Workspace:
 
         # distorting potentials (interior-rescaled by the engines)
         v_p = self.engine_p.interaction(
-            U_p_central, energy_dependent=energy_dependent, name="U_p_central"
+            U_p_central,
+            energy_dependent=energy_dependent,
+            l_dependent=l_dependent,
+            name="U_p_central",
         ) + self.engine_p.interaction(
             U_p_coulomb, energy_dependent=energy_dependent, name="U_p_coulomb"
         )
@@ -325,7 +351,10 @@ class Workspace:
                 U_p_spin_orbit, energy_dependent=energy_dependent, name="U_p_spin_orbit"
             )
         v_n = self.engine_n.interaction(
-            U_n_central, energy_dependent=energy_dependent, name="U_n_central"
+            U_n_central,
+            energy_dependent=energy_dependent,
+            l_dependent=l_dependent,
+            name="U_n_central",
         )
         if U_n_spin_orbit is not None:
             v_n = v_n + self.engine_n.spin_orbit_pair(
@@ -365,6 +394,7 @@ class Workspace:
         U_n_spin_orbit: Any = None,
         *,
         energy_dependent: bool | None = None,
+        l_dependent: bool | None = None,
     ) -> FloatArray:
         """Differential (p,n) cross section in mb/sr, shape ``(N_E, N_θ)``."""
         Tlj, Sn, Sp = self.tmatrix(
@@ -374,6 +404,7 @@ class Workspace:
             U_n_central,
             U_n_spin_orbit,
             energy_dependent=energy_dependent,
+            l_dependent=l_dependent,
         )
         n_e = self.engine_p.grid.n_energies
         Tmmp = np.zeros((2, 2, n_e, self.angles.shape[0]), dtype=np.complex128)
