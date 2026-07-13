@@ -5,6 +5,10 @@ the same mesh and energy grid (design doc §3.6). Distorted waves come from
 ``wavefunction_grid`` (or ``wavefunction_direct_grid`` under
 ``method="linear_solve"``); the isovector transition element is the
 non-conjugated bilinear ``matrix_element(χp, χn, U₁, conjugate=False)``.
+By default U₁ is built from the same channel terms that distort the waves
+(each at its channel energy); pass ``U1=dict(p_central=..., n_central=..., ...)``
+to ``xs``/``tmatrix`` to supply explicit transition-operator ingredients
+instead — e.g. a Lane operator evaluated at the midpoint energy.
 
 T-matrix normalization: lax's interior solution is driven by the boundary
 *value* ``H⁻(a)`` while the legacy engine was driven by the matched exterior
@@ -279,6 +283,9 @@ class Workspace:
         *,
         energy_dependent: bool | None = None,
         l_dependent: bool | None = None,
+        U1: dict[str, Any] | None = None,
+        u1_energy_dependent: bool | None = None,
+        u1_l_dependent: bool | None = None,
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
         """DWBA transition matrix for (p,n) quasi-elastic scattering.
 
@@ -296,6 +303,23 @@ class Workspace:
                 elastic-workspace contract) enters both the distorted waves
                 and the U₁ transition operator. Default ``None`` infers from
                 the shape.
+            U1: optional explicit U₁ ingredients. Default ``None`` mirrors the
+                channel terms into U₁ = −(U_n − U_p)·factor (the standard
+                Lane-consistent construction). Pass a dict with keys
+                ``p_central``/``n_central`` (required) and optional
+                ``p_spin_orbit``/``n_spin_orbit`` to build U₁ *exclusively*
+                from these terms while the distorted waves keep the channel
+                arguments — e.g. a transition operator evaluated at the
+                midpoint of the entrance/exit energies (the Lane-energy
+                convention differs from the channel-difference one by the
+                isoscalar ∂U/∂E over the channel split), or U₁ without the
+                spin-orbit that distorts the waves. A key that is absent or
+                ``None`` (spin-orbit only) is simply omitted from U₁.
+            u1_energy_dependent: dispatch flag for the ``U1`` terms; defaults
+                to ``energy_dependent``.
+            u1_l_dependent: dispatch flag for the ``U1`` central terms;
+                defaults to ``l_dependent`` (pass explicitly when e.g. local
+                channel potentials carry an l-dependent nonlocal U₁ override).
 
         Returns:
             ``(Tpn, Sn, Sp)``, each ``(lmax+1, 2, N_E)``; index 0/1 of the
@@ -304,38 +328,88 @@ class Workspace:
         if U_n_central is None:
             raise TypeError("U_n_central is required")
 
-        terms_p = {
-            "central": self._raw_term(
-                self.engine_p,
-                U_p_central,
-                "U_p_central",
-                energy_dependent=energy_dependent,
-                l_dependent=l_dependent,
-            ),
-            "spin_orbit": self._raw_term(
-                self.engine_p,
-                U_p_spin_orbit,
-                "U_p_spin_orbit",
-                energy_dependent=energy_dependent,
-                optional=True,
-            ),
-        }
-        terms_n = {
-            "central": self._raw_term(
-                self.engine_n,
-                U_n_central,
-                "U_n_central",
-                energy_dependent=energy_dependent,
-                l_dependent=l_dependent,
-            ),
-            "spin_orbit": self._raw_term(
-                self.engine_n,
-                U_n_spin_orbit,
-                "U_n_spin_orbit",
-                energy_dependent=energy_dependent,
-                optional=True,
-            ),
-        }
+        if U1 is None:
+            terms_p = {
+                "central": self._raw_term(
+                    self.engine_p,
+                    U_p_central,
+                    "U_p_central",
+                    energy_dependent=energy_dependent,
+                    l_dependent=l_dependent,
+                ),
+                "spin_orbit": self._raw_term(
+                    self.engine_p,
+                    U_p_spin_orbit,
+                    "U_p_spin_orbit",
+                    energy_dependent=energy_dependent,
+                    optional=True,
+                ),
+            }
+            terms_n = {
+                "central": self._raw_term(
+                    self.engine_n,
+                    U_n_central,
+                    "U_n_central",
+                    energy_dependent=energy_dependent,
+                    l_dependent=l_dependent,
+                ),
+                "spin_orbit": self._raw_term(
+                    self.engine_n,
+                    U_n_spin_orbit,
+                    "U_n_spin_orbit",
+                    energy_dependent=energy_dependent,
+                    optional=True,
+                ),
+            }
+        else:
+            allowed = {"p_central", "p_spin_orbit", "n_central", "n_spin_orbit"}
+            unknown = set(U1) - allowed
+            if unknown:
+                raise ValueError(
+                    f"U1: unknown keys {sorted(unknown)}; allowed: {sorted(allowed)}"
+                )
+            if U1.get("p_central") is None or U1.get("n_central") is None:
+                raise ValueError(
+                    "U1: 'p_central' and 'n_central' are both required (the "
+                    "Lane difference U1 = -(U_n - U_p)*factor needs both)"
+                )
+            e_dep_u1 = (
+                energy_dependent if u1_energy_dependent is None
+                else u1_energy_dependent
+            )
+            l_dep_u1 = u1_l_dependent if u1_l_dependent is not None else l_dependent
+            terms_p = {
+                "central": self._raw_term(
+                    self.engine_p,
+                    U1["p_central"],
+                    "U1[p_central]",
+                    energy_dependent=e_dep_u1,
+                    l_dependent=l_dep_u1,
+                ),
+                "spin_orbit": self._raw_term(
+                    self.engine_p,
+                    U1.get("p_spin_orbit"),
+                    "U1[p_spin_orbit]",
+                    energy_dependent=e_dep_u1,
+                    optional=True,
+                ),
+            }
+            terms_n = {
+                "central": self._raw_term(
+                    self.engine_n,
+                    U1["n_central"],
+                    "U1[n_central]",
+                    energy_dependent=e_dep_u1,
+                    l_dependent=l_dep_u1,
+                ),
+                "spin_orbit": self._raw_term(
+                    self.engine_n,
+                    U1.get("n_spin_orbit"),
+                    "U1[n_spin_orbit]",
+                    energy_dependent=e_dep_u1,
+                    optional=True,
+                ),
+            }
 
         # distorting potentials (interior-rescaled by the engines)
         v_p = self.engine_p.interaction(
@@ -395,8 +469,16 @@ class Workspace:
         *,
         energy_dependent: bool | None = None,
         l_dependent: bool | None = None,
+        U1: dict[str, Any] | None = None,
+        u1_energy_dependent: bool | None = None,
+        u1_l_dependent: bool | None = None,
     ) -> FloatArray:
-        """Differential (p,n) cross section in mb/sr, shape ``(N_E, N_θ)``."""
+        """Differential (p,n) cross section in mb/sr, shape ``(N_E, N_θ)``.
+
+        ``U1`` and the ``u1_*`` dispatch flags are forwarded to
+        :meth:`tmatrix` (explicit transition-operator ingredients decoupled
+        from the distorting potentials).
+        """
         Tlj, Sn, Sp = self.tmatrix(
             U_p_coulomb,
             U_p_central,
@@ -405,6 +487,9 @@ class Workspace:
             U_n_spin_orbit,
             energy_dependent=energy_dependent,
             l_dependent=l_dependent,
+            U1=U1,
+            u1_energy_dependent=u1_energy_dependent,
+            u1_l_dependent=u1_l_dependent,
         )
         n_e = self.engine_p.grid.n_energies
         Tmmp = np.zeros((2, 2, n_e, self.angles.shape[0]), dtype=np.complex128)

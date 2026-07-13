@@ -112,6 +112,73 @@ def test_l_dependent_kernel_distinct_blocks_runs_and_differs():
     assert not np.allclose(xs_full, xs_monopole)
 
 
+def test_u1_override_mirror_reproduces_default_path():
+    """U1 built explicitly from the channel terms == the default (mirrored)
+    construction, with and without spin-orbit."""
+    workspace = _workspace()
+    rgrid = workspace.radial_grid()
+    coulomb = (20.0 * 1.44 / np.maximum(rgrid, 1.2)).astype(np.complex128)
+    local_p = (-38.0 - 4.0j) * np.exp(-((rgrid / 3.6) ** 2))
+    local_n = (-42.0 - 5.0j) * np.exp(-((rgrid / 3.6) ** 2))
+    so = 1.4 * np.exp(-((rgrid / 2.4) ** 2))
+
+    xs_default = workspace.xs(coulomb, local_p, so, local_n, so)
+    xs_mirror = workspace.xs(
+        coulomb, local_p, so, local_n, so,
+        U1=dict(p_central=local_p, p_spin_orbit=so,
+                n_central=local_n, n_spin_orbit=so),
+    )
+    np.testing.assert_allclose(np.asarray(xs_mirror), np.asarray(xs_default),
+                               rtol=1e-12)
+
+
+def test_u1_override_bilinearity_and_so_placement():
+    """T is bilinear in U1: doubling the override doubles T, so xs scales x4
+    with unchanged distorted waves. Dropping SO from U1 only, changes xs."""
+    workspace = _workspace()
+    rgrid = workspace.radial_grid()
+    coulomb = (20.0 * 1.44 / np.maximum(rgrid, 1.2)).astype(np.complex128)
+    local_p = (-38.0 - 4.0j) * np.exp(-((rgrid / 3.6) ** 2))
+    local_n = (-42.0 - 5.0j) * np.exp(-((rgrid / 3.6) ** 2))
+    # distinct per-channel SO: an identical form factor would cancel exactly
+    # in U1 = -(U_n - U_p)*factor and make the SO-drop test a no-op
+    so_p = 1.4 * np.exp(-((rgrid / 2.4) ** 2))
+    so_n = 2.1 * np.exp(-((rgrid / 2.4) ** 2))
+
+    xs_default = np.asarray(workspace.xs(coulomb, local_p, so_p, local_n, so_n))
+    xs_doubled = np.asarray(workspace.xs(
+        coulomb, local_p, so_p, local_n, so_n,
+        U1=dict(p_central=2 * local_p, p_spin_orbit=2 * so_p,
+                n_central=2 * local_n, n_spin_orbit=2 * so_n),
+    ))
+    np.testing.assert_allclose(xs_doubled, 4.0 * xs_default, rtol=1e-12)
+
+    xs_no_u1_so = np.asarray(workspace.xs(
+        coulomb, local_p, so_p, local_n, so_n,
+        U1=dict(p_central=local_p, n_central=local_n),
+    ))
+    assert np.all(np.isfinite(xs_no_u1_so))
+    assert not np.allclose(xs_no_u1_so, xs_default)
+
+
+def test_u1_override_validation():
+    """Unknown keys and missing centrals raise."""
+    import pytest
+
+    workspace = _workspace()
+    rgrid = workspace.radial_grid()
+    coulomb = (20.0 * 1.44 / np.maximum(rgrid, 1.2)).astype(np.complex128)
+    local_p = (-38.0 - 4.0j) * np.exp(-((rgrid / 3.6) ** 2))
+    local_n = (-42.0 - 5.0j) * np.exp(-((rgrid / 3.6) ** 2))
+
+    with pytest.raises(ValueError, match="unknown keys"):
+        workspace.xs(coulomb, local_p, U_n_central=local_n,
+                     U1=dict(p_central=local_p, n_central=local_n, bogus=1))
+    with pytest.raises(ValueError, match="both required"):
+        workspace.xs(coulomb, local_p, U_n_central=local_n,
+                     U1=dict(p_central=local_p))
+
+
 def test_tmatrix_shapes_and_l0_minus_channel_zeroed():
     workspace = _workspace()
     rgrid = workspace.radial_grid()
