@@ -12,7 +12,7 @@ import pytest
 from numpy.polynomial.legendre import leggauss
 from scipy.special import eval_legendre
 
-from jitr.optical_potentials import mbra
+from jitr.optical_potentials import dispersion, mbra, potential_forms
 
 from .conftest import requires_lax
 
@@ -80,7 +80,7 @@ def test_dispersion_numeric_matches_closed_form(pb):
     spin-orbit depth must reproduce the closed form A C x/(x^2+C^2)."""
     E = np.linspace(EF_PB + 5.0, EF_PB + 240.0, 20)
     so_args = (pb.ASO, pb.BSO, pb.CSO, pb.DSO)
-    numeric = mbra.dispersion_correction(
+    numeric = dispersion.subtracted_dispersion_correction(
         lambda Ep: mbra.Wso_depth(Ep, EF_PB, *so_args), E, EF_PB
     )
     closed = mbra.delta_Vso_depth(E, EF_PB, *so_args)
@@ -139,6 +139,71 @@ def test_kernel_symmetric_finite_and_matches_direct_projection():
         np.testing.assert_allclose(K[l], direct, rtol=1e-7, atol=1e-30)
 
 
+def test_perey_buck_nonlocal_matches_grid_kernel():
+    """The exported pointwise kernel must agree with the grid kernel."""
+    beta = 0.915
+    r = np.array([0.5, 2.0, 5.0, 14.0])
+    ls = np.arange(0, 5)
+    K = mbra.perey_buck_kernel(r, ls, beta)
+    for l in ls:
+        for i, ri in enumerate(r):
+            for j, rj in enumerate(r):
+                point = potential_forms.perey_buck_nonlocal(ri, rj, beta, l)
+                np.testing.assert_allclose(point, K[l, i, j], rtol=1e-12)
+
+
+def test_perey_buck_kernel_local_limit_normalization():
+    """For r >> beta the kernel norm over r' approaches the local limit:
+    exactly 1 for l = 0, and 1 - l(l+1)β²/(4r²) + O(β⁴) for higher l
+    (large-z asymptotics of ive(l+1/2, z))."""
+    beta, r = 0.915, 5.0
+    rp = np.linspace(1e-3, 12.0, 4000)
+    for l in (0, 5):
+        g = np.array([potential_forms.perey_buck_nonlocal(r, x, beta, l) for x in rp])
+        expected = 1.0 - l * (l + 1) * beta**2 / (4.0 * r**2)
+        tol = 1e-6 if l == 0 else 0.05
+        np.testing.assert_allclose(np.trapezoid(g, rp), expected, rtol=tol)
+
+
+def test_perey_buck_kernel_rejects_nonpositive_r():
+    with pytest.raises(ValueError, match="strictly positive"):
+        mbra.perey_buck_kernel(np.array([0.0, 1.0]), np.array([0]), 0.915)
+    with pytest.raises(ValueError, match="strictly positive"):
+        potential_forms.perey_buck_nonlocal(0.0, 1.0, 0.915, 0)
+
+
+def test_dispersion_correction_raises_on_node_coincidence(pb):
+    """An evaluation energy exactly on a quadrature node must raise, not
+    silently drop that node's contribution (was a ~0.5 MeV silent error)."""
+    s_args = (pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
+    x_quad, _, _, _ = dispersion._subtracted_quadrature(
+        EF_PB, dispersion.DEFAULT_SUBTRACTED_SEGMENT_OFFSETS
+    )
+    node = float(x_quad[128])
+    with pytest.raises(ValueError, match="quadrature node"):
+        mbra.delta_Vs_depth(node, EF_PB, *s_args)
+    nearby = mbra.delta_Vs_depth(node + 1e-3, EF_PB, *s_args)
+    assert np.isfinite(nearby)
+
+
+def test_av_minus_default_and_literal():
+    """The default av_minus is the constant -48.40 MeV that reproduces
+    Fig. 3(b); TABLE_I_LITERAL_PARAMS keeps the printed -8.400A reading."""
+    assert mbra.resolve_coefficients(208).AV_minus == -48.40
+    idx = mbra.PARAM_NAMES.index("av_minus_0")
+    diff = [
+        i
+        for i, (a, b) in enumerate(
+            zip(mbra.DEFAULT_PARAMS, mbra.TABLE_I_LITERAL_PARAMS, strict=True)
+        )
+        if a != b
+    ]
+    assert diff == [idx, idx + 1]
+    assert mbra.TABLE_I_LITERAL_PARAMS[idx : idx + 2] == (0.0, -8.400)
+    literal = mbra.resolve_coefficients(208, *mbra.TABLE_I_LITERAL_PARAMS)
+    np.testing.assert_allclose(literal.AV_minus, -8.400 * 208, rtol=1e-12)
+
+
 def test_calculate_params_rejects_non_neutron():
     with pytest.raises(ValueError, match="neutron-only"):
         mbra.calculate_params((1, 1), (208, 82), 10.0, EF_PB)
@@ -175,9 +240,9 @@ def test_n208pb_observables_match_experiment():
     ls = np.arange(lmax + 1)
 
     Knl, Wloc, Kso = [], [], []
-    for Ecm in np.atleast_1d(kin.Ecm):
+    for Elab_i in np.atleast_1d(kin.Elab):
         nl_p, loc_p, so_p = mbra.calculate_params(
-            neutron, target, float(Ecm), reaction.Ef
+            neutron, target, float(Elab_i), reaction.Ef
         )
         Knl.append(mbra.central_nonlocal(rgrid, ls, *nl_p))
         Wloc.append(mbra.central_local(rgrid, *loc_p))
@@ -206,5 +271,44 @@ def test_n208pb_observables_match_experiment():
     np.testing.assert_allclose(sig_t[0], 5.38, rtol=0.06)
     np.testing.assert_allclose(sig_t[1], 4.6, rtol=0.08)
     np.testing.assert_allclose(sig_t[2], 3.0, rtol=0.10)
-    # regression pins (computed with this module at first validation)
-    np.testing.assert_allclose(sig_t, [5.169, 4.673, 2.851], rtol=2e-3)
+    # regression pins (recomputed after the switch to lab-frame depth
+    # evaluation; the Ecm-based values were [5.169, 4.673, 2.851])
+    np.testing.assert_allclose(sig_t, [5.1695, 4.6695, 2.8508], rtol=2e-3)
+
+
+@requires_lax
+def test_spin_orbit_coupling_factor():
+    """Pin the <l.sigma> = {l, -(l+1)} split between mbra.spin_orbit_nonlocal
+    (which passes the unscaled form factor) and the workspace (which applies
+    the coupling): in the Born limit of a weak real SO term, the phase-shift
+    ratio between the j = l + 1/2 and j = l - 1/2 channels is -l/(l+1)."""
+    import jitr
+
+    target = (208, 82)
+    neutron = (1, 0)
+    reaction = jitr.reactions.Reaction(target=target, projectile=neutron, process="EL")
+    kin = reaction.kinematics(np.array([20.0]))
+    lmax = 6
+    ws = jitr.xs.elastic.IntegralWorkspace(
+        reaction=reaction, kinematics=kin, channel_radius_fm=15.0, nbasis=40, lmax=lmax
+    )
+    rgrid = ws.radial_grid()
+    ls = np.arange(lmax + 1)
+    c = mbra.resolve_coefficients(208)
+    Kso = mbra.spin_orbit_nonlocal(rgrid, ls, 0.1 + 0.0j, c.R, c.a, c.beta)
+    V = ws.spin_orbit(
+        np.transpose(np.array([Kso]), (1, 0, 2, 3)),
+        l_dependent=True,
+        energy_dependent=True,
+    )
+    splus, sminus = ws.smatrix(V)
+    # splus rows are l = 0..lmax; sminus rows are l = 1..lmax (no j = l - 1/2
+    # channel exists for l = 0)
+    delta_plus = np.angle(np.asarray(splus)[:, 0]) / 2.0
+    delta_minus = np.angle(np.asarray(sminus)[:, 0]) / 2.0
+    # l = 0: <l.sigma> = 0 for j = 1/2 in the plus branch -> no phase shift
+    assert abs(np.asarray(splus)[0, 0] - 1.0) < 1e-9
+    for l in range(1, lmax + 1):
+        np.testing.assert_allclose(
+            delta_plus[l] / delta_minus[l - 1], -l / (l + 1), rtol=1e-2
+        )

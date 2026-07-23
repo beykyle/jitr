@@ -4,6 +4,7 @@ from . import chuq, dispersion, dom, kduq, mbra, wlh
 from .omp import LocalOpticalPotential, SingleChannelOpticalModel
 from .potential_forms import (
     coulomb_charged_sphere,
+    perey_buck_kernel,
     perey_buck_nonlocal,
     regular_inverse_r,
     surface_peaked_gaussian_potential,
@@ -31,6 +32,7 @@ __all__ = [
     "dispersion",
     "kduq",
     "mbra",
+    "perey_buck_kernel",
     "perey_buck_nonlocal",
     "regular_inverse_r",
     "surface_peaked_gaussian_potential",

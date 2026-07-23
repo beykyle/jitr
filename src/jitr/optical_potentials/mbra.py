@@ -45,8 +45,18 @@ corresponding panel of Fig. 3 of the paper):
 - ΔV_so^NL: closed form, symmetric about E_F (matches panel (c) exactly).
 
 All corrections vanish at the Fermi energy. The Fermi energy is
-``E_F = -[S_n(Z, N) + S_n(Z, N+1)]/2``, available as ``Reaction.Ef`` in
-jitr. All energies are in the CM frame (MeV).
+``E_F = -[S_n(Z, N) + S_n(Z, N+1)]/2`` — the standard average over the
+last-occupied and first-unoccupied levels, available as ``Reaction.Ef`` in
+jitr. Note the paper prints a *difference* of separation energies here;
+that is a typo for the sum-average, which is what reproduces the Fig. 3
+dip positions (E_F ≈ −12.0/−9.2/−5.7 MeV for ⁴⁰Ca/⁸⁹Y/²⁰⁸Pb).
+
+The depth and dispersion functions take the paper's energy variable ``E``
+directly; :func:`calculate_params` takes the laboratory-frame neutron
+energy ``Elab``, consistent with the other global potentials in this
+package (kduq, wlh, chuq). The paper does not state the frame of ``E``
+explicitly (it is on the author-questions list in
+``examples/notebooks/mbra_av_minus.ipynb``).
 
 .. _B. Morillon, G. Blanchon, P. Romain and H. F. Arellano,
    arXiv:2403.05843 (2024): https://arxiv.org/abs/2403.05843
@@ -54,23 +64,29 @@ jitr. All energies are in the CM frame (MeV).
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from functools import lru_cache
 from typing import NamedTuple
 
 import numpy as np
-from scipy.special import ive
 
 from .._types import ArrayOrScalar, ComplexArray, FloatArray
 from ..utils.constants import WAVENUMBER_PION
-from .dispersion import build_quadrature
+from .dispersion import (
+    sqrt_tail_dispersive_partner,
+    subtracted_dispersion_correction,
+)
 from .potential_forms import (
+    perey_buck_kernel,
     thomas_safe,
     woods_saxon_prime_safe,
     woods_saxon_safe,
 )
 
-#: (ħ/m_π c)² in fm², the conventional spin-orbit scale.
+#: (ħ/m_π c)² in fm² — exactly 2.0, the conventional spin-orbit scale used
+#: repo-wide (``WAVENUMBER_PION = sqrt(1/2)`` fm⁻¹, Thompson & Nunes).
+#: The physical charged-pion value is ≈2.00 fm²; the historic
+#: isospin-averaged value is ≈2.04 fm². The paper writes (ħ/m_π c)² only
+#: symbolically, so which value the authors' code used is on the
+#: author-questions list (a ~2% spin-orbit scale if they used 2.04).
 LAMBDA_PI2 = 1.0 / WAVENUMBER_PION**2
 
 PARAM_NAMES: tuple[str, ...] = (
@@ -168,6 +184,19 @@ DEFAULT_PARAMS: tuple[float, ...] = (
     0.915,
 )
 
+_AV_MINUS_0_IDX = PARAM_NAMES.index("av_minus_0")
+
+#: The literal reading of Table I's "−8.400A" sub-Fermi volume depth
+#: (``av_minus_0 = 0``, ``av_minus_A = −8.400``). It reproduces neither the
+#: scale nor the mass-independence of the paper's own Fig. 3(b) (see the
+#: ``DEFAULT_PARAMS`` note and ``examples/notebooks/mbra_av_minus.ipynb``);
+#: kept for reference and comparison.
+TABLE_I_LITERAL_PARAMS: tuple[float, ...] = (
+    DEFAULT_PARAMS[:_AV_MINUS_0_IDX]
+    + (0.0, -8.400)
+    + DEFAULT_PARAMS[_AV_MINUS_0_IDX + 2 :]
+)
+
 
 def get_param_names() -> list[str]:
     """Return the MBRA parameter names in ``calculate_params`` order."""
@@ -175,7 +204,13 @@ def get_param_names() -> list[str]:
 
 
 def get_default_params() -> tuple[float, ...]:
-    """Return the published global parameter vector (Tables I & II)."""
+    """Return the recommended global parameter vector.
+
+    Tables I & II of the paper, except ``av_minus``: the printed "−8.400A"
+    is replaced by the constant −48.40 MeV that reproduces the paper's own
+    Fig. 3(b) (see the note on :data:`DEFAULT_PARAMS`;
+    :data:`TABLE_I_LITERAL_PARAMS` holds the literal reading).
+    """
     return DEFAULT_PARAMS
 
 
@@ -355,71 +390,17 @@ def delta_Vso_depth(
     the Fermi energy, i.e. evaluated at :math:`|E - E_F|`. This is the
     only choice that reproduces Fig. 3(c) of arXiv:2403.05843 (even ΔV_so
     with +2.25 MeV maxima on *both* sides of E_F and +0.9 MeV wings).
+
+    Caveat: the causal once-subtracted dispersion (Eq. 9) of the symmetric
+    W_so is *odd* in ``E - E_F``, so this even form flips its sign for
+    ``E < E_F`` (e.g. −1.52 MeV causal vs +1.52 MeV here at ``E − E_F ≈
+    −24`` MeV for ²⁰⁸Pb). Scattering energies ``E > 0 > E_F`` are
+    unaffected; DOM-style sub-Fermi use (bound states, occupations) should
+    be aware the published form violates the dispersion relation there.
     """
     E_arr = np.atleast_1d(np.asarray(E, dtype=float))
     x = np.abs(E_arr - Ef)
     out = ASO * CSO * x / (x**2 + CSO**2) - BSO * DSO * x / (x**2 + DSO**2)
-    return out.item() if np.ndim(E) == 0 else out
-
-
-@lru_cache(maxsize=8)
-def _dispersion_quadrature(
-    Ef: float,
-) -> tuple[FloatArray, FloatArray, float, float]:
-    """Quadrature for the subtracted PV dispersion integral around ``Ef``."""
-    segments = (
-        (Ef - 3.0e4, Ef - 3.0e3, 64),
-        (Ef - 3.0e3, Ef - 3.0e2, 64),
-        (Ef - 3.0e2, Ef + 3.0e2, 256),
-        (Ef + 3.0e2, Ef + 3.0e3, 64),
-        (Ef + 3.0e3, Ef + 3.0e4, 64),
-    )
-    x_quad, w_quad, _ = build_quadrature(segments)
-    return x_quad, w_quad, segments[0][0], segments[-1][1]
-
-
-def dispersion_correction(
-    W: Callable[[FloatArray], ArrayOrScalar],
-    E: ArrayOrScalar,
-    Ef: float,
-) -> ArrayOrScalar:
-    r"""Once-subtracted PV dispersion integral of an imaginary depth, in MeV.
-
-    .. math::
-
-       \Delta V(E) = \frac{E - E_F}{\pi}\,\mathcal{P}\!\int
-           \frac{W(E')}{(E' - E)(E' - E_F)}\, dE',
-
-    which satisfies ΔV(E_F) = 0 and converges for depths growing slower
-    than linearly (the Mahaux-Sartor :math:`\sqrt{E}` tail included).
-
-    Args:
-        W: Vectorized imaginary depth ``W(E')``; must vanish at ``E_F``
-            at least quadratically (true for Eqs. 13-17).
-        E: Evaluation energies in MeV (CM).
-        Ef: Fermi energy in MeV.
-
-    Returns:
-        ΔV(E), same shape as ``E``.
-    """
-    E_arr = np.atleast_1d(np.asarray(E, dtype=float))
-    x_quad, w_quad, lo, hi = _dispersion_quadrature(Ef)
-    if np.any(E_arr <= lo) or np.any(E_arr >= hi):
-        raise ValueError(
-            f"dispersion_correction: E must lie inside the quadrature "
-            f"interval ({lo:.1f}, {hi:.1f}) MeV"
-        )
-
-    g_quad = np.asarray(W(x_quad), dtype=float) / (x_quad - Ef)
-    x = E_arr - Ef
-    W_at_E = np.asarray(W(E_arr), dtype=float)
-    g_at_E = np.divide(W_at_E, x, out=np.zeros_like(W_at_E), where=np.abs(x) > 1e-12)
-
-    denom = x_quad[None, :] - E_arr[:, None]
-    diff = g_quad[None, :] - g_at_E[:, None]
-    ratio = np.divide(diff, denom, out=np.zeros_like(diff), where=np.abs(denom) > 1e-9)
-    pv = ratio @ w_quad + g_at_E * np.log((hi - E_arr) / (E_arr - lo))
-    out = x * pv / np.pi
     return out.item() if np.ndim(E) == 0 else out
 
 
@@ -432,64 +413,9 @@ def delta_Vs_depth(
     CS: float,
 ) -> ArrayOrScalar:
     r"""Dispersive correction ΔV_S^NL(E) to the surface depth, in MeV."""
-    return dispersion_correction(
+    return subtracted_dispersion_correction(
         lambda Ep: Ws_depth(Ep, Ef, AS_plus, AS_minus, BS, CS), E, Ef
     )
-
-
-def _dlpe(el: float, E: ArrayOrScalar, Ef: float) -> FloatArray:
-    r"""Dispersive partner of the Mahaux-Sartor sqrt(E) tail (per unit α).
-
-    Closed form for the once-subtracted dispersion integral of the
-    asymptotic term of Eq. 15,
-    :math:`\sqrt{E} + e_l^{3/2}/(2E) - \tfrac{3}{2}\sqrt{e_l}` for
-    ``E > e_l = E_F + E_V^+`` (zero below), transcribed from the ECIS-06
-    routine ``dlpe`` (J. Raynal), which implements the same W_V^L form.
-    Vanishes at ``E = E_F``.
-    """
-    ex = np.atleast_1d(np.asarray(E, dtype=float))
-    ff = np.sqrt(abs(Ef))
-    fl = np.sqrt(abs(el))
-    fx = np.sqrt(np.abs(ex))
-    base = (
-        2.0 * ff * np.arctan2(ff, fl)
-        + 0.5 * el * fl / Ef * np.log(1.0 - Ef / el)
-        - 1.5 * fl * np.log(abs(el - Ef))
-    )
-    out = np.full_like(ex, base)
-
-    pos = ex > 0.0
-    neg = ~pos
-    xn = ex[neg]
-    small_n = np.abs(xn) <= el * 1e-5
-    xn_safe = np.where(small_n, 1.0, xn)
-    t_neg = np.where(
-        small_n,
-        0.5 * fl * (1.0 + xn / el / 2.0 + (xn / el) ** 2 / 3.0),
-        -0.5 * el * fl / xn_safe * np.log(np.abs(1.0 - xn / el)),
-    )
-    out[neg] += (
-        t_neg
-        - 2.0 * fx[neg] * np.arctan2(fx[neg], fl)
-        + 1.5 * fl * np.log(np.abs(el - xn))
-    )
-
-    xp = ex[pos]
-    fxp = fx[pos]
-    t_pos = (fxp + 1.5 * fl - 0.5 * el * fl / xp) * np.log(fl + fxp) + (
-        el * fl / xp
-    ) * np.log(fl)
-    far = np.abs(xp - el) > 1e-3
-    t_pos -= np.where(
-        far,
-        (fxp - 1.5 * fl + 0.5 * el * fl / xp)
-        * np.log(np.where(far, np.abs(fl - fxp), 1.0)),
-        0.0,
-    )
-    out[pos] += t_pos
-
-    out = np.where(np.abs(ex - Ef) < 1e-12, 0.0, out)
-    return out / np.pi
 
 
 def delta_Vv_depth(
@@ -507,50 +433,31 @@ def delta_Vv_depth(
     The Brown-Rho part (with the sub-Fermi suppression of Eq. 16) is
     dispersed numerically with the once-subtracted PV integral; the
     Mahaux-Sartor :math:`\alpha\sqrt{E}` tail of Eq. 15 contributes its
-    ECIS-06 closed-form partner :func:`_dlpe`.
+    ECIS-06 closed-form partner
+    :func:`jitr.optical_potentials.dispersion.sqrt_tail_dispersive_partner`.
+
+    Note: outside ``0 < E < 100`` MeV this ΔV_V^L deviates from the paper's
+    Fig. 3(b) by up to a few MeV (module−figure for ⁸⁹Y: +1.9 MeV at
+    200 MeV, +2.5 MeV at 245 MeV with a sign flip; −1.6 to −3.2 MeV for
+    ``E ≤ −100`` MeV, where the figure instead matches a Brown-Rho-only
+    dispersion). The integral here is numerically exact for Eqs. 14-16, so
+    the paper evidently used a different tail prescription — pending author
+    clarification (see ``examples/notebooks/mbra_av_minus.ipynb``).
     """
-    br = dispersion_correction(
+    br = subtracted_dispersion_correction(
         lambda Ep: Wv_depth(Ep, Ef, AV_plus, AV_minus, BV, EV_plus, EV_minus, 0.0),
         E,
         Ef,
     )
-    tail = ALPHA * _dlpe(Ef + EV_plus, E, Ef)
+    tail = ALPHA * sqrt_tail_dispersive_partner(Ef + EV_plus, E, Ef)
     out = np.asarray(br, dtype=float) + tail
     return out.item() if np.ndim(E) == 0 else out
 
 
 # -- nonlocal kernels ----------------------------------------------------------
 
-
-def perey_buck_kernel(rgrid: FloatArray, ls: FloatArray, beta: float) -> FloatArray:
-    r"""Reduced Perey-Buck partial-wave kernel g_l(r, r') (Eq. 7 with U = 1).
-
-    .. math::
-
-       g_l(r, r') = \frac{4 r r'}{\sqrt{\pi}\beta^3}
-           e^{-(r^2 + r'^2)/\beta^2} i_l\!\left(\frac{2rr'}{\beta^2}\right)
-
-    evaluated stably via the exponentially scaled Bessel function
-    ``ive``: :math:`e^{-(r^2+r'^2)/\beta^2} i_l(z) = e^{-(r-r')^2/\beta^2}
-    \sqrt{\pi/2z}\,\mathrm{ive}(l+\tfrac12, z)`, ``z = 2rr'/β²``.
-
-    Args:
-        rgrid: Radial grid in fm, strictly positive.
-        ls: Angular momenta, shape ``(N_b,)``.
-        beta: Nonlocality range in fm.
-
-    Returns:
-        Kernel array of shape ``(N_b, N, N)``.
-    """
-    r = np.asarray(rgrid, dtype=float)
-    ls = np.atleast_1d(np.asarray(ls))
-    z = 2.0 * r[:, None] * r[None, :] / beta**2
-    gauss = np.exp(-((r[:, None] - r[None, :]) ** 2) / beta**2)
-    pref = 4.0 * r[:, None] * r[None, :] / (np.sqrt(np.pi) * beta**3)
-    scaled_il = np.sqrt(np.pi / (2.0 * z))[None, ...] * ive(
-        ls[:, None, None] + 0.5, z[None, ...]
-    )
-    return pref[None, ...] * gauss[None, ...] * scaled_il
+# The Eq. 7 partial-wave kernel (with U = 1) is the shared
+# potential_forms.perey_buck_kernel, re-exported here as mbra.perey_buck_kernel.
 
 
 def _midpoint_grid(rgrid: FloatArray) -> FloatArray:
@@ -650,7 +557,7 @@ def central_local(
 def calculate_params(
     projectile: tuple[int, int],
     target: tuple[int, int],
-    Ecm: float,
+    Elab: float,
     Ef: float,
     *params: float,
 ) -> tuple[
@@ -658,16 +565,18 @@ def calculate_params(
     tuple[complex, float, float],
     tuple[complex, float, float, float],
 ]:
-    """Assemble the MBRA term parameters at one CM energy.
+    """Assemble the MBRA term parameters at one lab energy.
 
     Args:
         projectile: ``(A, Z)`` of the projectile — must be a neutron
             ``(1, 0)``; the model is neutron-only.
         target: ``(A, Z)`` of the target.
-        Ecm: Center-of-mass energy in MeV.
+        Elab: Laboratory-frame incident neutron energy in MeV (the paper's
+            energy variable in Eqs. 13-17), matching the kduq/wlh/chuq
+            convention.
         Ef: Neutron Fermi energy in MeV (``Reaction.Ef``).
         *params: Global parameters in :func:`get_param_names` order;
-            the published values are used when omitted.
+            :func:`get_default_params` is used when omitted.
 
     Returns:
         ``(nonlocal_central_params, local_central_params, spin_orbit_params)``
@@ -680,7 +589,7 @@ def calculate_params(
         )
     A = target[0]
     c = resolve_coefficients(A, *params)
-    E = float(Ecm)
+    E = float(Elab)
 
     VS = complex(
         c.VS + delta_Vs_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS),

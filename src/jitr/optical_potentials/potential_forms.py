@@ -5,18 +5,69 @@ from __future__ import annotations
 import numpy as np
 from scipy import special as sc
 
-from .._types import ArrayOrScalar, PotentialArray
+from .._types import ArrayOrScalar, FloatArray, PotentialArray
 from ..utils.constants import ALPHA, HBARC
 
 MAX_ARG = np.log(1 / 1e-16)
 
 
-def perey_buck_nonlocal(r: float, rp: float, *params: float) -> PotentialArray:
-    """Return the Perey-Buck nonlocal kernel factor."""
+def perey_buck_kernel(rgrid: FloatArray, ls: FloatArray, beta: float) -> FloatArray:
+    r"""Reduced Perey-Buck partial-wave kernel g_l(r, r').
+
+    The partial-wave projection of the Gaussian nonlocality form factor
+    :math:`H(|\mathbf{r} - \mathbf{r}'|) = e^{-(\mathbf{r}-\mathbf{r}')^2
+    /\beta^2} / (\pi^{3/2}\beta^3)` is
+
+    .. math::
+
+       g_l(r, r') = \frac{4 r r'}{\sqrt{\pi}\beta^3}
+           e^{-(r^2 + r'^2)/\beta^2} i_l\!\left(\frac{2rr'}{\beta^2}\right)
+
+    evaluated stably via the exponentially scaled Bessel function
+    ``ive``: :math:`e^{-(r^2+r'^2)/\beta^2} i_l(z) = e^{-(r-r')^2/\beta^2}
+    \sqrt{\pi/2z}\,\mathrm{ive}(l+\tfrac12, z)`, ``z = 2rr'/β²``.
+
+    Args:
+        rgrid: Radial grid in fm, strictly positive.
+        ls: Angular momenta, shape ``(N_b,)``.
+        beta: Nonlocality range in fm.
+
+    Raises:
+        ValueError: If ``rgrid`` contains a point ``r <= 0`` (the kernel is
+            evaluated as ``sqrt(1/z) * ive`` with ``z = 2rr'/β²``, which
+            produces ``inf * 0 = nan`` at the origin).
+
+    Returns:
+        Kernel array of shape ``(N_b, N, N)``.
+    """
+    r = np.asarray(rgrid, dtype=float)
+    if np.any(r <= 0.0):
+        raise ValueError(
+            "perey_buck_kernel requires a strictly positive radial grid; "
+            f"got min(rgrid) = {r.min():.3e}"
+        )
+    ls = np.atleast_1d(np.asarray(ls))
+    z = 2.0 * r[:, None] * r[None, :] / beta**2
+    gauss = np.exp(-((r[:, None] - r[None, :]) ** 2) / beta**2)
+    pref = 4.0 * r[:, None] * r[None, :] / (np.sqrt(np.pi) * beta**3)
+    scaled_il = np.sqrt(np.pi / (2.0 * z))[None, ...] * sc.ive(
+        ls[:, None, None] + 0.5, z[None, ...]
+    )
+    return pref[None, ...] * gauss[None, ...] * scaled_il
+
+
+def perey_buck_nonlocal(r: float, rp: float, *params: float) -> float:
+    """Return the Perey-Buck partial-wave kernel g_l(r, r') at one point.
+
+    Pointwise counterpart of :func:`perey_buck_kernel` with
+    ``params = (beta, ell)``; requires ``r, rp > 0``.
+    """
     beta, ell = params
-    z = 2 * np.pi * r * rp / beta**2
-    Kl = 2 * 1j**ell * z * sc.spherical_jn(int(ell), -1j * z)
-    return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
+    return float(
+        perey_buck_kernel(np.array([float(r), float(rp)]), np.array([ell]), beta)[
+            0, 0, 1
+        ]
+    )
 
 
 def woods_saxon_potential(r: ArrayOrScalar, *params: float) -> PotentialArray:

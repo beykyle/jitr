@@ -1,12 +1,17 @@
-"""Numerical Kramers-Kronig dispersion utilities for local DOM workflows.
+"""Numerical Kramers-Kronig dispersion utilities for dispersive OMP workflows.
 
-The solver is optimized for repeated evaluation at a fixed radial grid and a
-fixed scalar energy. Quantities that depend only on ``(r_grid, E, segments)``
-are precomputed at construction time, leaving a single jitted (JAX) inner
-loop for each online evaluation.
+Two families of helpers live here:
 
-This makes the module useful for non-analytic or non-separable imaginary
-potentials ``W(r, E)`` where an analytic dispersive correction is unavailable.
+- :class:`DispersionSolver` evaluates the plain (non-subtracted) DOM
+  dispersion integral of a radially resolved ``W(r, E')`` at a fixed radial
+  grid and fixed scalar energy, with quantities depending only on
+  ``(r_grid, E, segments)`` precomputed at construction time and a single
+  jitted (JAX) inner loop per online evaluation.
+- :func:`subtracted_dispersion_correction` and
+  :func:`sqrt_tail_dispersive_partner` evaluate the *once-subtracted*
+  principal-value dispersion integral of an energy-dependent imaginary
+  depth ``W(E')`` about a Fermi energy, as used by dispersive global
+  potentials (e.g. :mod:`jitr.optical_potentials.mbra`).
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ import jax.numpy as jnp
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from .._types import FloatArray
+from .._types import ArrayOrScalar, FloatArray
 
 QuadratureSegment = tuple[float, float, int]
 QuadratureSegments = Sequence[QuadratureSegment]
@@ -291,3 +296,162 @@ def dispersion_correction_reference(
         out[i] = val / np.pi
 
     return out
+
+
+# -- once-subtracted dispersion about a Fermi energy ---------------------------
+
+# Default piecewise Gauss-Legendre layout for the once-subtracted integral,
+# as offsets relative to the Fermi energy: 512 nodes over E_F ± 3e4 MeV with
+# denser coverage near E_F, wide enough that truncation of Brown-Rho-type
+# depths (which tend to a constant at large |E'|) contributes < 0.1 MeV for
+# evaluation energies up to a few hundred MeV.
+DEFAULT_SUBTRACTED_SEGMENT_OFFSETS: tuple[QuadratureSegment, ...] = (
+    (-3.0e4, -3.0e3, 64),
+    (-3.0e3, -3.0e2, 64),
+    (-3.0e2, 3.0e2, 256),
+    (3.0e2, 3.0e3, 64),
+    (3.0e3, 3.0e4, 64),
+)
+
+
+@lru_cache(maxsize=8)
+def _subtracted_quadrature(
+    Ef: float, segment_offsets: tuple[QuadratureSegment, ...]
+) -> tuple[FloatArray, FloatArray, float, float]:
+    """Quadrature for the subtracted PV dispersion integral around ``Ef``."""
+    segments = tuple((Ef + a, Ef + b, n) for a, b, n in segment_offsets)
+    x_quad, w_quad, _ = build_quadrature(segments)
+    return x_quad, w_quad, segments[0][0], segments[-1][1]
+
+
+def subtracted_dispersion_correction(
+    W: Callable[[FloatArray], ArrayOrScalar],
+    E: ArrayOrScalar,
+    Ef: float,
+    segment_offsets: QuadratureSegments | None = None,
+    min_node_distance: float = 1e-6,
+) -> ArrayOrScalar:
+    r"""Once-subtracted PV dispersion integral of an imaginary depth, in MeV.
+
+    .. math::
+
+       \Delta V(E) = \frac{E - E_F}{\pi}\,\mathcal{P}\!\int
+           \frac{W(E')}{(E' - E)(E' - E_F)}\, dE',
+
+    which satisfies ΔV(E_F) = 0 and converges for depths growing slower
+    than linearly (the Mahaux-Sartor :math:`\sqrt{E}` tail included).
+
+    Args:
+        W: Vectorized imaginary depth ``W(E')``; must vanish at ``E_F``
+            at least quadratically.
+        E: Evaluation energies in MeV.
+        Ef: Fermi energy in MeV.
+        segment_offsets: Piecewise Gauss-Legendre segments as ``(a, b, n)``
+            offsets relative to ``Ef``; defaults to
+            :data:`DEFAULT_SUBTRACTED_SEGMENT_OFFSETS`.
+        min_node_distance: Minimum tolerated distance between any evaluation
+            energy and any quadrature node.
+
+    Raises:
+        ValueError: If any evaluation energy lies outside the quadrature
+            interval, or within ``min_node_distance`` of a quadrature node
+            (the subtracted integrand's finite limit is not evaluated there;
+            perturb ``E``, adjust ``segment_offsets``, or relax
+            ``min_node_distance``).
+
+    Returns:
+        ΔV(E), same shape as ``E``.
+    """
+    E_arr = np.atleast_1d(np.asarray(E, dtype=float))
+    offsets = (
+        DEFAULT_SUBTRACTED_SEGMENT_OFFSETS
+        if segment_offsets is None
+        else tuple(tuple(seg) for seg in segment_offsets)
+    )
+    x_quad, w_quad, lo, hi = _subtracted_quadrature(Ef, offsets)
+    if np.any(E_arr <= lo) or np.any(E_arr >= hi):
+        raise ValueError(
+            f"subtracted_dispersion_correction: E must lie inside the "
+            f"quadrature interval ({lo:.1f}, {hi:.1f}) MeV"
+        )
+
+    g_quad = np.asarray(W(x_quad), dtype=float) / (x_quad - Ef)
+    x = E_arr - Ef
+    W_at_E = np.asarray(W(E_arr), dtype=float)
+    g_at_E = np.divide(W_at_E, x, out=np.zeros_like(W_at_E), where=np.abs(x) > 1e-12)
+
+    denom = x_quad[None, :] - E_arr[:, None]
+    closest = np.min(np.abs(denom), axis=1)
+    if np.any(closest < min_node_distance):
+        i = int(np.argmin(closest))
+        k = int(np.argmin(np.abs(denom[i])))
+        raise ValueError(
+            f"E = {E_arr[i]} is within {min_node_distance} of quadrature node "
+            f"x_quad[{k}] = {x_quad[k]}. Perturb E, adjust segment_offsets, "
+            "or relax min_node_distance."
+        )
+    diff = g_quad[None, :] - g_at_E[:, None]
+    ratio = np.divide(
+        diff, denom, out=np.zeros_like(diff), where=np.abs(denom) >= min_node_distance
+    )
+    pv = ratio @ w_quad + g_at_E * np.log((hi - E_arr) / (E_arr - lo))
+    out = x * pv / np.pi
+    return out.item() if np.ndim(E) == 0 else out
+
+
+def sqrt_tail_dispersive_partner(
+    el: float, E: ArrayOrScalar, Ef: float
+) -> FloatArray:
+    r"""Dispersive partner of the Mahaux-Sartor sqrt(E) tail (per unit α).
+
+    Closed form for the once-subtracted dispersion integral of the
+    asymptotic Mahaux-Sartor term
+    :math:`\sqrt{E} + e_l^{3/2}/(2E) - \tfrac{3}{2}\sqrt{e_l}` for
+    ``E > e_l`` (zero below), transcribed from the ECIS-06 routine ``dlpe``
+    (J. Raynal), which implements the same imaginary-volume form. Vanishes
+    at ``E = E_F``. Validated against brute-force PV integration to
+    < 0.05 MeV.
+    """
+    ex = np.atleast_1d(np.asarray(E, dtype=float))
+    ff = np.sqrt(abs(Ef))
+    fl = np.sqrt(abs(el))
+    fx = np.sqrt(np.abs(ex))
+    base = (
+        2.0 * ff * np.arctan2(ff, fl)
+        + 0.5 * el * fl / Ef * np.log(1.0 - Ef / el)
+        - 1.5 * fl * np.log(abs(el - Ef))
+    )
+    out = np.full_like(ex, base)
+
+    pos = ex > 0.0
+    neg = ~pos
+    xn = ex[neg]
+    small_n = np.abs(xn) <= el * 1e-5
+    xn_safe = np.where(small_n, 1.0, xn)
+    t_neg = np.where(
+        small_n,
+        0.5 * fl * (1.0 + xn / el / 2.0 + (xn / el) ** 2 / 3.0),
+        -0.5 * el * fl / xn_safe * np.log(np.abs(1.0 - xn / el)),
+    )
+    out[neg] += (
+        t_neg
+        - 2.0 * fx[neg] * np.arctan2(fx[neg], fl)
+        + 1.5 * fl * np.log(np.abs(el - xn))
+    )
+
+    xp = ex[pos]
+    fxp = fx[pos]
+    t_pos = (fxp + 1.5 * fl - 0.5 * el * fl / xp) * np.log(fl + fxp) + (
+        el * fl / xp
+    ) * np.log(fl)
+    far = np.abs(xp - el) > 1e-3
+    t_pos -= np.where(
+        far,
+        (fxp - 1.5 * fl + 0.5 * el * fl / xp)
+        * np.log(np.where(far, np.abs(fl - fxp), 1.0)),
+        0.0,
+    )
+    out[pos] += t_pos
+
+    out = np.where(np.abs(ex - Ef) < 1e-12, 0.0, out)
+    return out / np.pi
