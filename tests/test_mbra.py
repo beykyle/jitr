@@ -204,6 +204,90 @@ def test_av_minus_default_and_literal():
     np.testing.assert_allclose(literal.AV_minus, -8.400 * 208, rtol=1e-12)
 
 
+def test_calculate_params_vectorized_matches_scalar():
+    """Array-Elab depths must equal the per-scalar loop; scalar input must
+    keep returning Python complex."""
+    Elab = np.array([2.0, 14.1, 100.0, 200.0])
+    nl, loc, so = mbra.calculate_params((1, 0), (208, 82), Elab, EF_PB)
+    VV, VS, R, a, beta = nl
+    UV, _, _ = loc
+    VSO, _, _, _ = so
+    for depth in (VS, UV, VSO):
+        assert depth.shape == Elab.shape
+        assert depth.dtype == np.complex128
+    for i, E in enumerate(Elab):
+        nl_s, loc_s, so_s = mbra.calculate_params((1, 0), (208, 82), float(E), EF_PB)
+        assert (VV, R, a, beta) == (nl_s[0], nl_s[2], nl_s[3], nl_s[4])
+        np.testing.assert_allclose(VS[i], nl_s[1], rtol=1e-14)
+        np.testing.assert_allclose(UV[i], loc_s[0], rtol=1e-14)
+        np.testing.assert_allclose(VSO[i], so_s[0], rtol=1e-14)
+        assert isinstance(nl_s[1], complex)
+        assert isinstance(loc_s[0], complex)
+        assert isinstance(so_s[0], complex)
+
+
+def test_builders_vectorized_match_scalar_stack():
+    """Array-depth builders (with and without a shared precomputed kernel)
+    must equal np.stack of scalar builds."""
+    r = np.linspace(0.1, 12.0, 8)
+    ls = np.arange(3)
+    VV, R, a, beta = -72.0, 7.1, 0.58, 0.915
+    VS = np.array([-9.0 - 2.0j, -8.5 - 4.0j])
+    UV = np.array([-1.0 - 0.5j, -2.0 - 3.0j])
+    VSO = np.array([-11.0 + 0.1j, -10.5 - 0.2j])
+    k = mbra.perey_buck_kernel(r, ls, beta)
+
+    K_nl = mbra.central_nonlocal(r, ls, VV, VS, R, a, beta)
+    assert K_nl.shape == (3, 2, 8, 8)
+    stack = np.stack(
+        [mbra.central_nonlocal(r, ls, VV, vs, R, a, beta) for vs in VS], axis=1
+    )
+    np.testing.assert_allclose(K_nl, stack, rtol=1e-14)
+    np.testing.assert_allclose(
+        mbra.central_nonlocal(r, ls, VV, VS, R, a, beta, kernel=k), K_nl, rtol=0
+    )
+
+    K_so = mbra.spin_orbit_nonlocal(r, ls, VSO, R, a, beta)
+    assert K_so.shape == (3, 2, 8, 8)
+    stack = np.stack(
+        [mbra.spin_orbit_nonlocal(r, ls, vso, R, a, beta) for vso in VSO], axis=1
+    )
+    np.testing.assert_allclose(K_so, stack, rtol=1e-14)
+    np.testing.assert_allclose(
+        mbra.spin_orbit_nonlocal(r, ls, VSO, R, a, beta, kernel=k), K_so, rtol=0
+    )
+    np.testing.assert_allclose(
+        mbra.spin_orbit_nonlocal(r, ls, VSO[0], R, a, beta, kernel=k),
+        mbra.spin_orbit_nonlocal(r, ls, VSO[0], R, a, beta),
+        rtol=0,
+    )
+
+    W_loc = mbra.central_local(r, UV, R, a)
+    assert W_loc.shape == (2, 8)
+    stack = np.stack([mbra.central_local(r, uv, R, a) for uv in UV], axis=0)
+    np.testing.assert_allclose(W_loc, stack, rtol=1e-14)
+
+
+def test_assemble_terms_matches_scalar_assembly():
+    """assemble_terms must equal the old per-energy scalar loop."""
+    r = np.linspace(0.1, 12.0, 8)
+    ls = np.arange(3)
+    Elab = np.array([14.1, 100.0])
+    K_nl, W_loc, K_so = mbra.assemble_terms(r, ls, (1, 0), (208, 82), Elab, EF_PB)
+    assert K_nl.shape == (3, 2, 8, 8)
+    assert W_loc.shape == (2, 8)
+    assert K_so.shape == (3, 2, 8, 8)
+    Knl_s, Wloc_s, Kso_s = [], [], []
+    for E in Elab:
+        nl_p, loc_p, so_p = mbra.calculate_params((1, 0), (208, 82), float(E), EF_PB)
+        Knl_s.append(mbra.central_nonlocal(r, ls, *nl_p))
+        Wloc_s.append(mbra.central_local(r, *loc_p))
+        Kso_s.append(mbra.spin_orbit_nonlocal(r, ls, *so_p))
+    np.testing.assert_allclose(K_nl, np.stack(Knl_s, axis=1), rtol=1e-13)
+    np.testing.assert_allclose(W_loc, np.stack(Wloc_s, axis=0), rtol=1e-13)
+    np.testing.assert_allclose(K_so, np.stack(Kso_s, axis=1), rtol=1e-13)
+
+
 def test_calculate_params_rejects_non_neutron():
     with pytest.raises(ValueError, match="neutron-only"):
         mbra.calculate_params((1, 1), (208, 82), 10.0, EF_PB)
@@ -239,26 +323,13 @@ def test_n208pb_observables_match_experiment():
     rgrid = ws.radial_grid()
     ls = np.arange(lmax + 1)
 
-    Knl, Wloc, Kso = [], [], []
-    for Elab_i in np.atleast_1d(kin.Elab):
-        nl_p, loc_p, so_p = mbra.calculate_params(
-            neutron, target, float(Elab_i), reaction.Ef
-        )
-        Knl.append(mbra.central_nonlocal(rgrid, ls, *nl_p))
-        Wloc.append(mbra.central_local(rgrid, *loc_p))
-        Kso.append(mbra.spin_orbit_nonlocal(rgrid, ls, *so_p))
+    Knl, Wloc, Kso = mbra.assemble_terms(
+        rgrid, ls, neutron, target, kin.Elab, reaction.Ef
+    )
     V = (
-        ws.central(
-            np.transpose(np.array(Knl), (1, 0, 2, 3)),
-            l_dependent=True,
-            energy_dependent=True,
-        )
-        + ws.central(np.array(Wloc), energy_dependent=True)
-        + ws.spin_orbit(
-            np.transpose(np.array(Kso), (1, 0, 2, 3)),
-            l_dependent=True,
-            energy_dependent=True,
-        )
+        ws.central(Knl, l_dependent=True, energy_dependent=True)
+        + ws.central(Wloc, energy_dependent=True)
+        + ws.spin_orbit(Kso, l_dependent=True, energy_dependent=True)
     )
     splus, sminus = ws.smatrix(V)
     assert float(np.max(np.abs(splus))) <= 1.0 + 1e-9

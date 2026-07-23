@@ -24,6 +24,8 @@ terms enter through the kernel (Eq. 7)
 with :math:`i_l` the modified spherical Bessel function — an
 *l-dependent* nonlocal kernel, built here as a ``(lmax+1, N, N)`` array
 for the ``jitr.xs`` workspaces (pass ``l_dependent=True``).
+:func:`assemble_terms` builds all three workspace-ready term arrays for a
+whole energy grid in one call, sharing a single kernel build.
 
 Term structure (Eqs. 10-12):
 
@@ -473,44 +475,60 @@ def central_nonlocal(
     rgrid: FloatArray,
     ls: FloatArray,
     VV: float,
-    VS: complex,
+    VS: complex | ComplexArray,
     R: float,
     a: float,
     beta: float,
+    *,
+    kernel: FloatArray | None = None,
 ) -> ComplexArray:
     r"""Nonlocal central kernel: volume + (dispersive, absorptive) surface.
 
     Args:
         rgrid: Radial grid in fm.
         ls: Angular momenta, shape ``(N_b,)``.
-        VV: Real volume depth ``V_V^NL`` in MeV.
-        VS: Complex surface depth ``V_S^NL + ΔV_S^NL(E) + i W_S^NL(E)``.
+        VV: Real volume depth ``V_V^NL`` in MeV (energy-independent).
+        VS: Complex surface depth ``V_S^NL + ΔV_S^NL(E) + i W_S^NL(E)``:
+            a scalar, or an ``(N_E,)`` array over an energy grid.
         R: Radius in fm.
         a: Diffuseness in fm.
-        beta: Nonlocality range in fm.
+        beta: Nonlocality range in fm (unused for the kernel when
+            ``kernel`` is provided).
+        kernel: Optional precomputed ``perey_buck_kernel(rgrid, ls, beta)``
+            of shape ``(N_b, N, N)``, so several terms can share one build.
 
     Returns:
-        ``(N_b, N, N)`` complex kernel for
-        ``IntegralWorkspace.central(..., l_dependent=True)``.
+        Complex kernel for ``IntegralWorkspace.central``: ``(N_b, N, N)``
+        for scalar ``VS`` (pass ``l_dependent=True``), or
+        ``(N_b, N_E, N, N)`` for array ``VS`` (pass ``l_dependent=True,
+        energy_dependent=True``).
     """
     mid = _midpoint_grid(rgrid)
-    U = np.asarray(
-        VV * woods_saxon_safe(mid, R, a)
-        + VS * (-4.0 * a) * woods_saxon_prime_safe(mid, R, a),
-        dtype=complex,
-    )
-    return np.asarray(
-        U[None, ...] * perey_buck_kernel(rgrid, ls, beta), dtype=np.complex128
-    )
+    if kernel is None:
+        kernel = perey_buck_kernel(rgrid, ls, beta)
+    VS_arr = np.asarray(VS)
+    if VS_arr.ndim == 0:
+        U = np.asarray(
+            VV * woods_saxon_safe(mid, R, a)
+            + VS * (-4.0 * a) * woods_saxon_prime_safe(mid, R, a),
+            dtype=complex,
+        )
+        return np.asarray(U[None, ...] * kernel, dtype=np.complex128)
+    f = woods_saxon_safe(mid, R, a)
+    d = -4.0 * a * woods_saxon_prime_safe(mid, R, a)
+    U = VV * f[None, ...] + VS_arr[:, None, None] * d[None, ...]  # (N_E, N, N)
+    return np.asarray(kernel[:, None, ...] * U[None, ...], dtype=np.complex128)
 
 
 def spin_orbit_nonlocal(
     rgrid: FloatArray,
     ls: FloatArray,
-    VSO: complex,
+    VSO: complex | ComplexArray,
     R: float,
     a: float,
     beta: float,
+    *,
+    kernel: FloatArray | None = None,
 ) -> ComplexArray:
     r"""Unscaled nonlocal spin-orbit kernel (the workspace applies ⟨l·σ⟩).
 
@@ -522,50 +540,76 @@ def spin_orbit_nonlocal(
         rgrid: Radial grid in fm.
         ls: Angular momenta, shape ``(N_b,)``.
         VSO: Complex spin-orbit depth
-            ``V_so^NL + ΔV_so^NL(E) + i W_so^NL(E)``.
+            ``V_so^NL + ΔV_so^NL(E) + i W_so^NL(E)``: a scalar, or an
+            ``(N_E,)`` array over an energy grid.
         R: Radius in fm.
         a: Diffuseness in fm.
-        beta: Nonlocality range in fm.
+        beta: Nonlocality range in fm (unused for the kernel when
+            ``kernel`` is provided).
+        kernel: Optional precomputed ``perey_buck_kernel(rgrid, ls, beta)``
+            of shape ``(N_b, N, N)``, so several terms can share one build.
 
     Returns:
-        ``(N_b, N, N)`` complex kernel for
-        ``IntegralWorkspace.spin_orbit(..., l_dependent=True)``.
+        Complex kernel for ``IntegralWorkspace.spin_orbit``: ``(N_b, N, N)``
+        for scalar ``VSO`` (pass ``l_dependent=True``), or
+        ``(N_b, N_E, N, N)`` for array ``VSO`` (pass ``l_dependent=True,
+        energy_dependent=True``).
     """
     mid = _midpoint_grid(rgrid)
-    U = np.asarray(-VSO * LAMBDA_PI2 * thomas_safe(mid, R, a), dtype=complex)
-    return np.asarray(
-        U[None, ...] * perey_buck_kernel(rgrid, ls, beta), dtype=np.complex128
-    )
+    if kernel is None:
+        kernel = perey_buck_kernel(rgrid, ls, beta)
+    VSO_arr = np.asarray(VSO)
+    if VSO_arr.ndim == 0:
+        U = np.asarray(-VSO * LAMBDA_PI2 * thomas_safe(mid, R, a), dtype=complex)
+        return np.asarray(U[None, ...] * kernel, dtype=np.complex128)
+    t = thomas_safe(mid, R, a)
+    U = (-LAMBDA_PI2) * VSO_arr[:, None, None] * t[None, ...]  # (N_E, N, N)
+    return np.asarray(kernel[:, None, ...] * U[None, ...], dtype=np.complex128)
 
 
 def central_local(
     rgrid: FloatArray,
-    UV: complex,
+    UV: complex | ComplexArray,
     R: float,
     a: float,
 ) -> ComplexArray:
     r"""Local volume term ``(ΔV_V^L(E) + i W_V^L(E)) f(r, R, a)`` (Eq. 11).
 
+    Args:
+        rgrid: Radial grid in fm.
+        UV: Complex volume depth: a scalar, or an ``(N_E,)`` array over an
+            energy grid.
+        R: Radius in fm.
+        a: Diffuseness in fm.
+
     Returns:
-        ``(N,)`` complex array for ``IntegralWorkspace.central``.
+        Complex array for ``IntegralWorkspace.central``: ``(N,)`` for scalar
+        ``UV``, or ``(N_E, N)`` for array ``UV`` (pass
+        ``energy_dependent=True``).
     """
-    return UV * np.asarray(
+    UV_arr = np.asarray(UV)
+    if UV_arr.ndim == 0:
+        return UV * np.asarray(
+            woods_saxon_safe(np.asarray(rgrid, dtype=float), R, a), dtype=complex
+        )
+    f = np.asarray(
         woods_saxon_safe(np.asarray(rgrid, dtype=float), R, a), dtype=complex
     )
+    return np.asarray(UV_arr[:, None] * f[None, :], dtype=np.complex128)
 
 
 def calculate_params(
     projectile: tuple[int, int],
     target: tuple[int, int],
-    Elab: float,
+    Elab: ArrayOrScalar,
     Ef: float,
     *params: float,
 ) -> tuple[
-    tuple[float, complex, float, float, float],
-    tuple[complex, float, float],
-    tuple[complex, float, float, float],
+    tuple[float, complex | ComplexArray, float, float, float],
+    tuple[complex | ComplexArray, float, float],
+    tuple[complex | ComplexArray, float, float, float],
 ]:
-    """Assemble the MBRA term parameters at one lab energy.
+    """Assemble the MBRA term parameters at one or many lab energies.
 
     Args:
         projectile: ``(A, Z)`` of the projectile — must be a neutron
@@ -573,7 +617,8 @@ def calculate_params(
         target: ``(A, Z)`` of the target.
         Elab: Laboratory-frame incident neutron energy in MeV (the paper's
             energy variable in Eqs. 13-17), matching the kduq/wlh/chuq
-            convention.
+            convention. A scalar, or an ``(N_E,)`` energy grid — the grid
+            amortizes each dispersion quadrature over all energies at once.
         Ef: Neutron Fermi energy in MeV (``Reaction.Ef``).
         *params: Global parameters in :func:`get_param_names` order;
             :func:`get_default_params` is used when omitted.
@@ -581,7 +626,10 @@ def calculate_params(
     Returns:
         ``(nonlocal_central_params, local_central_params, spin_orbit_params)``
         ready for :func:`central_nonlocal`, :func:`central_local` and
-        :func:`spin_orbit_nonlocal` respectively.
+        :func:`spin_orbit_nonlocal` respectively. The energy-dependent
+        depths ``VS``, ``UV`` and ``VSO`` are Python complex scalars for
+        scalar ``Elab`` and ``(N_E,)`` complex arrays for an energy grid;
+        ``VV``, ``R``, ``a`` and ``beta`` are always scalars.
     """
     if tuple(projectile) != (1, 0):
         raise ValueError(
@@ -589,24 +637,75 @@ def calculate_params(
         )
     A = target[0]
     c = resolve_coefficients(A, *params)
-    E = float(Elab)
+    scalar = np.ndim(Elab) == 0
+    E = float(Elab) if scalar else np.asarray(Elab, dtype=float)
 
-    VS = complex(
-        c.VS + delta_Vs_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS),
-        Ws_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS),
+    vs_re = c.VS + delta_Vs_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS)
+    vs_im = Ws_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS)
+    uv_re = delta_Vv_depth(
+        E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA
     )
-    UV = complex(
-        delta_Vv_depth(
-            E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA
-        ),
-        Wv_depth(E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA),
-    )
-    VSO = complex(
-        c.VSO + delta_Vso_depth(E, Ef, c.ASO, c.BSO, c.CSO, c.DSO),
-        Wso_depth(E, Ef, c.ASO, c.BSO, c.CSO, c.DSO),
-    )
+    uv_im = Wv_depth(E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA)
+    vso_re = c.VSO + delta_Vso_depth(E, Ef, c.ASO, c.BSO, c.CSO, c.DSO)
+    vso_im = Wso_depth(E, Ef, c.ASO, c.BSO, c.CSO, c.DSO)
+
+    if scalar:
+        VS = complex(vs_re, vs_im)
+        UV = complex(uv_re, uv_im)
+        VSO = complex(vso_re, vso_im)
+    else:
+        VS = vs_re + 1j * vs_im
+        UV = uv_re + 1j * uv_im
+        VSO = vso_re + 1j * vso_im
 
     nonlocal_central_params = (c.VV, VS, c.R, c.a, c.beta)
     local_central_params = (UV, c.R, c.a)
     spin_orbit_params = (VSO, c.R, c.a, c.beta)
     return nonlocal_central_params, local_central_params, spin_orbit_params
+
+
+def assemble_terms(
+    rgrid: FloatArray,
+    ls: FloatArray,
+    projectile: tuple[int, int],
+    target: tuple[int, int],
+    Elab: ArrayOrScalar,
+    Ef: float,
+    *params: float,
+) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
+    """Assemble the three MBRA terms on a grid, stacked over an energy grid.
+
+    Builds the Perey-Buck kernel exactly once and shares it between the two
+    nonlocal terms, and evaluates all energy-dependent depths in one
+    vectorized pass.
+
+    Args:
+        rgrid: Radial grid in fm, shape ``(N,)``
+            (``IntegralWorkspace.radial_grid()``).
+        ls: Angular momenta, shape ``(N_b,)``.
+        projectile: ``(A, Z)`` of the projectile — must be a neutron
+            ``(1, 0)``.
+        target: ``(A, Z)`` of the target.
+        Elab: Laboratory-frame incident neutron energies in MeV; scalars
+            are treated as a length-1 grid.
+        Ef: Neutron Fermi energy in MeV (``Reaction.Ef``).
+        *params: Global parameters in :func:`get_param_names` order;
+            :func:`get_default_params` is used when omitted.
+
+    Returns:
+        ``(K_nl, W_loc, K_so)`` of shapes ``(N_b, N_E, N, N)``,
+        ``(N_E, N)`` and ``(N_b, N_E, N, N)``, ready for::
+
+            ws.central(K_nl, l_dependent=True, energy_dependent=True)
+            + ws.central(W_loc, energy_dependent=True)
+            + ws.spin_orbit(K_so, l_dependent=True, energy_dependent=True)
+    """
+    Elab = np.atleast_1d(np.asarray(Elab, dtype=float))
+    (VV, VS, R, a, beta), (UV, _, _), (VSO, _, _, _) = calculate_params(
+        projectile, target, Elab, Ef, *params
+    )
+    kernel = perey_buck_kernel(rgrid, ls, beta)
+    K_nl = central_nonlocal(rgrid, ls, VV, VS, R, a, beta, kernel=kernel)
+    W_loc = central_local(rgrid, UV, R, a)
+    K_so = spin_orbit_nonlocal(rgrid, ls, VSO, R, a, beta, kernel=kernel)
+    return K_nl, W_loc, K_so
