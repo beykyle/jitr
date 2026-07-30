@@ -57,10 +57,13 @@ def test_depths_match_fig3_anchors(pb):
     ws = mbra.Ws_depth(EF_PB - 30.0, EF_PB, pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
     assert abs(ws - (-10.7)) < 0.3
     assert mbra.Ws_depth(EF_PB, EF_PB, pb.AS_plus, pb.AS_minus, pb.BS, pb.CS) == 0.0
-    # panel (b): W_V wings and sub-Fermi dip
+    # panel (b): high-E wing (A_V^+ + sqrt tail) matches the figure
     wv_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
     assert abs(mbra.Wv_depth(250.0, EF_PB, *wv_args) - (-21.4)) < 0.5
-    assert abs(mbra.Wv_depth(-60.0, EF_PB, *wv_args) - (-2.96)) < 0.2
+    # sub-Fermi dip: Fig. 3(b) shows ~-3.0 near E = -60, which the
+    # author-confirmed A_V^- = -8.4 MeV cannot reproduce (the figure
+    # corresponds to a depth near -48.4 MeV); pin the module value
+    assert abs(mbra.Wv_depth(-60.0, EF_PB, *wv_args) - (-0.514)) < 0.05
     # panel (c): W_so minimum -1.95 near x = 11 and +2.45 wings
     so_args = (pb.ASO, pb.BSO, pb.CSO, pb.DSO)
     assert abs(mbra.Wso_depth(EF_PB + 11.0, EF_PB, *so_args) - (-1.94)) < 0.05
@@ -91,8 +94,9 @@ def test_dispersive_corrections_vanish_at_fermi_energy(pb):
     s_args = (pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
     v_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
     so_args = (pb.ASO, pb.BSO, pb.CSO, pb.DSO)
-    assert abs(mbra.delta_Vs_depth(EF_PB, EF_PB, *s_args)) < 1e-10
-    assert abs(mbra.delta_Vv_depth(EF_PB, EF_PB, *v_args)) < 1e-10
+    for method in ("analytic", "numerical"):
+        assert abs(mbra.delta_Vs_depth(EF_PB, EF_PB, *s_args, method=method)) < 1e-10
+        assert abs(mbra.delta_Vv_depth(EF_PB, EF_PB, *v_args, method=method)) < 1e-10
     assert abs(mbra.delta_Vso_depth(EF_PB, EF_PB, *so_args)) < 1e-10
 
 
@@ -108,10 +112,13 @@ def test_dispersive_corrections_match_fig3_anchors(pb):
     assert abs(mbra.delta_Vso_depth(EF_PB + 50.0, EF_PB, *so_args) - 2.26) < 0.05
     assert abs(mbra.delta_Vso_depth(EF_PB - 50.0, EF_PB, *so_args) - 2.26) < 0.05
     assert abs(mbra.delta_Vso_depth(-250.0, EF_PB, *so_args) - 0.91) < 0.05
-    # panel (b): minimum near +80 MeV
+    # panel (b): the figure reads ~0.5 at E = 0 and ~-8.6 at the minimum
+    # near +80 MeV, but corresponds to a sub-Fermi depth near -48.4 MeV;
+    # with the author-confirmed A_V^- = -8.4 MeV pin the module values
+    # (exact closed-form dispersion of Eqs. 14-16)
     v_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
-    assert abs(mbra.delta_Vv_depth(80.0, EF_PB, *v_args) - (-8.6)) < 1.6
-    assert abs(mbra.delta_Vv_depth(0.0, EF_PB, *v_args) - 0.5) < 1.6
+    assert abs(mbra.delta_Vv_depth(80.0, EF_PB, *v_args) - (-6.4618)) < 0.01
+    assert abs(mbra.delta_Vv_depth(0.0, EF_PB, *v_args) - (-0.6288)) < 0.01
 
 
 def test_kernel_symmetric_finite_and_matches_direct_projection():
@@ -174,34 +181,104 @@ def test_perey_buck_kernel_rejects_nonpositive_r():
 
 def test_dispersion_correction_raises_on_node_coincidence(pb):
     """An evaluation energy exactly on a quadrature node must raise, not
-    silently drop that node's contribution (was a ~0.5 MeV silent error)."""
+    silently drop that node's contribution (was a ~0.5 MeV silent error).
+    The analytic default has no quadrature and is immune."""
     s_args = (pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
     x_quad, _, _, _ = dispersion._subtracted_quadrature(
         EF_PB, dispersion.DEFAULT_SUBTRACTED_SEGMENT_OFFSETS
     )
     node = float(x_quad[128])
     with pytest.raises(ValueError, match="quadrature node"):
-        mbra.delta_Vs_depth(node, EF_PB, *s_args)
-    nearby = mbra.delta_Vs_depth(node + 1e-3, EF_PB, *s_args)
+        mbra.delta_Vs_depth(node, EF_PB, *s_args, method="numerical")
+    nearby = mbra.delta_Vs_depth(node + 1e-3, EF_PB, *s_args, method="numerical")
     assert np.isfinite(nearby)
+    assert np.isfinite(mbra.delta_Vs_depth(node, EF_PB, *s_args))
 
 
-def test_av_minus_default_and_literal():
-    """The default av_minus is the constant -48.40 MeV that reproduces
-    Fig. 3(b); TABLE_I_LITERAL_PARAMS keeps the printed -8.400A reading."""
-    assert mbra.resolve_coefficients(208).AV_minus == -48.40
+def test_delta_depth_rejects_unknown_method(pb):
+    s_args = (pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
+    v_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
+    with pytest.raises(ValueError, match="method"):
+        mbra.delta_Vs_depth(10.0, EF_PB, *s_args, method="exact")
+    with pytest.raises(ValueError, match="method"):
+        mbra.delta_Vv_depth(10.0, EF_PB, *v_args, method="exact")
+
+
+def test_delta_Vs_analytic_matches_numerical(pb):
+    """The closed-form surface correction must agree with the PV quadrature
+    (which carries a ~0.01 MeV discretization floor)."""
+    s_args = (pb.AS_plus, pb.AS_minus, pb.BS, pb.CS)
+    E = np.linspace(-240.0, 240.0, 97) + 0.1371
+    ana = mbra.delta_Vs_depth(E, EF_PB, *s_args)
+    num = mbra.delta_Vs_depth(E, EF_PB, *s_args, method="numerical")
+    np.testing.assert_allclose(ana, num, atol=0.02)
+
+
+def test_delta_Vv_analytic_matches_numerical(pb):
+    """The closed-form volume correction must agree with the PV quadrature,
+    across both branch points (E_F - E_V^- and E_F + E_V^+). The quadrature
+    truncates the Brown-Rho constant tails at +/-3e4 MeV, a ~0.1 MeV floor
+    at the grid edges; the analytic form is exact."""
+    v_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
+    E = np.linspace(-240.0, 240.0, 97) + 0.1371
+    ana = mbra.delta_Vv_depth(E, EF_PB, *v_args)
+    num = mbra.delta_Vv_depth(E, EF_PB, *v_args, method="numerical")
+    np.testing.assert_allclose(ana, num, atol=0.11)
+
+
+def test_halfline_partners_symmetric_limit(pb):
+    """Equal amplitudes on both half-lines must recover the symmetric
+    closed forms (the Quesada et al. Eq. 7 limit): B x/(x^2+B^2) for the
+    Brown-Rho, and the quadrature of the symmetrized damped shape."""
+    E = np.linspace(-240.0, 240.0, 97) + 0.1371
+    x = E - EF_PB
+    sym = mbra.brown_rho_halfline_partner(
+        E, EF_PB, pb.BV
+    ) - mbra.brown_rho_halfline_partner(2.0 * EF_PB - E, EF_PB, pb.BV)
+    np.testing.assert_allclose(sym, pb.BV * x / (x**2 + pb.BV**2), rtol=1e-12)
+
+    sym = dispersion.damped_brown_rho_halfline_partner(
+        E, EF_PB, pb.BS, pb.CS
+    ) - dispersion.damped_brown_rho_halfline_partner(2.0 * EF_PB - E, EF_PB, pb.BS, pb.CS)
+    x_abs = np.abs(x)
+    num = dispersion.subtracted_dispersion_correction(
+        lambda Ep: (Ep - EF_PB) ** 2
+        * np.exp(-pb.CS * np.abs(Ep - EF_PB))
+        / ((Ep - EF_PB) ** 2 + pb.BS**2),
+        E,
+        EF_PB,
+    )
+    assert np.all(x_abs > 0)
+    np.testing.assert_allclose(sym, num, atol=0.02)
+
+
+def test_delta_Vv_analytic_continuous_at_branch_points(pb):
+    v_args = (pb.AV_plus, pb.AV_minus, pb.BV, pb.EV_plus, pb.EV_minus, pb.ALPHA)
+    for boundary in (EF_PB - pb.EV_minus, EF_PB + pb.EV_plus):
+        below = mbra.delta_Vv_depth(boundary - 1e-9, EF_PB, *v_args)
+        above = mbra.delta_Vv_depth(boundary + 1e-9, EF_PB, *v_args)
+        assert abs(above - below) < 1e-6
+    assert mbra.delta_Vv_depth(EF_PB, EF_PB, *v_args) == 0.0
+
+
+def test_partners_scalar_return_convention():
+    """Scalar E in -> Python float out for the closed-form partners."""
+    for val in (
+        dispersion.brown_rho_halfline_partner(10.0, EF_PB, 135.0),
+        dispersion.damped_brown_rho_halfline_partner(10.0, EF_PB, 11.11, 9.2e-3),
+        dispersion.sub_fermi_suppression_partner(10.0, EF_PB, 135.0, 25.5),
+    ):
+        assert isinstance(val, float)
+
+
+def test_av_minus_constant():
+    """Table I prints the sub-Fermi volume depth as "-8.400A"; the authors
+    confirmed it is a constant -8.4 MeV with no mass dependence."""
     idx = mbra.PARAM_NAMES.index("av_minus_0")
-    diff = [
-        i
-        for i, (a, b) in enumerate(
-            zip(mbra.DEFAULT_PARAMS, mbra.TABLE_I_LITERAL_PARAMS, strict=True)
-        )
-        if a != b
-    ]
-    assert diff == [idx, idx + 1]
-    assert mbra.TABLE_I_LITERAL_PARAMS[idx : idx + 2] == (0.0, -8.400)
-    literal = mbra.resolve_coefficients(208, *mbra.TABLE_I_LITERAL_PARAMS)
-    np.testing.assert_allclose(literal.AV_minus, -8.400 * 208, rtol=1e-12)
+    assert mbra.DEFAULT_PARAMS[idx] == -8.4
+    assert "av_minus_A" not in mbra.PARAM_NAMES
+    assert mbra.resolve_coefficients(40).AV_minus == -8.4
+    assert mbra.resolve_coefficients(208).AV_minus == -8.4
 
 
 def test_calculate_params_vectorized_matches_scalar():
@@ -342,9 +419,10 @@ def test_n208pb_observables_match_experiment():
     np.testing.assert_allclose(sig_t[0], 5.38, rtol=0.06)
     np.testing.assert_allclose(sig_t[1], 4.6, rtol=0.08)
     np.testing.assert_allclose(sig_t[2], 3.0, rtol=0.10)
-    # regression pins (recomputed after the switch to lab-frame depth
-    # evaluation; the Ecm-based values were [5.169, 4.673, 2.851])
-    np.testing.assert_allclose(sig_t, [5.1695, 4.6695, 2.8508], rtol=2e-3)
+    # regression pins (analytic-dispersion default; the numerical-quadrature
+    # values were [5.1962, 4.6455, 2.8129], the -48.40 MeV values
+    # [5.1695, 4.6695, 2.8508])
+    np.testing.assert_allclose(sig_t, [5.1956, 4.6469, 2.8156], rtol=2e-3)
 
 
 @requires_lax

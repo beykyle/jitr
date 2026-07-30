@@ -7,11 +7,15 @@ Two families of helpers live here:
   grid and fixed scalar energy, with quantities depending only on
   ``(r_grid, E, segments)`` precomputed at construction time and a single
   jitted (JAX) inner loop per online evaluation.
-- :func:`subtracted_dispersion_correction` and
-  :func:`sqrt_tail_dispersive_partner` evaluate the *once-subtracted*
+- :func:`subtracted_dispersion_correction` evaluates the *once-subtracted*
   principal-value dispersion integral of an energy-dependent imaginary
-  depth ``W(E')`` about a Fermi energy, as used by dispersive global
-  potentials (e.g. :mod:`jitr.optical_potentials.mbra`).
+  depth ``W(E')`` about a Fermi energy numerically, as used by dispersive
+  global potentials (e.g. :mod:`jitr.optical_potentials.mbra`);
+  :func:`brown_rho_halfline_partner`,
+  :func:`damped_brown_rho_halfline_partner`,
+  :func:`sub_fermi_suppression_partner` and
+  :func:`sqrt_tail_dispersive_partner` are its closed-form counterparts
+  for the half-line depth shapes those potentials are built from.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from numpy.polynomial.legendre import leggauss
+from scipy.special import exp1, expi
 
 from .._types import ArrayOrScalar, FloatArray
 
@@ -396,6 +401,135 @@ def subtracted_dispersion_correction(
     )
     pv = ratio @ w_quad + g_at_E * np.log((hi - E_arr) / (E_arr - lo))
     out = x * pv / np.pi
+    return out.item() if np.ndim(E) == 0 else out
+
+
+def brown_rho_halfline_partner(
+    E: ArrayOrScalar, Ef: float, B: float
+) -> ArrayOrScalar:
+    r"""Closed-form partner of a half-line Brown-Rho depth, per unit amplitude.
+
+    Once-subtracted PV dispersion (the integral of
+    :func:`subtracted_dispersion_correction`) of
+
+    .. math::
+
+       W(E') = \frac{x'^2}{x'^2 + B^2}, \quad x' = E' - E_F > 0
+
+    (zero below the Fermi energy). With :math:`x = E - E_F`,
+
+    .. math::
+
+       D^+(x) = \frac{x}{x^2 + B^2}
+           \left[\frac{B}{2} + \frac{x}{\pi} \ln\frac{B}{|x|}\right],
+
+    obtained by partial fractions (the pole/residue technique of Quesada,
+    Capote, Molina, Lozano & Raynal, Phys. Rev. C 67, 067601 (2003),
+    applied to a single half-line). The depth supported on ``E' < E_F``
+    instead contributes ``-D^+(-x)``, i.e. this function evaluated at the
+    reflected energy ``2 E_F - E`` and negated; the symmetric combination
+    recovers the textbook :math:`B x/(x^2 + B^2)`. Exact for all ``E``
+    (no quadrature interval or node restrictions), and exactly zero at
+    ``E = E_F``.
+    """
+    E_arr = np.atleast_1d(np.asarray(E, dtype=float))
+    x = E_arr - Ef
+    x_safe = np.where(x == 0.0, 1.0, x)
+    out = (
+        x_safe
+        / (x_safe**2 + B**2)
+        * (B / 2.0 + x_safe / np.pi * np.log(B / np.abs(x_safe)))
+    )
+    out = np.where(x == 0.0, 0.0, out)
+    return out.item() if np.ndim(E) == 0 else out
+
+
+def damped_brown_rho_halfline_partner(
+    E: ArrayOrScalar, Ef: float, B: float, C: float
+) -> ArrayOrScalar:
+    r"""Closed-form partner of a half-line damped Brown-Rho depth.
+
+    Once-subtracted PV dispersion, per unit amplitude, of the
+    exponentially-damped Brown-Rho surface shape
+
+    .. math::
+
+       W(E') = \frac{x'^2\, e^{-C x'}}{x'^2 + B^2}, \quad x' = E' - E_F > 0
+
+    (zero below the Fermi energy). Partial fractions leave one real
+    principal-value pole at :math:`x = E - E_F` and the conjugate pair
+    :math:`\pm iB`; the half-line exponential integrals give (Quesada
+    et al., Phys. Rev. C 67, 067601 (2003), Eq. 14, per half-line)
+
+    .. math::
+
+       D_S^+(x) = \frac{x}{\pi}\left[-\frac{x\, e^{-Cx}\,
+           \mathrm{Ei}(Cx)}{x^2 + B^2}
+           + 2\,\mathrm{Re}\,\frac{e^{-iBC} E_1(-iBC)}{2(iB - x)}\right].
+
+    The depth supported on ``E' < E_F`` contributes ``-D_S^+(-x)`` (this
+    function at ``2 E_F - E``, negated). Exact for all ``E`` and exactly
+    zero at ``E = E_F``.
+    """
+    E_arr = np.atleast_1d(np.asarray(E, dtype=float))
+    x = E_arr - Ef
+    x_safe = np.where(x == 0.0, 1.0, x)
+    real_pole = -x_safe / (x_safe**2 + B**2) * np.exp(-C * x_safe) * expi(C * x_safe)
+    pair = 2.0 * np.real(
+        np.exp(-1j * C * B) * exp1(-1j * C * B) / (2.0 * (1j * B - x_safe))
+    )
+    out = x_safe / np.pi * (real_pole + pair)
+    out = np.where(x == 0.0, 0.0, out)
+    return out.item() if np.ndim(E) == 0 else out
+
+
+def sub_fermi_suppression_partner(
+    E: ArrayOrScalar, Ef: float, B: float, ev_minus: float
+) -> ArrayOrScalar:
+    r"""Closed-form partner of the sub-Fermi Brown-Rho suppression piece.
+
+    A Brown-Rho depth suppressed below ``E_F - E_V^-`` by the factor
+    :math:`E_V^{-2}/(x_l^2 + E_V^{-2})` (``x_l = x' + E_V^-``; Eq. 16 of
+    the MBRA paper, arXiv:2403.05843) equals the plain sub-Fermi Brown-Rho
+    minus the piece dispersed here, per unit amplitude:
+
+    .. math::
+
+       W(E') = \frac{x'^2}{x'^2 + B^2}\,
+               \frac{x_l^2}{x_l^2 + E_V^{-2}}, \quad x' < -E_V^-.
+
+    Substituting :math:`v = -(x' + E_V^-)` maps the once-subtracted PV
+    integral onto a rational half-line integral with five simple poles
+    whose residues sum to zero, so (Quesada et al., Phys. Rev. C 67,
+    067601 (2003), Eq. 17 limit) :math:`D_c(x) = -(x/\pi) \sum_k R_k(x)
+    \ln(-p_k)`, with the real-pole log taken as a principal value
+    :math:`\ln|E_V^- + x|`. Its residue vanishes like
+    :math:`(E_V^- + x)^2`, so ``D_c`` is continuous through the branch
+    point ``E = E_F - E_V^-``; it is exactly zero at ``E = E_F``.
+    """
+    e = ev_minus
+    E_arr = np.atleast_1d(np.asarray(E, dtype=float))
+    x = E_arr - Ef
+    x_safe = np.where(x == 0.0, 1.0, x)
+    # residues of (v+e) v^2 / [((v+e)^2 + B^2)(v^2 + e^2)(v + e + x)]
+    R0 = -x_safe * (e + x_safe) ** 2 / ((x_safe**2 + B**2) * ((e + x_safe) ** 2 + e**2))
+    p_ie = 1j * e
+    R_ie = ((p_ie + e) * p_ie**2) / (
+        ((p_ie + e) ** 2 + B**2) * (2.0 * p_ie) * (p_ie + e + x_safe)
+    )
+    p_b = -e + 1j * B
+    R_b = ((p_b + e) * p_b**2) / (
+        (2.0 * (p_b + e)) * (p_b**2 + e**2) * (p_b + e + x_safe)
+    )
+    ex = np.abs(e + x_safe)
+    log_real = np.log(np.where(ex < 1e-300, 1.0, ex))  # R0 ~ (e+x)^2 kills it
+    val = (
+        -R0 * log_real
+        - 2.0 * np.real(R_ie * np.log(-p_ie))
+        - 2.0 * np.real(R_b * np.log(-p_b))
+    )
+    out = x_safe / np.pi * val
+    out = np.where(x == 0.0, 0.0, out)
     return out.item() if np.ndim(E) == 0 else out
 
 

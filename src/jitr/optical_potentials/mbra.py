@@ -39,12 +39,26 @@ Dispersive-correction conventions (each validated against the
 corresponding panel of Fig. 3 of the paper):
 
 - ΔV_S^NL: once-subtracted principal-value dispersion integral of the
-  asymmetric W_S^NL, computed numerically (matches panel (a) within
-  ~1 MeV everywhere, including the ±6.5 MeV spike pair at E_F).
-- ΔV_V^L: numerical once-subtracted dispersion of the Brown-Rho part
-  plus the ECIS-06 closed-form partner of the Mahaux-Sartor √E tail
-  (matches panel (b) within ~1.5 MeV for 0 < E < 100 MeV).
+  asymmetric W_S^NL — closed form by default (exact half-line partners
+  after Quesada et al., PRC 67, 067601 (2003); ``method="numerical"``
+  falls back to quadrature). Matches panel (a) within ~1 MeV everywhere,
+  including the ±6.5 MeV spike pair at E_F.
+- ΔV_V^L: closed form by default — exact asymmetric half-line Brown-Rho
+  partners plus the sub-Fermi suppression partner and the ECIS-06
+  closed-form partner of the Mahaux-Sartor √E tail
+  (``method="numerical"`` disperses the Brown-Rho part by quadrature
+  instead). With the author-confirmed A_V^− = −8.4 MeV the resulting
+  W_V^L/ΔV_V^L differ from panel (b) by a few MeV (the figure
+  corresponds to a sub-Fermi depth near −48.4 MeV; see
+  :func:`delta_Vv_depth`).
 - ΔV_so^NL: closed form, symmetric about E_F (matches panel (c) exactly).
+
+Note the Quesada et al. closed forms as published assume the symmetry
+condition W(2E_F − E) = W(E) (their Eq. 7); the MBRA depths are
+asymmetric, so here each half-line piece is dispersed exactly with its
+own amplitude instead. The analytic and numerical paths therefore agree
+(to quadrature accuracy, ≲0.1 MeV) — both evaluate the causal dispersion
+of the *same* asymmetric W.
 
 All corrections vanish at the Fermi energy. The Fermi energy is
 ``E_F = -[S_n(Z, N) + S_n(Z, N+1)]/2`` — the standard average over the
@@ -57,8 +71,7 @@ The depth and dispersion functions take the paper's energy variable ``E``
 directly; :func:`calculate_params` takes the laboratory-frame neutron
 energy ``Elab``, consistent with the other global potentials in this
 package (kduq, wlh, chuq). The paper does not state the frame of ``E``
-explicitly (it is on the author-questions list in
-``examples/notebooks/mbra_av_minus.ipynb``).
+explicitly.
 
 .. _B. Morillon, G. Blanchon, P. Romain and H. F. Arellano,
    arXiv:2403.05843 (2024): https://arxiv.org/abs/2403.05843
@@ -73,7 +86,10 @@ import numpy as np
 from .._types import ArrayOrScalar, ComplexArray, FloatArray
 from ..utils.constants import WAVENUMBER_PION
 from .dispersion import (
+    brown_rho_halfline_partner,
+    damped_brown_rho_halfline_partner,
     sqrt_tail_dispersive_partner,
+    sub_fermi_suppression_partner,
     subtracted_dispersion_correction,
 )
 from .potential_forms import (
@@ -109,7 +125,6 @@ PARAM_NAMES: tuple[str, ...] = (
     "av_plus_0",
     "av_plus_A",
     "av_minus_0",
-    "av_minus_A",
     "bv",
     "ev_plus_0",
     "ev_plus_A",
@@ -136,14 +151,11 @@ PARAM_NAMES: tuple[str, ...] = (
 #: Published global parameters (Tables I & II of arXiv:2403.05843).
 #:
 #: Note on ``av_minus``: Table I prints the sub-Fermi volume depth as
-#: "−8.400A". Read literally (−8.400·A) it gives W_V^L ≈ −110 MeV and
-#: |ΔV_V^L| ≈ 80 MeV for ²⁰⁸Pb — grossly inconsistent with the ±10 MeV
-#: scale of the paper's own Fig. 3(b) — so the printed value cannot be a
-#: mass-proportional depth. The default here, a constant −48.40 MeV
-#: (split as ``av_minus_0 + av_minus_A * A`` so other readings remain
-#: representable), uniquely reproduces the published W_V^L curves: the
-#: −2.8…−3.0 MeV dip near E ≈ −60 MeV with the near-zero spread between
-#: ⁴⁰Ca, ⁸⁹Y and ²⁰⁸Pb seen in Fig. 3(b).
+#: "−8.400A", which is a typo — the authors have confirmed (private
+#: communication, 2026) that it is a constant −8.400 MeV with no mass
+#: dependence. The paper's own Fig. 3(b) is inconsistent with this value
+#: (its sub-Fermi W_V^L dip of ≈−3 MeV corresponds to a depth near
+#: −48.4 MeV); see the note on :func:`delta_Vv_depth`.
 DEFAULT_PARAMS: tuple[float, ...] = (
     # real depths
     -69.71,
@@ -161,8 +173,7 @@ DEFAULT_PARAMS: tuple[float, ...] = (
     # volume imaginary
     -32.40,
     -2.000e-2,
-    -48.40,
-    0.0,
+    -8.4,
     135.0,
     40.00,
     -9.000e-2,
@@ -186,19 +197,6 @@ DEFAULT_PARAMS: tuple[float, ...] = (
     0.915,
 )
 
-_AV_MINUS_0_IDX = PARAM_NAMES.index("av_minus_0")
-
-#: The literal reading of Table I's "−8.400A" sub-Fermi volume depth
-#: (``av_minus_0 = 0``, ``av_minus_A = −8.400``). It reproduces neither the
-#: scale nor the mass-independence of the paper's own Fig. 3(b) (see the
-#: ``DEFAULT_PARAMS`` note and ``examples/notebooks/mbra_av_minus.ipynb``);
-#: kept for reference and comparison.
-TABLE_I_LITERAL_PARAMS: tuple[float, ...] = (
-    DEFAULT_PARAMS[:_AV_MINUS_0_IDX]
-    + (0.0, -8.400)
-    + DEFAULT_PARAMS[_AV_MINUS_0_IDX + 2 :]
-)
-
 
 def get_param_names() -> list[str]:
     """Return the MBRA parameter names in ``calculate_params`` order."""
@@ -208,10 +206,9 @@ def get_param_names() -> list[str]:
 def get_default_params() -> tuple[float, ...]:
     """Return the recommended global parameter vector.
 
-    Tables I & II of the paper, except ``av_minus``: the printed "−8.400A"
-    is replaced by the constant −48.40 MeV that reproduces the paper's own
-    Fig. 3(b) (see the note on :data:`DEFAULT_PARAMS`;
-    :data:`TABLE_I_LITERAL_PARAMS` holds the literal reading).
+    Tables I & II of the paper, with ``av_minus`` the constant −8.400 MeV
+    the authors confirmed for Table I's misprinted "−8.400A" (see the note
+    on :data:`DEFAULT_PARAMS`).
     """
     return DEFAULT_PARAMS
 
@@ -287,7 +284,7 @@ def resolve_coefficients(A: int, *params: float) -> Coefficients:
         BS=p["bs"],
         CS=p["cs"],
         AV_plus=p["av_plus_0"] + p["av_plus_A"] * A,
-        AV_minus=p["av_minus_0"] + p["av_minus_A"] * A,
+        AV_minus=p["av_minus_0"],
         BV=p["bv"],
         EV_plus=p["ev_plus_0"] + p["ev_plus_A"] * A,
         EV_minus=p["ev_minus"],
@@ -352,7 +349,7 @@ def Wv_depth(
     low = E_arr < Ef - EV_minus
     if np.any(low):
         xl = x[low] + EV_minus
-        out[low] *= 1.0 - xl**2 / (xl**2 + EV_minus**2)
+        out[low] *= (1.0 - xl**2 / (xl**2 + EV_minus**2))
 
     return out.item() if np.ndim(E) == 0 else out
 
@@ -413,11 +410,34 @@ def delta_Vs_depth(
     AS_minus: float,
     BS: float,
     CS: float,
+    *,
+    method: str = "analytic",
 ) -> ArrayOrScalar:
-    r"""Dispersive correction ΔV_S^NL(E) to the surface depth, in MeV."""
-    return subtracted_dispersion_correction(
-        lambda Ep: Ws_depth(Ep, Ef, AS_plus, AS_minus, BS, CS), E, Ef
-    )
+    r"""Dispersive correction ΔV_S^NL(E) to the surface depth, in MeV.
+
+    ``method="analytic"`` (default) composes the exact closed-form
+    half-line partners of Eq. 13's damped Brown-Rho shape,
+
+    .. math::
+
+       \Delta V_S(E) = A_S^+ D_S^+(E - E_F) - A_S^- D_S^+(E_F - E),
+
+    with :math:`D_S^+` from
+    :func:`jitr.optical_potentials.dispersion.damped_brown_rho_halfline_partner`
+    — valid at any energy, with no quadrature-node or interval
+    restrictions. ``method="numerical"`` uses the once-subtracted PV
+    quadrature instead (agrees to ≲0.01 MeV within its interval).
+    """
+    if method == "analytic":
+        reflected = 2.0 * Ef - np.asarray(E, dtype=float)
+        return AS_plus * damped_brown_rho_halfline_partner(
+            E, Ef, BS, CS
+        ) - AS_minus * damped_brown_rho_halfline_partner(reflected, Ef, BS, CS)
+    if method == "numerical":
+        return subtracted_dispersion_correction(
+            lambda Ep: Ws_depth(Ep, Ef, AS_plus, AS_minus, BS, CS), E, Ef
+        )
+    raise ValueError(f"method must be 'analytic' or 'numerical', got {method!r}")
 
 
 def delta_Vv_depth(
@@ -429,28 +449,56 @@ def delta_Vv_depth(
     EV_plus: float,
     EV_minus: float,
     ALPHA: float,
+    *,
+    method: str = "analytic",
 ) -> ArrayOrScalar:
     r"""Dispersive correction ΔV_V^L(E) to the volume depth, in MeV.
 
-    The Brown-Rho part (with the sub-Fermi suppression of Eq. 16) is
-    dispersed numerically with the once-subtracted PV integral; the
-    Mahaux-Sartor :math:`\alpha\sqrt{E}` tail of Eq. 15 contributes its
-    ECIS-06 closed-form partner
-    :func:`jitr.optical_potentials.dispersion.sqrt_tail_dispersive_partner`.
+    ``method="analytic"`` (default) composes exact closed-form partners
+    for every piece of Eqs. 14-16,
 
-    Note: outside ``0 < E < 100`` MeV this ΔV_V^L deviates from the paper's
-    Fig. 3(b) by up to a few MeV (module−figure for ⁸⁹Y: +1.9 MeV at
-    200 MeV, +2.5 MeV at 245 MeV with a sign flip; −1.6 to −3.2 MeV for
-    ``E ≤ −100`` MeV, where the figure instead matches a Brown-Rho-only
-    dispersion). The integral here is numerically exact for Eqs. 14-16, so
-    the paper evidently used a different tail prescription — pending author
-    clarification (see ``examples/notebooks/mbra_av_minus.ipynb``).
+    .. math::
+
+       \Delta V_V(E) = A_V^+ D_V^+(x) - A_V^- D_V^+(-x)
+           - A_V^- D_c(x) + \alpha D_\mathrm{tail}(E),
+       \quad x = E - E_F,
+
+    with the half-line Brown-Rho partner :math:`D_V^+`
+    (:func:`jitr.optical_potentials.dispersion.brown_rho_halfline_partner`),
+    the sub-Fermi suppression partner :math:`D_c`
+    (:func:`jitr.optical_potentials.dispersion.sub_fermi_suppression_partner`)
+    and the ECIS-06 Mahaux-Sartor √E tail partner
+    (:func:`jitr.optical_potentials.dispersion.sqrt_tail_dispersive_partner`).
+    ``method="numerical"`` disperses the Brown-Rho + suppression part with
+    the once-subtracted PV quadrature instead (agrees to ≲0.1 MeV, limited
+    by the quadrature's ±3×10⁴ MeV truncation of the Brown-Rho constant
+    tails); both methods use the closed-form √E tail partner.
+
+    Note: this ΔV_V^L deviates from the paper's Fig. 3(b) by a few MeV.
+    The dispersion here is exact for Eqs. 14-16 with the author-confirmed
+    ``A_V^− = −8.4`` MeV, but the figure corresponds to a sub-Fermi depth
+    near −48.4 MeV (for ²⁰⁸Pb: figure ΔV_V^L(80) ≈ −8.6 vs −6.46 here,
+    figure sub-Fermi W_V^L dip ≈ −3.0 vs −0.53 here), and the figure's
+    high-energy/sub-Fermi tails also match a different (evidently
+    Brown-Rho-only) dispersion of the √E tail. The scattering-observable
+    calibration of the paper is unaffected by the sub-Fermi branch except
+    through this dispersion integral.
     """
-    br = subtracted_dispersion_correction(
-        lambda Ep: Wv_depth(Ep, Ef, AV_plus, AV_minus, BV, EV_plus, EV_minus, 0.0),
-        E,
-        Ef,
-    )
+    if method == "analytic":
+        reflected = 2.0 * Ef - np.asarray(E, dtype=float)
+        br = (
+            AV_plus * brown_rho_halfline_partner(E, Ef, BV)
+            - AV_minus * brown_rho_halfline_partner(reflected, Ef, BV)
+            - AV_minus * sub_fermi_suppression_partner(E, Ef, BV, EV_minus)
+        )
+    elif method == "numerical":
+        br = subtracted_dispersion_correction(
+            lambda Ep: Wv_depth(Ep, Ef, AV_plus, AV_minus, BV, EV_plus, EV_minus, 0.0),
+            E,
+            Ef,
+        )
+    else:
+        raise ValueError(f"method must be 'analytic' or 'numerical', got {method!r}")
     tail = ALPHA * sqrt_tail_dispersive_partner(Ef + EV_plus, E, Ef)
     out = np.asarray(br, dtype=float) + tail
     return out.item() if np.ndim(E) == 0 else out
@@ -604,6 +652,7 @@ def calculate_params(
     Elab: ArrayOrScalar,
     Ef: float,
     *params: float,
+    dispersion_method: str = "analytic",
 ) -> tuple[
     tuple[float, complex | ComplexArray, float, float, float],
     tuple[complex | ComplexArray, float, float],
@@ -622,6 +671,10 @@ def calculate_params(
         Ef: Neutron Fermi energy in MeV (``Reaction.Ef``).
         *params: Global parameters in :func:`get_param_names` order;
             :func:`get_default_params` is used when omitted.
+        dispersion_method: ``"analytic"`` (default) for the exact
+            closed-form dispersive corrections, ``"numerical"`` for the
+            once-subtracted PV quadrature (see :func:`delta_Vs_depth`
+            and :func:`delta_Vv_depth`).
 
     Returns:
         ``(nonlocal_central_params, local_central_params, spin_orbit_params)``
@@ -640,10 +693,20 @@ def calculate_params(
     scalar = np.ndim(Elab) == 0
     E = float(Elab) if scalar else np.asarray(Elab, dtype=float)
 
-    vs_re = c.VS + delta_Vs_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS)
+    vs_re = c.VS + delta_Vs_depth(
+        E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS, method=dispersion_method
+    )
     vs_im = Ws_depth(E, Ef, c.AS_plus, c.AS_minus, c.BS, c.CS)
     uv_re = delta_Vv_depth(
-        E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA
+        E,
+        Ef,
+        c.AV_plus,
+        c.AV_minus,
+        c.BV,
+        c.EV_plus,
+        c.EV_minus,
+        c.ALPHA,
+        method=dispersion_method,
     )
     uv_im = Wv_depth(E, Ef, c.AV_plus, c.AV_minus, c.BV, c.EV_plus, c.EV_minus, c.ALPHA)
     vso_re = c.VSO + delta_Vso_depth(E, Ef, c.ASO, c.BSO, c.CSO, c.DSO)
@@ -672,6 +735,7 @@ def assemble_terms(
     Elab: ArrayOrScalar,
     Ef: float,
     *params: float,
+    dispersion_method: str = "analytic",
 ) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
     """Assemble the three MBRA terms on a grid, stacked over an energy grid.
 
@@ -691,6 +755,8 @@ def assemble_terms(
         Ef: Neutron Fermi energy in MeV (``Reaction.Ef``).
         *params: Global parameters in :func:`get_param_names` order;
             :func:`get_default_params` is used when omitted.
+        dispersion_method: ``"analytic"`` (default) or ``"numerical"``;
+            forwarded to :func:`calculate_params`.
 
     Returns:
         ``(K_nl, W_loc, K_so)`` of shapes ``(N_b, N_E, N, N)``,
@@ -702,7 +768,7 @@ def assemble_terms(
     """
     Elab = np.atleast_1d(np.asarray(Elab, dtype=float))
     (VV, VS, R, a, beta), (UV, _, _), (VSO, _, _, _) = calculate_params(
-        projectile, target, Elab, Ef, *params
+        projectile, target, Elab, Ef, *params, dispersion_method=dispersion_method
     )
     kernel = perey_buck_kernel(rgrid, ls, beta)
     K_nl = central_nonlocal(rgrid, ls, VV, VS, R, a, beta, kernel=kernel)
