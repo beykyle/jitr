@@ -93,14 +93,6 @@ class IntegralWorkspace:
             raise ValueError(f"{name} must have shape {expected_shape}")
         return potential_array
 
-    def _optional_local_potential(
-        self, potential: npt.ArrayLike | None, name: str
-    ) -> ComplexArray:
-        """Return a validated local potential or a zero array when omitted."""
-        if potential is None:
-            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
-        return self._local_potential(potential, name)
-
     def smatrix(
         self,
         central_potential: npt.ArrayLike,
@@ -111,9 +103,6 @@ class IntegralWorkspace:
         splus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         sminus = np.zeros(self.sys.lmax + 1, dtype=np.complex128)
         central_array = self._local_potential(central_potential, "central_potential")
-        spin_orbit_array = self._optional_local_potential(
-            spin_orbit_potential, "spin_orbit_potential"
-        )
 
         im_central = self.solver.interaction_matrix(
             self.channels[0][0].k[0],
@@ -122,13 +111,19 @@ class IntegralWorkspace:
             self.channels[0][0].size,
             local_potential=central_array,
         )
-        im_spin_orbit = self.solver.interaction_matrix(
-            self.channels[0][0].k[0],
-            self.channels[0][0].E[0],
-            self.channels[0][0].a,
-            self.channels[0][0].size,
-            local_potential=spin_orbit_array,
-        )
+        if spin_orbit_potential is not None:
+            spin_orbit_array = self._local_potential(
+                spin_orbit_potential, "spin_orbit_potential"
+            )
+            im_spin_orbit = self.solver.interaction_matrix(
+                self.channels[0][0].k[0],
+                self.channels[0][0].E[0],
+                self.channels[0][0].a,
+                self.channels[0][0].size,
+                local_potential=spin_orbit_array,
+            )
+        else:
+            im_spin_orbit = None
         if coulomb_potential is not None:
             coulomb_array = self._local_potential(
                 coulomb_potential, "coulomb_potential"
@@ -160,19 +155,28 @@ class IntegralWorkspace:
                 channel[0],
                 asymptotic[0],
                 free_matrix=self.free_matrices[l],
-                interaction_matrix=im_central + lds[0] * im_spin_orbit,
+                interaction_matrix=(
+                    im_central
+                    if im_spin_orbit is None
+                    else im_central + lds[0] * im_spin_orbit
+                ),
                 basis_boundary=self.basis_boundary,
             )
             splus[l] = sp[0, 0]
 
-            _, sm, _ = self.solver.solve(
-                channel[1],
-                asymptotic[1],
-                free_matrix=self.free_matrices[l],
-                interaction_matrix=im_central + lds[1] * im_spin_orbit,
-                basis_boundary=self.basis_boundary,
-            )
-            sminus[l] = sm[0, 0]
+            if im_spin_orbit is None:
+                # without spin-orbit coupling the j = l - 1/2 system is
+                # identical to the j = l + 1/2 one
+                sminus[l] = splus[l]
+            else:
+                _, sm, _ = self.solver.solve(
+                    channel[1],
+                    asymptotic[1],
+                    free_matrix=self.free_matrices[l],
+                    interaction_matrix=im_central + lds[1] * im_spin_orbit,
+                    basis_boundary=self.basis_boundary,
+                )
+                sminus[l] = sm[0, 0]
 
             last_l = int(l)
             if (np.absolute(1 - splus[l])) < self.smatrix_abs_tol and (
