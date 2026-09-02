@@ -12,6 +12,7 @@
 /examples/notebooks/alpha_ca_calibration
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
+/examples/notebooks/kd03_neutron_dxs_demo.ipynb
 /examples/notebooks/builtin_omps_uq
 /examples/notebooks/tabulated_density_demo
 /examples/notebooks/chuq_kduq_comp
@@ -41,6 +42,8 @@
 - [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
   converts the original JLM example into a notebook and walks through folded
   microscopic potentials, Lane trends, and tabulated self-energy usage.
+- [Koning-Delaroche neutron elastic scattering](/examples/notebooks/kd03_neutron_dxs_demo.ipynb)
+  shows how to compute the elastic scattering cross section for neutrons on various targets using the built-in Koning-Delaroche optical potential in `jitr`.
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
   walks through posterior sampling, solver setup, and interval construction 
   for several of the built-in uncertainty quantified optical potentials in `jitr`.
