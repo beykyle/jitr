@@ -9,6 +9,7 @@
 :titlesonly:
 
 /examples/notebooks/quickstart
+/examples/notebooks/alpha_ca_calibration
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
 /examples/notebooks/builtin_omps_uq
@@ -27,7 +28,9 @@
 ## Start here
 
 - [Quickstart](/examples/notebooks/quickstart)
-  gives a full end-to-end example for compiling a solver for a given reaction system, defining a parametric interaction potential, and calculating an elastic scattering cross section for an ensemble of potential parameters.
+  compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
+- [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
+  extends the quickstart to a full Bayesian calibration for $\alpha$ + $^{40,44,48}$Ca, using a simple error model, comparing the posterior across isotopes and checking the posterior predictive against the data.
 - [Reactions and kinematics](/examples/notebooks/reaction)
   introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
 

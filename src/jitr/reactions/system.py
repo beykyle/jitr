@@ -8,6 +8,7 @@ from typing import TypeAlias
 import numpy as np
 import numpy.typing as npt
 
+from ..utils.constants import HBARC
 from ..utils.free_solutions import H_minus, H_minus_prime, H_plus, H_plus_prime
 
 FloatArray: TypeAlias = npt.NDArray[np.float64]
@@ -168,11 +169,21 @@ class ProjectileTargetSystem:
         for l in range(0, self.lmax + 1):
             num_channels = self.couplings[l].shape[0]
             eta_array = uniform_array_from_scalar_or_array(eta, num_channels)
+            k_array = uniform_array_from_scalar_or_array(k, num_channels)
+            mu_array = uniform_array_from_scalar_or_array(mu, num_channels)
+            # The solver works in the dimensionless coordinate rho = k r, so the
+            # energy that scales the interaction must be hbar^2 k^2 / (2 mu),
+            # not Ecm. For classical kinematics these coincide; for the
+            # semi-relativistic (Ingemarsson) prescription they differ at the
+            # per-mille level, and using Ecm makes the interior Coulomb potential
+            # inconsistent with the asymptotic Sommerfeld parameter, producing a
+            # spurious channel-radius dependence of the S-matrix.
+            E_array = HBARC**2 * k_array**2 / (2 * mu_array)
             channels.append(
                 Channels(
-                    uniform_array_from_scalar_or_array(Ecm, num_channels),
-                    uniform_array_from_scalar_or_array(k, num_channels),
-                    uniform_array_from_scalar_or_array(mu, num_channels),
+                    E_array,
+                    k_array,
+                    mu_array,
                     eta_array,
                     self.channel_radius,
                     np.ones(num_channels) * l,
