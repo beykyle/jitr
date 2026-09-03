@@ -10,9 +10,10 @@
 
 /examples/notebooks/quickstart
 /examples/notebooks/alpha_ca_calibration
+/examples/notebooks/alpha_ca48_ambiguity
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
-/examples/notebooks/kd03_neutron_dxs_demo.ipynb
+/examples/notebooks/kd03_neutron_dxs_demo
 /examples/notebooks/builtin_omps_uq
 /examples/notebooks/tabulated_density_demo
 /examples/notebooks/chuq_kduq_comp
@@ -32,7 +33,7 @@
   compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
 - [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
   extends the quickstart to a full Bayesian calibration for $\alpha$ + $^{40,44,48}$Ca, using a simple error model, comparing the posterior across isotopes and checking the posterior predictive against the data.
-- [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity.ipynb)
+- [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity)
   extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, exploring the discrete parameter ambiguity in the posterior in a Bayesian context, and checking the posterior predictive against the data.
 
 
@@ -41,7 +42,7 @@
 
 - [Reactions and kinematics](/examples/notebooks/reaction)
   introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
-- [Koning-Delaroche neutron elastic scattering](/examples/notebooks/kd03_neutron_dxs_demo.ipynb)
+- [Koning-Delaroche neutron elastic scattering](/examples/notebooks/kd03_neutron_dxs_demo)
   shows how to compute the elastic scattering cross section for neutrons on various targets using the built-in Koning-Delaroche optical potential in `jitr`.
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
   walks through posterior sampling, solver setup, and interval construction 

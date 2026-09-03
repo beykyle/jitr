@@ -35,10 +35,13 @@ jobs:
       - name: Install package and documentation dependencies
         run: uv sync --frozen --group docs
 
-      - name: Create documentation symlinks
+      - name: Create documentation sources
         run: |
+          # copy (not symlink): Sphinx resolves symlinks, which would place the
+          # notebooks outside the docs source tree and break .ipynb cross-links
           mkdir -p docs/examples
-          ln -sf "$(pwd)/examples/notebooks" docs/examples/notebooks
+          rm -rf docs/examples/notebooks
+          cp -r examples/notebooks docs/examples/notebooks
           ln -sf "$(pwd)/tests" docs/tests
 
       - name: Build documentation
