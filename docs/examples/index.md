@@ -32,22 +32,24 @@
   compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
 - [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
   extends the quickstart to a full Bayesian calibration for $\alpha$ + $^{40,44,48}$Ca, using a simple error model, comparing the posterior across isotopes and checking the posterior predictive against the data.
-- [Reactions and kinematics](/examples/notebooks/reaction)
-  introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
+- [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity.ipynb)
+  extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, exploring the discrete parameter ambiguity in the posterior in a Bayesian context, and checking the posterior predictive against the data.
 
 
 
 ## Other useful examples
 
-- [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
-  converts the original JLM example into a notebook and walks through folded
-  microscopic potentials, Lane trends, and tabulated self-energy usage.
+- [Reactions and kinematics](/examples/notebooks/reaction)
+  introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
 - [Koning-Delaroche neutron elastic scattering](/examples/notebooks/kd03_neutron_dxs_demo.ipynb)
   shows how to compute the elastic scattering cross section for neutrons on various targets using the built-in Koning-Delaroche optical potential in `jitr`.
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
   walks through posterior sampling, solver setup, and interval construction 
   for several of the built-in uncertainty quantified optical potentials in `jitr`.
 - [Tabulated neutron and proton densities](/examples/notebooks/tabulated_density_demo)
+- [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
+  converts the original JLM example into a notebook and walks through folded
+  microscopic potentials, Lane trends, and tabulated self-energy usage.
 - [Compare global optical-potential radial forms](/examples/notebooks/chuq_kduq_comp)
   provides a quick visual comparison of the radial forms of the built-in global potentials in `jitr`.
 - [Visualize global optical potential volume integrals](/examples/notebooks/volume_integrals)
