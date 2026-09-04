@@ -87,3 +87,56 @@ class TestDensityUtilities:
 
         with pytest.raises(KeyError):
             density.density_table(16, 8, model="not-a-model")
+
+    def test_rad_to_npz_round_trip(self, tmp_path):
+        rad_dir = tmp_path / "rad"
+        rad_dir.mkdir()
+        rng = np.random.default_rng(0)
+
+        def block(Z, A, n, dr):
+            lines = [f"{Z} {A} {n} {dr:.3f}"]
+            for i in range(n):
+                row = rng.uniform(0.0, 0.2, size=11)
+                row[0] = i * dr
+                lines.append(" ".join(f"{v:.5E}" for v in row))
+            return lines, row
+
+        lines_16, _ = block(8, 16, 12, 0.1)
+        lines_17, _ = block(8, 17, 15, 0.1)
+        (rad_dir / "O.rad").write_text("\n".join(lines_16 + lines_17) + "\n")
+
+        tables = density.read_rad_file(rad_dir / "O.rad", model="toy")
+        assert [(t.A, t.Z) for t in tables] == [(16, 8), (17, 8)]
+
+        npz_path = tmp_path / "toy.npz"
+        density.write_density_npz(tables, npz_path)
+        loaded = density._load_density_npz(npz_path, model="toy")
+
+        assert set(loaded) == {(16, 8), (17, 8)}
+        for table in tables:
+            got = loaded[(table.A, table.Z)]
+            assert got.symbol == "O"
+            assert got.dr == table.dr
+            assert got.radial_grid.dtype == np.float64
+            assert got.proton_density_grid.dtype == np.float64
+            np.testing.assert_allclose(got.radial_grid, table.radial_grid, atol=1e-12)
+            np.testing.assert_allclose(
+                got.proton_density_grid, table.proton_density_grid, rtol=1e-6
+            )
+            np.testing.assert_allclose(
+                got.neutron_density_grid, table.neutron_density_grid, rtol=1e-6
+            )
+
+    def test_write_density_npz_rejects_nonuniform_grid(self, tmp_path):
+        table = density.DensityTable(
+            A=16,
+            Z=8,
+            model="toy",
+            symbol="O",
+            dr=0.1,
+            radial_grid=np.array([0.0, 0.1, 0.3]),
+            proton_density_grid=np.ones(3),
+            neutron_density_grid=np.ones(3),
+        )
+        with pytest.raises(ValueError, match="uniform"):
+            density.write_density_npz([table], tmp_path / "bad.npz")
