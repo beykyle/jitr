@@ -1,4 +1,13 @@
-"""Analytic and tabulated proton/neutron density utilities."""
+"""Analytic and tabulated proton/neutron density utilities.
+
+Tabulated densities ship with the package as one compressed ``.npz`` file per
+density model under ``data/densities/`` (e.g. ``d1m.npz``, ``bskg3.npz``).
+Each file stores the proton and neutron densities of every nuclide on a
+uniform radial grid as float32 (the source tables carry 5-6 significant
+digits). The original 11-column ASCII ``.rad`` tables can be converted with
+``scripts/convert_density_tables.py`` (see :func:`read_rad_file` and
+:func:`write_density_npz`).
+"""
 
 from __future__ import annotations
 
@@ -17,6 +26,9 @@ DensityResult: TypeAlias = tuple[FloatArray, FloatArray]
 RadialDensity: TypeAlias = Callable[[float | ArrayLike], FloatArray]
 
 DEFAULT_DENSITY_MODEL = "d1m"
+
+# Layout version of the packaged ``<model>.npz`` density files.
+DENSITY_NPZ_FORMAT_VERSION = 1
 
 # Density database initialized at import time from ``utils.__init__``.
 __DENSITY_MODELS__: list[str] = []
@@ -260,11 +272,17 @@ class DensityTable:
         return self.proton_density(r) + self.neutron_density(r)
 
 
-def _parse_density_file(path: Path, model: str) -> list[DensityTable]:
-    """Parse all nuclide blocks from a packaged density table.
+def read_rad_file(path: Path, model: str) -> list[DensityTable]:
+    """Parse all nuclide blocks from an ASCII ``.rad`` density table.
+
+    This is the conversion-time reader for the original tables; the runtime
+    loader reads the packaged ``.npz`` files instead. Each block starts with a
+    header line ``Z A n_points dr`` followed by ``n_points`` rows of 11 columns,
+    of which column 0 (radius), column 1 (proton density) and column 6 (neutron
+    density) are used. The file stem must be the element symbol for ``Z``.
 
     Args:
-        path: Path to the packaged ``.rad`` file.
+        path: Path to the ``.rad`` file.
         model: Density-model identifier for the parsed tables.
 
     Returns:
@@ -330,6 +348,129 @@ def _parse_density_file(path: Path, model: str) -> list[DensityTable]:
     return tables
 
 
+def write_density_npz(tables: list[DensityTable], path: Path) -> None:
+    """Pack density tables into a compressed ``.npz`` file.
+
+    The radial grid is not stored: every table must be tabulated on a uniform
+    grid ``np.arange(n_points) * dr`` (checked here), so it is rebuilt on load.
+    Densities are stored as float32; nuclides may have different ``n_points``.
+
+    Layout (``format_version`` = :data:`DENSITY_NPZ_FORMAT_VERSION`)::
+
+        Z, A, n_points : int16   (N,)
+        dr             : float64 (N,)
+        offsets        : int64   (N + 1,)   cumulative n_points, starting at 0
+        rho_p, rho_n   : float32 (M,)       densities of nuclide i are
+                                            rho[offsets[i]:offsets[i + 1]]
+
+    Args:
+        tables: Density tables to pack.
+        path: Output ``.npz`` path.
+
+    Raises:
+        ValueError: If a table is not on a uniform radial grid or if two tables
+            share the same ``(A, Z)``.
+    """
+
+    seen: set[tuple[int, int]] = set()
+    n_points = np.empty(len(tables), dtype=np.int64)
+    for i, table in enumerate(tables):
+        key = (table.A, table.Z)
+        if key in seen:
+            raise ValueError(f"Duplicate density table for A={table.A}, Z={table.Z}.")
+        seen.add(key)
+        n = table.radial_grid.size
+        expected = np.arange(n, dtype=float) * table.dr
+        if not np.allclose(table.radial_grid, expected, rtol=0.0, atol=1e-9):
+            raise ValueError(
+                f"Density table for A={table.A}, Z={table.Z} is not on a uniform "
+                f"radial grid with dr={table.dr}."
+            )
+        n_points[i] = n
+
+    offsets = np.concatenate(([0], np.cumsum(n_points)))
+    np.savez_compressed(
+        path,
+        format_version=np.int64(DENSITY_NPZ_FORMAT_VERSION),
+        Z=np.array([t.Z for t in tables], dtype=np.int16),
+        A=np.array([t.A for t in tables], dtype=np.int16),
+        n_points=n_points.astype(np.int16),
+        dr=np.array([t.dr for t in tables], dtype=np.float64),
+        offsets=offsets.astype(np.int64),
+        rho_p=np.concatenate([t.proton_density_grid for t in tables]).astype(
+            np.float32
+        ),
+        rho_n=np.concatenate([t.neutron_density_grid for t in tables]).astype(
+            np.float32
+        ),
+    )
+
+
+def _load_density_npz(path: Path, model: str) -> dict[tuple[int, int], DensityTable]:
+    """Load a packaged ``.npz`` density file written by :func:`write_density_npz`.
+
+    Args:
+        path: Path to the ``.npz`` file.
+        model: Density-model identifier for the loaded tables.
+
+    Returns:
+        Density tables keyed by ``(A, Z)``.
+
+    Raises:
+        ValueError: If the file layout version is unsupported or the contents
+            are inconsistent.
+    """
+
+    with np.load(path) as data:
+        version = int(data["format_version"])
+        if version != DENSITY_NPZ_FORMAT_VERSION:
+            raise ValueError(
+                f"Density file {path} has format version {version}; "
+                f"expected {DENSITY_NPZ_FORMAT_VERSION}."
+            )
+        Z_arr = data["Z"].astype(int)
+        A_arr = data["A"].astype(int)
+        n_points = data["n_points"].astype(int)
+        dr_arr = data["dr"].astype(float)
+        offsets = data["offsets"].astype(int)
+        rho_p = data["rho_p"]
+        rho_n = data["rho_n"]
+
+    if not (
+        Z_arr.shape == A_arr.shape == n_points.shape == dr_arr.shape
+        and offsets.shape == (Z_arr.size + 1,)
+        and rho_p.shape == rho_n.shape == (offsets[-1],)
+    ):
+        raise ValueError(f"Density file {path} has inconsistent array shapes.")
+
+    tables: dict[tuple[int, int], DensityTable] = {}
+    for i in range(Z_arr.size):
+        Z = int(Z_arr[i])
+        A = int(A_arr[i])
+        key = (A, Z)
+        if key in tables:
+            raise ValueError(
+                f"Duplicate density table for A={A}, Z={Z} in model {model!r}."
+            )
+        start, stop = int(offsets[i]), int(offsets[i + 1])
+        n = int(n_points[i])
+        if stop - start != n:
+            raise ValueError(f"Density block for A={A}, Z={Z} in {path} is truncated.")
+        dr = float(dr_arr[i])
+        tables[key] = DensityTable(
+            A=A,
+            Z=Z,
+            model=model,
+            symbol=str(periodictable.elements[Z]),
+            dr=dr,
+            radial_grid=np.arange(n, dtype=float) * dr,
+            proton_density_grid=np.asarray(rho_p[start:stop], dtype=float),
+            neutron_density_grid=np.asarray(rho_n[start:stop], dtype=float),
+        )
+
+    return tables
+
+
 def init_density_db() -> None:
     """Load the packaged density tables into memory if needed."""
 
@@ -347,22 +488,10 @@ def init_density_db() -> None:
         density_db: dict[str, dict[tuple[int, int], DensityTable]] = {}
         __DENSITY_MODELS__ = []
 
-        model_dirs = sorted(path for path in __DENSITY_DIR__.iterdir() if path.is_dir())
-        for model_dir in model_dirs:
-            __DENSITY_MODELS__.append(model_dir.name)
-            tables: dict[tuple[int, int], DensityTable] = {}
-
-            for path in sorted(model_dir.glob("*.rad")):
-                for table in _parse_density_file(path, model=model_dir.name):
-                    key = (table.A, table.Z)
-                    if key in tables:
-                        raise ValueError(
-                            f"Duplicate density table for A={table.A}, Z={table.Z} "
-                            f"in model {model_dir.name!r}."
-                        )
-                    tables[key] = table
-
-            density_db[model_dir.name] = tables
+        for path in sorted(__DENSITY_DIR__.glob("*.npz")):
+            model = path.stem
+            __DENSITY_MODELS__.append(model)
+            density_db[model] = _load_density_npz(path, model=model)
 
         __DENSITY_DB__ = density_db
 
@@ -516,6 +645,7 @@ def _model_density_tables(model: str) -> dict[tuple[int, int], DensityTable]:
 
 __all__ = [
     "DEFAULT_DENSITY_MODEL",
+    "DENSITY_NPZ_FORMAT_VERSION",
     "DensityResult",
     "DensityTable",
     "TwoParameterFermiDensity",
@@ -528,5 +658,7 @@ __all__ = [
     "matter_density",
     "neutron_density",
     "proton_density",
+    "read_rad_file",
     "two_parameter_fermi",
+    "write_density_npz",
 ]
