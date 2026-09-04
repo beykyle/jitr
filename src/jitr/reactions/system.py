@@ -174,10 +174,13 @@ class ProjectileTargetSystem:
             # The solver works in the dimensionless coordinate rho = k r, so the
             # energy that scales the interaction must be hbar^2 k^2 / (2 mu),
             # not Ecm. For classical kinematics these coincide; for the
-            # semi-relativistic (Ingemarsson) prescription they differ at the
-            # per-mille level, and using Ecm makes the interior Coulomb potential
-            # inconsistent with the asymptotic Sommerfeld parameter, producing a
-            # spurious channel-radius dependence of the S-matrix.
+            # semi-relativistic (Ingemarsson) prescription
+            # hbar^2 k^2 / (2 mu) = Ecm (Ecm + 2 m_p) / (2 (Ecm + m_p)), which
+            # differs from Ecm at the percent level, growing with energy
+            # (about 2% at 35 MeV and 8% at 200 MeV for protons). Using Ecm
+            # makes the interior Coulomb potential inconsistent with the
+            # asymptotic Sommerfeld parameter, producing a spurious
+            # channel-radius dependence of the S-matrix.
             E_array = HBARC**2 * k_array**2 / (2 * mu_array)
             channels.append(
                 Channels(

@@ -10,6 +10,8 @@ import periodictable
 from ..utils import constants, mass
 from ..utils.kinematics import (
     ChannelKinematics,
+    classical_kinematics,
+    classical_kinematics_cm,
     cm_to_lab_frame,
     lab_to_cm_frame,
     semi_relativistic_kinematics,
@@ -537,42 +539,54 @@ class Reaction:
             )
             self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
 
-    def kinematics(self, Elab: float) -> ChannelKinematics:
+    def kinematics(self, Elab: float, relativistic: bool = True) -> ChannelKinematics:
         """
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
 
         Args:
             Elab: The laboratory energy of the projectile.
+            relativistic: If True (default), use the semi-relativistic
+                (Ingemarsson) prescription; otherwise use non-relativistic
+                kinematics.
 
         Returns:
             The entrance channel kinematics.
         """
-        return semi_relativistic_kinematics(
+        kinematics = (
+            semi_relativistic_kinematics if relativistic else classical_kinematics
+        )
+        return kinematics(
             self.target.m0,
             self.projectile.m0,
             Elab,
             Zz=self.target.Z * self.projectile.Z,
         )
 
-    def kinematics_cm(self, Ecm: float) -> ChannelKinematics:
+    def kinematics_cm(self, Ecm: float, relativistic: bool = True) -> ChannelKinematics:
         """
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
 
         Args:
             Ecm: The kinetic energy in the center-of-mass frame.
+            relativistic: If True (default), use the semi-relativistic
+                (Ingemarsson) prescription; otherwise use non-relativistic
+                kinematics.
 
         Returns:
             The entrance channel kinematics.
         """
-        Elab = Ecm * (self.target.m0 + self.projectile.m0) / self.target.m0
-        result = semi_relativistic_kinematics(
-            self.target.m0,
-            self.projectile.m0,
-            Elab,
-            Zz=self.target.Z * self.projectile.Z,
-        )
+        Zz = self.target.Z * self.projectile.Z
+        if relativistic:
+            Elab = Ecm * (self.target.m0 + self.projectile.m0) / self.target.m0
+            result = semi_relativistic_kinematics(
+                self.target.m0, self.projectile.m0, Elab, Zz=Zz
+            )
+        else:
+            result = classical_kinematics_cm(
+                self.target.m0, self.projectile.m0, Ecm, Zz=Zz
+            )
         assert np.isclose(Ecm, result.Ecm)
 
         return result
@@ -582,6 +596,7 @@ class Reaction:
         entrance: ChannelKinematics,
         residual_excitation_energy: float = 0,
         product_excitation_energy: float = 0,
+        relativistic: bool = True,
     ) -> ChannelKinematics:
         """
         Exit channel kinematics given entrance channel kinematics and
@@ -593,6 +608,9 @@ class Reaction:
                 nucleus.
             product_excitation_energy: The excitation energy of the product
                 nucleus.
+            relativistic: If True (default), use the semi-relativistic
+                (Ingemarsson) prescription; otherwise use non-relativistic
+                kinematics.
 
         Returns:
             The kinematics in the exit channel.
@@ -615,7 +633,10 @@ class Reaction:
             - product_excitation_energy
         )
         Elab = (self.residual.m0 + self.product.m0) / self.residual.m0 * Ecm
-        return semi_relativistic_kinematics(
+        kinematics = (
+            semi_relativistic_kinematics if relativistic else classical_kinematics
+        )
+        return kinematics(
             self.residual.m0 + residual_excitation_energy,
             self.product.m0,
             Elab,
