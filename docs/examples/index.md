@@ -32,9 +32,9 @@
 - [Quickstart](/examples/notebooks/quickstart)
   compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
 - [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
-  extends the quickstart to a full Bayesian calibration for $\alpha$ + $^{40,44,48}$Ca, using a simple error model, comparing the posterior across isotopes and checking the posterior predictive against the data.
+  extends the quickstart to a full Bayesian calibration which reveals shell effects in $\alpha$ + $^{40,44,48}$Ca. Includes construction of an error model which is jointly inferred with the optical model parameters, and checking the posterior predictive against the data using empirical coverages.
 - [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity)
-  extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, exploring the discrete parameter ambiguity in the posterior in a Bayesian context, and checking the posterior predictive against the data.
+  extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, providing a Bayesian perspective of the famous discrete parameter ambiguity in the binding of the interaction between nuclei and light ions.
 
 
 
