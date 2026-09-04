@@ -112,9 +112,9 @@ uv run --group examples pytest --nbval-lax examples/notebooks/
 ```
 
 
-## examples and tutorials
+## Tutorials
 
-Various example scripts live in [`examples/`](https://github.com/beykyle/jitr/tree/main/examples). Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them in a JupyterLab server with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
+Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
 
 There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
 
@@ -136,9 +136,7 @@ uv run --with jupyter jupyter lab
 
 In JupyterLab, select the `Python (jitr)` kernel. Notebooks using this kernel will run against the uv-managed `.venv/` environment.
 
-Then, you can run the notebooks. In particular, check out:
-- [`examples/notebooks/reaction.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/reaction.ipynb) which demonstrates the use of the `reactions` submodule
-- [`examples/notebooks/builtin_omps_uq.ipynb`](https://github.com/beykyle/jitr/tree/main/examples/notebooks/builtin_omps_uq.ipynb) to see how to use the built-in uncertainty-quantified optical model potentials to propagate uncertainties into reaction observables
+Then, you can run the notebooks.
 
 ## BAND
 
