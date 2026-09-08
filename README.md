@@ -21,6 +21,12 @@ Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
 The documentation site is available at <https://beykyle.github.io/jitr/>.
 
+Checkout the [getting started page ](https://beykyle.github.io/jitr/getting-started.html) for a overview of the package and quickstart tutorials.
+
+Checkout the [turorials and examples page](https://beykyle.github.io/jitr/examples/index.html) for a full list of example notebooks and demos.
+
+### building the docs locally
+
 To build the docs locally:
 
 ```bash
