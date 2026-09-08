@@ -58,7 +58,7 @@ jobs:
       - name: Run notebook tests
         env:
           JITR_QUICK: "1"  # cut-down version of the calibration notebooks
-        run: uv run --group examples pytest --nbval-lax --current-env examples/notebooks/
+        run: uv run --group examples pytest --nbval-lax --nbval-current-env examples/notebooks/
 
       - name: Build package
         run: uv build

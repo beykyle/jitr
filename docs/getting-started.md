@@ -33,9 +33,35 @@ If you use `uv`, add it to an existing project with:
 uv add jitr
 ```
 
+or install it into the current environment with:
+
+```bash
+uv pip install jitr
+```
+
+To check the installed version:
+
+```bash
+python -c "import jitr; print(jitr.__version__)"
+```
+
 ## Examples and tutorials
 
-Browse the curated [example notebooks](examples/index.md).
+Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md). The best way to run them is to clone the repo and open them with the default `Python 3 (ipykernel)` kernel, which lives inside the uv-managed environment. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected. No kernel registration is needed.
+
+There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
+
+```
+uv sync --group examples
+```
+
+and start a JupyterLab server from the same directory:
+
+```
+uv run --group examples jupyter lab
+```
+
+Then, you can run the notebooks.
 
 ### Quick start
 
@@ -56,7 +82,7 @@ For development setup, test commands, and documentation builds, see
 
 ## BAND
 
-`jitr` is one of the siftware packages included in the [BAND Framework](https://bandframework.github.io/).
+`jitr` is one of the software packages included in the [BAND Framework](https://bandframework.github.io/).
 
 ## Citations
 

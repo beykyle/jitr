@@ -10,30 +10,8 @@ regression-tests
 
 ## Set up the development environment
 
-Clone the repository and install the full development environment:
-
-```bash
-git clone https://github.com/beykyle/jitr.git
-cd jitr
-uv sync --all-groups
-```
-
-This creates a local `.venv/` environment and installs the package in
-editable mode together with the development, lint, docs, and example
-dependencies defined in `pyproject.toml`.
-
-You can run commands through `uv`:
-
-```bash
-uv run python
-uv run pytest
-```
-
-Or activate the environment manually:
-
-```bash
-source .venv/bin/activate
-```
+Clone the repository and install all dependency groups as described in
+[Development environment](advanced-users.md#development-environment).
 
 ## Run the unit tests
 
@@ -43,10 +21,12 @@ uv run pytest
 
 ## Run the notebook tests
 
-The example notebooks are tested with `pytest` and `nbval`:
+The example notebooks are tested with `pytest` and `nbval`. The
+`--nbval-current-env` flag makes nbval ignore the kernel recorded in each
+notebook and run the cells in the uv-managed environment, the same way CI does:
 
 ```bash
-uv run --group examples pytest --nbval-lax examples/notebooks/
+uv run --group examples pytest --nbval-lax --nbval-current-env examples/notebooks/
 ```
 
 ## Run the regression tests
@@ -62,16 +42,5 @@ listed in [Example notebooks](examples/index.md).
 
 ## Run the notebooks locally
 
-The notebooks live in
-[`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks).
-To run them locally, install the example dependencies and register the
-project environment as a Jupyter kernel:
-
-```bash
-uv sync --group examples
-uv run python -m ipykernel install --user --name jitr --display-name "Python (jitr)"
-uv run --with jupyter jupyter lab
-```
-
-In JupyterLab, select the `Python (jitr)` kernel so the notebooks run
-against the `uv`-managed environment.
+See [Examples and tutorials](getting-started.md#examples-and-tutorials) for
+how to launch JupyterLab against the uv-managed environment.
