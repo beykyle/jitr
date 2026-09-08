@@ -114,7 +114,7 @@ uv run --group examples pytest --nbval-lax examples/notebooks/
 
 ## Tutorials
 
-Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
+Tutorials live in [`examples/notebooks/`](./examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
 
 There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
 
@@ -122,19 +122,11 @@ There are some additional requirements to run the examples. Once you've cloned t
 uv sync --group examples
 ```
 
-Then, register the project environment as a Jupyter kernel:
-
-```
-uv run python -m ipykernel install --user --name jitr --display-name "Python (jitr)"
-```
-
 and start a Jupyter-lab server:
 
 ```
 uv run --with jupyter jupyter lab
 ```
-
-In JupyterLab, select the `Python (jitr)` kernel. Notebooks using this kernel will run against the uv-managed `.venv/` environment.
 
 Then, you can run the notebooks.
 

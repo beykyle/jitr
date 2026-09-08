@@ -35,6 +35,22 @@ uv add jitr
 
 ## Examples and tutorials
 
+Tutorials live in [`examples/notebooks/`](./examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
+
+There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
+
+```
+uv sync --group examples
+```
+
+and start a Jupyter-lab server:
+
+```
+uv run --with jupyter jupyter lab
+```
+
+Then, you can run the notebooks.
+
 Browse the curated [example notebooks](examples/index.md).
 
 ### Quick start
