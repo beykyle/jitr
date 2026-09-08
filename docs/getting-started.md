@@ -47,21 +47,26 @@ python -c "import jitr; print(jitr.__version__)"
 
 ## Examples and tutorials
 
-Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md). The best way to run them is to clone the repo and open them with the default `Python 3 (ipykernel)` kernel, which lives inside the uv-managed environment. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected. No kernel registration is needed.
+Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md). First, clone the repository and navigate to the project directory:
 
-There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
+```
+git clone https://github.com/beykyle/jitr.git
+cd jitr
+```
+
+Before you can run the notebooks, there are some additional requirements which need to be installed into the environment. They live in the `examples` dependency group. To install them, from the main project directory, run:
 
 ```
 uv sync --group examples
 ```
 
-and start a JupyterLab server from the same directory:
+Then, you can launch `jupyter` inside the uv-managed environment. For example, to spin up a JupyterLab server:
 
 ```
 uv run --group examples jupyter lab
 ```
 
-Then, you can run the notebooks.
+Then, you can run the notebooks in-browser. See the [Advanced users and developers](advanced-users.md) page for more information about setting up a local editable installation of `jitr`, about [`uv`](https://docs.astral.sh/uv/), and other environment management related things.
 
 ### Quick start
 
