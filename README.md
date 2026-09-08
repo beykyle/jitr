@@ -21,127 +21,33 @@ Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
 The documentation site is available at <https://beykyle.github.io/jitr/>.
 
-Checkout the [getting started page ](https://beykyle.github.io/jitr/getting-started.html) for a overview of the package and quickstart tutorials.
+Check out the [getting started page](https://beykyle.github.io/jitr/getting-started.html) for an overview of the package and quickstart tutorials.
 
-Checkout the [turorials and examples page](https://beykyle.github.io/jitr/examples/index.html) for a full list of example notebooks and demos.
+Check out the [tutorials and examples page](https://beykyle.github.io/jitr/examples/index.html) for a full list of example notebooks and demos.
 
-### building the docs locally
-
-To build the docs locally:
-
-```bash
-uv run --group docs sphinx-build -W -b html docs docs/_build/html
-```
-
-## Installation and Development
-
-### For users
-
-Install the latest released version of `jitr` from PyPI:
+## Installation
 
 ```bash
 pip install jitr
 ```
 
-Then use it in Python:
+For `uv` users and other install options, see [Installation](https://beykyle.github.io/jitr/getting-started.html#installation).
 
-```python
-import jitr
-```
+## Development and testing
 
-To check the installed version:
-
-```bash
-python -c "import jitr; print(jitr.__version__)"
-```
-
-If you use `uv`, you can add `jitr` to a uv-managed project with:
-
-```bash
-uv add jitr
-```
-
-Or install it into the current environment with:
-
-```bash
-uv pip install jitr
-```
-
-### For developers
-
-This repository uses [`uv`](https://docs.astral.sh/uv/) for Python packaging, dependency management, virtual environments, and locking.
-
-#### Clone the repository
-
-```bash
-git clone https://github.com/beykyle/jitr.git
-cd jitr
-```
-
-#### Create and sync the development environment
-
-Install all development dependencies:
-
-```bash
-uv sync --all-groups
-```
-
-This creates a local `.venv/` environment and installs the package in editable mode along with the development and example dependencies defined in `pyproject.toml`.
-
-You can run commands through `uv`:
-
-```bash
-uv run python
-uv run pytest
-```
-
-Or activate the environment manually:
-
-```bash
-source .venv/bin/activate
-```
-
-## Testing
-
-### Run the unit tests
-
-```bash
-uv run pytest
-```
-
-### Run the notebook tests
-
-The example notebooks are tested with `pytest` and `nbval`:
-
-```bash
-uv run --group examples pytest --nbval-lax examples/notebooks/
-```
-
+- [Development environment](https://beykyle.github.io/jitr/advanced-users.html#development-environment): cloning the repo, syncing the uv-managed environment, and linting.
+- [Tests](https://beykyle.github.io/jitr/tests.html): running the unit, notebook, and regression tests.
+- [Building the docs](https://beykyle.github.io/jitr/advanced-users.html#building-the-docs): building this documentation site locally.
 
 ## Tutorials
 
-Tutorials live in [`examples/notebooks/`](./examples/notebooks). Currently, the best way to run the notebooks is by cloning the repo and running them with the uv-managed environment as the kernel. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected.
-
-There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
-
-```
-uv sync --group examples
-```
-
-and start a Jupyter-lab server:
-
-```
-uv run --with jupyter jupyter lab
-```
-
-Then, you can run the notebooks.
+Tutorials live in [`examples/notebooks/`](./examples/notebooks). See [Examples and tutorials](https://beykyle.github.io/jitr/getting-started.html#examples-and-tutorials) for how to run them locally, and the [examples page](https://beykyle.github.io/jitr/examples/index.html) for an annotated list.
 
 ## BAND
 
-This package is part of the [BAND Framework](https://github.com/bandframework/)
+This package is part of the [BAND Framework](https://bandframework.github.io/).
 
-
-## citations
+## Citations
 
 Please consider citing both this package and the BAND Framework if you use this code in your research. The BibTeX entries are:
 

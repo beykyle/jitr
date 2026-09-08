@@ -48,6 +48,7 @@
   walks through posterior sampling, solver setup, and interval construction 
   for several of the built-in uncertainty quantified optical potentials in `jitr`.
 - [Tabulated neutron and proton densities](/examples/notebooks/tabulated_density_demo)
+  shows how to grab the tabulated nuclear densities in `jitr`.
 - [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
   converts the original JLM example into a notebook and walks through folded
   microscopic potentials, Lane trends, and tabulated self-energy usage.
@@ -57,7 +58,6 @@
   shows how to compute and visualize volume integrals for the built-in global optical potentials in `jitr`.
 - [Channel-radius convergence study for elastic scattering](/examples/notebooks/convergence_channel_radius)
   shows how to check for numerical convergence in realistic calculations.
-  shows how to grab the tabulated nuclear densities in `jitr`.
 - [Dispersive optical model](/examples/notebooks/dispersive_optical_model)
   shows how to use the built-in dispersive optical model in `jitr`
 - [UQ demo with Koning-Delaroche potential](/examples/notebooks/kduq_uq_demo) 
