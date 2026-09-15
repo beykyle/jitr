@@ -111,16 +111,35 @@ class Solver:
         mu: npt.ArrayLike | None = None,
         coupled: bool = True,
     ) -> ComplexArray | list[ComplexArray]:
-        """Precompute the free Hamiltonian matrix."""
-        l_array = np.asarray(l)
-        free_matrix = self.kinetic_matrix(a, l_array, mu) - self.energy_matrix(
-            a, l_array, E
-        )
+        """Precompute the free Hamiltonian matrix.
 
+        With ``coupled=True`` the full block matrix over every channel in ``l`` is
+        returned.  With ``coupled=False`` the channels are independent and one
+        ``nbasis x nbasis`` block per channel is returned; the blocks are built
+        directly rather than sliced out of the coupled matrix, whose
+        ``(nbasis * n_channels)**2`` elements would otherwise stay alive as the base
+        of every view.  For a partial-wave sum over ``lmax + 1`` uncoupled channels
+        this is an ``lmax``-fold saving in memory per workspace.
+        """
+        l_array = np.atleast_1d(np.asarray(l))
         if coupled:
-            return free_matrix
+            return self.kinetic_matrix(a, l_array, mu) - self.energy_matrix(
+                a, l_array, E
+            )
+
+        n_channels = int(l_array.size)
+        mu_array = np.ones(n_channels, dtype=np.float64)
+        if mu is not None:
+            mu_array = np.asarray(mu, dtype=np.float64)
+        energy_scale = np.ones(n_channels, dtype=np.float64)
+        if E is not None:
+            energy_scale = np.asarray(E, dtype=np.float64)
+        overlap = self.kernel.overlap
         return [
-            self.get_channel_block(free_matrix, i) for i in range(int(np.size(l_array)))
+            self.kernel.quadrature.kinetic_matrix(a, int(l_array[i]))
+            * (mu_array[0] / mu_array[i])
+            - overlap * (energy_scale[i] / energy_scale[0])
+            for i in range(n_channels)
         ]
 
     def interaction_matrix(

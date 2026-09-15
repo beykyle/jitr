@@ -217,13 +217,48 @@ class LagrangeLegendreQuadrature:
                 / a**2
             )
 
+    def _radial_kinetic_matrix(self) -> FloatArray:
+        r"""
+        Return the ``l``-independent part of the kinetic + Bloch operator at
+        ``a = 1`` (Eqs. 3.128-3.129 in [Baye, 2015]), computed once and cached.
+        """
+        cached = getattr(self, "_radial_kinetic_cache", None)
+        if cached is not None:
+            return cached
+        x = np.asarray(self.abscissa, dtype=np.float64)
+        N = self.nbasis
+        xn, xm = np.meshgrid(x, x, indexing="ij")
+        n, m = np.meshgrid(
+            np.arange(1, N + 1), np.arange(1, N + 1), indexing="ij"
+        )
+        with np.errstate(divide="ignore", invalid="ignore"):
+            F = (
+                (-1.0) ** (n + m)
+                * (
+                    (N**2 + N + 1.0)
+                    + (xn + xm - 2 * xn * xm) / (xn - xm) ** 2
+                    - 1.0 / (1.0 - xn)
+                    - 1.0 / (1.0 - xm)
+                )
+                / np.sqrt(xn * xm * (1.0 - xn) * (1.0 - xm))
+            )
+        F[np.diag_indices(N)] = (
+            (4 * N**2 + 4 * N + 3) * x * (1 - x) - 6 * x + 1
+        ) / (3 * x**2 * (1 - x) ** 2)
+        self._radial_kinetic_cache = F
+        return F
+
     def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
         r"""
         Return the kinetic operator matrix in the Lagrange Legendre basis.
+
+        The radial part does not depend on ``l`` and the centrifugal part is
+        diagonal, so the matrix is the cached radial part scaled by ``1/a**2``
+        plus ``l(l+1)/(a x_n)**2`` on the diagonal; identical to assembling it
+        from :meth:`kinetic_operator_element`, without the ``nbasis**2`` Python
+        calls per partial wave.
         """
-        F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
-        for n in range(1, self.nbasis + 1):
-            for m in range(n, self.nbasis + 1):
-                F[n - 1, m - 1] = self.kinetic_operator_element(n, m, a, l)
-        F = F + np.triu(F, k=1).T
+        F = np.array(self._radial_kinetic_matrix() / a**2, dtype=np.complex128)
+        x = np.asarray(self.abscissa, dtype=np.float64)
+        F[np.diag_indices(self.nbasis)] += l * (l + 1) / (a * x) ** 2
         return F
