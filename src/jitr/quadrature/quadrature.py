@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Any, TypeAlias
 
 import numpy as np
@@ -217,20 +218,16 @@ class LagrangeLegendreQuadrature:
                 / a**2
             )
 
+    @cached_property
     def _radial_kinetic_matrix(self) -> FloatArray:
         r"""
-        Return the ``l``-independent part of the kinetic + Bloch operator at
-        ``a = 1`` (Eqs. 3.128-3.129 in [Baye, 2015]), computed once and cached.
+        The ``l``-independent part of the kinetic + Bloch operator at ``a = 1``
+        (Eqs. 3.128-3.129 in [Baye, 2015]), computed once per quadrature.
         """
-        cached = getattr(self, "_radial_kinetic_cache", None)
-        if cached is not None:
-            return cached
         x = np.asarray(self.abscissa, dtype=np.float64)
         N = self.nbasis
         xn, xm = np.meshgrid(x, x, indexing="ij")
-        n, m = np.meshgrid(
-            np.arange(1, N + 1), np.arange(1, N + 1), indexing="ij"
-        )
+        n, m = np.meshgrid(np.arange(1, N + 1), np.arange(1, N + 1), indexing="ij")
         with np.errstate(divide="ignore", invalid="ignore"):
             F = (
                 (-1.0) ** (n + m)
@@ -242,10 +239,9 @@ class LagrangeLegendreQuadrature:
                 )
                 / np.sqrt(xn * xm * (1.0 - xn) * (1.0 - xm))
             )
-        F[np.diag_indices(N)] = (
-            (4 * N**2 + 4 * N + 3) * x * (1 - x) - 6 * x + 1
-        ) / (3 * x**2 * (1 - x) ** 2)
-        self._radial_kinetic_cache = F
+        F[np.diag_indices(N)] = ((4 * N**2 + 4 * N + 3) * x * (1 - x) - 6 * x + 1) / (
+            3 * x**2 * (1 - x) ** 2
+        )
         return F
 
     def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
@@ -258,7 +254,7 @@ class LagrangeLegendreQuadrature:
         from :meth:`kinetic_operator_element`, without the ``nbasis**2`` Python
         calls per partial wave.
         """
-        F = np.array(self._radial_kinetic_matrix() / a**2, dtype=np.complex128)
+        F = np.array(self._radial_kinetic_matrix / a**2, dtype=np.complex128)
         x = np.asarray(self.abscissa, dtype=np.float64)
         F[np.diag_indices(self.nbasis)] += l * (l + 1) / (a * x) ** 2
         return F

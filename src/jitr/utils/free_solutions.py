@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import NamedTuple
 
 import numpy as np
 import scipy.special as sc
 from mpmath import coulombf, coulombg
 from numba import njit
-import numpy.typing as npt
 
-FloatArray = npt.NDArray[np.float64]
-ComplexArray = npt.NDArray[np.complex128]
+from .._types import ComplexArray, FloatArray
 
 
 @njit
@@ -113,8 +112,17 @@ def H_minus_prime(
     )
 
 
+class CoulombHankelTable(NamedTuple):
+    """Coulomb-Hankel functions and their derivatives for ``l = 0..lmax``."""
+
+    Hp: ComplexArray
+    Hm: ComplexArray
+    Hpp: ComplexArray
+    Hmp: ComplexArray
+
+
 def _riccati_bessel_table(rho: float, lmax: int) -> tuple[FloatArray, FloatArray]:
-    """``F_l = rho j_l(rho)`` and ``G_l = -rho y_l(rho)`` for ``l = 0..lmax`` (eta = 0)."""
+    """Return ``F_l = rho j_l(rho)`` and ``G_l = -rho y_l(rho)`` for ``l = 0..lmax``."""
     ls = np.arange(lmax + 1)
     return rho * sc.spherical_jn(ls, rho), -rho * sc.spherical_yn(ls, rho)
 
@@ -122,16 +130,17 @@ def _riccati_bessel_table(rho: float, lmax: int) -> tuple[FloatArray, FloatArray
 def _coulomb_recurrence_table(
     rho: float, eta: float, lmax: int
 ) -> tuple[FloatArray, FloatArray]:
-    """``F_l`` and ``G_l`` for ``l = 0..lmax`` from the three-term recurrence
-    (Abramowitz & Stegun 14.2.3), anchored on ``mpmath`` at ``l = 0, 1``.
+    """Return ``F_l`` and ``G_l`` for ``l = 0..lmax`` from the three-term recurrence.
 
-    ``G`` is recurred upward (stable: it is the dominant solution above the turning
-    point).  ``F`` is recurred downward from ``l_top > max(lmax, rho)`` with an
-    arbitrary start and normalised to the ``mpmath`` value at ``l = 0`` (Miller's
-    algorithm; stable because ``F`` is the minimal solution).
+    The recurrence is Abramowitz & Stegun 14.2.3, anchored on :mod:`mpmath` at
+    ``l = 0, 1`` (so ``lmax >= 1``).  ``G`` is recurred upward (stable: it is the
+    dominant solution above the turning point).  ``F`` is recurred downward from
+    ``l_top > max(lmax, rho)`` with an arbitrary start and normalised to the
+    :mod:`mpmath` value at ``l = 0`` (Miller's algorithm; stable because ``F`` is
+    the minimal solution).
     """
-    ls = np.arange(0, lmax + 2, dtype=np.float64)  # one extra l for the derivatives
-    n = ls.size
+    assert lmax >= 1
+    n = lmax + 1
 
     def a(L):  # coefficient of u_{L+1}
         return L * np.sqrt((L + 1) ** 2 + eta**2)
@@ -142,11 +151,10 @@ def _coulomb_recurrence_table(
     def c(L):  # coefficient of u_{L-1}
         return (L + 1) * np.sqrt(L**2 + eta**2)
 
-    # G upward
+    # G upward from the mpmath anchors
     G = np.empty(n)
     G[0] = float(coulombg(0, eta, rho))
-    if n > 1:
-        G[1] = float(coulombg(1, eta, rho))
+    G[1] = float(coulombg(1, eta, rho))
     for L in range(1, n - 1):
         G[L + 1] = (b(L) * G[L] - c(L) * G[L - 1]) / a(L)
 
@@ -167,9 +175,11 @@ def _coulomb_recurrence_table(
     return F, G
 
 
-def _derivative_table(u: np.ndarray, rho: float, eta: float) -> np.ndarray:
-    """``u'_l`` for ``l = 0..len(u)-2`` from ``u_l`` and ``u_{l+1}``
-    (the relation :func:`coulomb_func_deriv` uses)."""
+def _derivative_table(u: FloatArray, rho: float, eta: float) -> FloatArray:
+    """Return ``u'_l`` for ``l = 0..len(u) - 2`` from ``u_l`` and ``u_{l+1}``.
+
+    This is the recurrence :func:`coulomb_func_deriv` uses, applied to a table.
+    """
     L = np.arange(u.size - 1, dtype=np.float64)
     return ((L + 1) / rho + eta / (L + 1)) * u[:-1] - np.sqrt(
         1 + eta**2 / (L + 1) ** 2
@@ -178,31 +188,32 @@ def _derivative_table(u: np.ndarray, rho: float, eta: float) -> np.ndarray:
 
 def coulomb_hankel_table(
     rho: float, eta: float, lmax: int, wronskian_tol: float = 1e-8
-) -> tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray]:
-    """``(H+, H-, H+', H-')`` at ``rho`` for every ``l = 0..lmax`` at once.
+) -> CoulombHankelTable:
+    """Return ``H+``, ``H-``, ``H+'`` and ``H-'`` at ``rho`` for ``l = 0..lmax``.
 
     Equivalent to :func:`H_plus`, :func:`H_minus`, :func:`H_plus_prime` and
     :func:`H_minus_prime` per ``l``, but ``F`` and ``G`` come from the three-term
-    recurrence (two ``mpmath`` evaluations per table instead of ~six per ``l``) and
-    the derivatives from the exact recurrence.  Every ``l`` is verified against the
-    Wronskian ``F' G - F G' = 1``; any ``l`` failing ``wronskian_tol`` is recomputed
-    with ``mpmath`` directly.
+    recurrence (two :mod:`mpmath` evaluations per table instead of ~six per
+    ``l``) and the derivatives from the exact recurrence.  Every ``l`` is
+    verified against the Wronskian ``F' G - F G' = 1``; any ``l`` failing
+    ``wronskian_tol`` is recomputed with :mod:`mpmath` directly.
     """
+    # one extra l for the derivatives
     if eta == 0.0:
         F, G = _riccati_bessel_table(rho, lmax + 1)
     else:
-        F, G = _coulomb_recurrence_table(rho, eta, lmax)
+        F, G = _coulomb_recurrence_table(rho, eta, lmax + 1)
     Fp, Gp = _derivative_table(F, rho, eta), _derivative_table(G, rho, eta)
     F, G = F[: lmax + 1], G[: lmax + 1]
     bad = np.flatnonzero(np.abs(Fp * G - F * Gp - 1.0) > wronskian_tol)
-    for l in bad:
-        l = int(l)
+    for l in bad.tolist():
         F[l] = CoulombAsymptotics.F(rho, l, eta).real
         G[l] = CoulombAsymptotics.G(rho, l, eta).real
         Fp[l] = coulomb_func_deriv(CoulombAsymptotics.F, rho, l, eta).real
         Gp[l] = coulomb_func_deriv(CoulombAsymptotics.G, rho, l, eta).real
-    Hp = (G + 1j * F).astype(np.complex128)
-    Hm = (G - 1j * F).astype(np.complex128)
-    Hpp = (Gp + 1j * Fp).astype(np.complex128)
-    Hmp = (Gp - 1j * Fp).astype(np.complex128)
-    return Hp, Hm, Hpp, Hmp
+    return CoulombHankelTable(
+        Hp=(G + 1j * F).astype(np.complex128),
+        Hm=(G - 1j * F).astype(np.complex128),
+        Hpp=(Gp + 1j * Fp).astype(np.complex128),
+        Hmp=(Gp - 1j * Fp).astype(np.complex128),
+    )

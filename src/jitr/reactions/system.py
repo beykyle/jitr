@@ -166,7 +166,7 @@ class ProjectileTargetSystem:
         """Build channel and asymptotic objects for every partial wave."""
         channels: list[Channels] = []
         asymptotics: list[Asymptotics] = []
-        # the Coulomb-Hankel functions and derivatives for every partial wave at once,
+        # Coulomb-Hankel functions and derivatives for all partial waves, tabulated
         # once per distinct Sommerfeld parameter
         tables = {
             float(e): coulomb_hankel_table(self.channel_radius, float(e), self.lmax)
@@ -174,7 +174,7 @@ class ProjectileTargetSystem:
         }
         for l in range(0, self.lmax + 1):
             num_channels = self.couplings[l].shape[0]
-            eta_array = uniform_array_from_scalar_or_array(eta, num_channels).astype(np.float64)
+            eta_array = uniform_array_from_scalar_or_array(eta, num_channels)
             k_array = uniform_array_from_scalar_or_array(k, num_channels)
             mu_array = uniform_array_from_scalar_or_array(mu, num_channels)
             # The solver works in the dimensionless coordinate rho = k r, so the
@@ -201,10 +201,10 @@ class ProjectileTargetSystem:
             )
             asymptotics.append(
                 Asymptotics(
-                    Hp=np.array([tables[e][0][l] for e in eta_array], dtype=np.complex128),
-                    Hm=np.array([tables[e][1][l] for e in eta_array], dtype=np.complex128),
-                    Hpp=np.array([tables[e][2][l] for e in eta_array], dtype=np.complex128),
-                    Hmp=np.array([tables[e][3][l] for e in eta_array], dtype=np.complex128),
+                    Hp=np.array([tables[e].Hp[l] for e in eta_array]),
+                    Hm=np.array([tables[e].Hm[l] for e in eta_array]),
+                    Hpp=np.array([tables[e].Hpp[l] for e in eta_array]),
+                    Hmp=np.array([tables[e].Hmp[l] for e in eta_array]),
                 )
             )
 

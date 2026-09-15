@@ -41,10 +41,7 @@ def test_uncoupled_free_matrix_blocks_match_coupled_matrix():
             assert b.shape == (nbasis, nbasis)
             # a block owns its memory (nbasis**2), not the coupled matrix
             assert b.nbytes == nbasis * nbasis * 16
-            base = b.base
-            while base is not None and hasattr(base, "shape"):
-                assert base.size <= nbasis * nbasis
-                base = getattr(base, "base", None)
+            assert not np.shares_memory(b, coupled)
 
 
 def test_uncoupled_free_matrix_defaults_are_unit_energy_and_mass():
@@ -52,5 +49,5 @@ def test_uncoupled_free_matrix_defaults_are_unit_energy_and_mass():
     l = np.array([0, 1, 2])
     default = solver.free_matrix(4.0, l, coupled=False)
     explicit = solver.free_matrix(4.0, l, E=np.ones(3), mu=np.ones(3), coupled=False)
-    for d, e in zip(default, explicit):
+    for d, e in zip(default, explicit, strict=True):
         np.testing.assert_array_equal(d, e)

@@ -16,6 +16,13 @@ ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
 
 
+def _channel_scale(values: npt.ArrayLike | None, n_channels: int) -> FloatArray:
+    """Return per-channel scale factors, defaulting to ones when ``values`` is None."""
+    if values is None:
+        return np.ones(n_channels, dtype=np.float64)
+    return np.asarray(values, dtype=np.float64)
+
+
 class Solver:
     """Solve coupled-channel Schrödinger equations with the R-matrix method."""
 
@@ -61,12 +68,9 @@ class Solver:
     ) -> ComplexArray:
         """Assemble the full kinetic-energy matrix."""
         l_array = np.asarray(l)
-        mu_array = np.ones(l_array.shape, dtype=np.float64)
-        if mu is not None:
-            mu_array = np.asarray(mu, dtype=np.float64)
-
         n_basis = self.kernel.quadrature.nbasis
         n_channels = int(np.size(l_array))
+        mu_array = _channel_scale(mu, n_channels)
         size = n_basis * n_channels
         kinetic = np.zeros((size, size), dtype=np.complex128)
         for i in range(n_channels):
@@ -88,12 +92,9 @@ class Solver:
     ) -> ComplexArray:
         """Assemble the full overlap-weighted energy matrix."""
         l_array = np.asarray(l)
-        energy_scale = np.ones(l_array.shape, dtype=np.float64)
-        if E is not None:
-            energy_scale = np.asarray(E, dtype=np.float64)
-
         n_basis = self.kernel.quadrature.nbasis
         n_channels = int(np.size(l_array))
+        energy_scale = _channel_scale(E, n_channels)
         size = n_basis * n_channels
         energy = np.zeros((size, size), dtype=np.complex128)
         for i in range(n_channels):
@@ -113,13 +114,11 @@ class Solver:
     ) -> ComplexArray | list[ComplexArray]:
         """Precompute the free Hamiltonian matrix.
 
-        With ``coupled=True`` the full block matrix over every channel in ``l`` is
-        returned.  With ``coupled=False`` the channels are independent and one
-        ``nbasis x nbasis`` block per channel is returned; the blocks are built
-        directly rather than sliced out of the coupled matrix, whose
-        ``(nbasis * n_channels)**2`` elements would otherwise stay alive as the base
-        of every view.  For a partial-wave sum over ``lmax + 1`` uncoupled channels
-        this is an ``lmax``-fold saving in memory per workspace.
+        With ``coupled=True`` return the full block matrix over every channel in
+        ``l``.  With ``coupled=False`` the channels are independent, so return one
+        ``nbasis x nbasis`` block per channel, each built directly rather than
+        sliced out of the coupled matrix (which would keep all
+        ``(nbasis * n_channels)**2`` elements alive behind every block).
         """
         l_array = np.atleast_1d(np.asarray(l))
         if coupled:
@@ -127,13 +126,9 @@ class Solver:
                 a, l_array, E
             )
 
-        n_channels = int(l_array.size)
-        mu_array = np.ones(n_channels, dtype=np.float64)
-        if mu is not None:
-            mu_array = np.asarray(mu, dtype=np.float64)
-        energy_scale = np.ones(n_channels, dtype=np.float64)
-        if E is not None:
-            energy_scale = np.asarray(E, dtype=np.float64)
+        n_channels = l_array.size
+        mu_array = _channel_scale(mu, n_channels)
+        energy_scale = _channel_scale(E, n_channels)
         overlap = self.kernel.overlap
         return [
             self.kernel.quadrature.kinetic_matrix(a, int(l_array[i]))

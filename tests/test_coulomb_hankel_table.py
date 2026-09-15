@@ -18,11 +18,17 @@ from jitr.utils.free_solutions import (
 @pytest.mark.parametrize("rho", [4.0, 16.1, 37.3, 75.0])
 def test_table_matches_mpmath_per_l(eta, rho):
     lmax = 60
-    Hp, Hm, Hpp, Hmp = coulomb_hankel_table(rho, eta, lmax)
+    table = coulomb_hankel_table(rho, eta, lmax)
     for l in range(0, lmax + 1, 7):
-        ref = (H_plus(rho, l, eta), H_minus(rho, l, eta), H_plus_prime(rho, l, eta), H_minus_prime(rho, l, eta))
-        for got, want in zip((Hp[l], Hm[l], Hpp[l], Hmp[l]), ref):
-            assert abs(got - want) <= 1e-9 * abs(want) + 1e-12, (eta, rho, l, got, want)
+        got = (table.Hp[l], table.Hm[l], table.Hpp[l], table.Hmp[l])
+        want = (
+            H_plus(rho, l, eta),
+            H_minus(rho, l, eta),
+            H_plus_prime(rho, l, eta),
+            H_minus_prime(rho, l, eta),
+        )
+        for g, w in zip(got, want, strict=True):
+            assert abs(g - w) <= 1e-9 * abs(w) + 1e-12, (eta, rho, l, g, w)
 
 
 @pytest.mark.parametrize("eta,rho", [(0.0, 20.0), (1.2, 30.0), (4.0, 12.0)])
@@ -34,10 +40,11 @@ def test_wronskian_is_unity(eta, rho):
 
 
 def test_partial_wave_channels_use_the_table():
-    sys = ProjectileTargetSystem(channel_radius=25.0, lmax=30, Ztarget=20, Zproj=1)
-    channels, asym = sys.get_partial_wave_channels(Elab=20.0, Ecm=19.5, mu=930.0, k=0.95, eta=0.7)
+    system = ProjectileTargetSystem(channel_radius=25.0, lmax=30, Ztarget=20, Zproj=1)
+    _, asym = system.get_partial_wave_channels(
+        Elab=20.0, Ecm=19.5, mu=930.0, k=0.95, eta=0.7
+    )
     assert len(asym) == 31
     for l in (0, 5, 17, 30):
-        a = asym[l]
-        assert np.isclose(a.Hp[0], H_plus(25.0, l, 0.7), rtol=1e-9)
-        assert np.isclose(a.Hmp[0], H_minus_prime(25.0, l, 0.7), rtol=1e-9)
+        assert np.isclose(asym[l].Hp[0], H_plus(25.0, l, 0.7), rtol=1e-9)
+        assert np.isclose(asym[l].Hmp[0], H_minus_prime(25.0, l, 0.7), rtol=1e-9)
