@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ..utils.constants import HBARC
-from ..utils.free_solutions import coulomb_hankel_table
+from ..utils.free_solutions import CoulombHankelTable, coulomb_hankel_table
 
 FloatArray: TypeAlias = npt.NDArray[np.float64]
 ComplexArray: TypeAlias = npt.NDArray[np.complex128]
@@ -49,6 +49,15 @@ class Asymptotics:
         self.Hpp = Hpp
         self.Hmp = Hmp
         self.size = Hp.shape[0]
+
+    @classmethod
+    def from_table(
+        cls, tables: dict[float, CoulombHankelTable], l: int, eta: FloatArray
+    ) -> Asymptotics:
+        """Gather partial wave ``l`` for each channel's ``eta`` from tabulated functions."""
+        rows = np.array([tables[float(e)][:] for e in eta], dtype=np.complex128)
+        Hp, Hm, Hpp, Hmp = rows[:, :, l].T
+        return cls(Hp=Hp, Hm=Hm, Hpp=Hpp, Hmp=Hmp)
 
     def decouple(self) -> list[Asymptotics]:
         """Split diagonal asymptotics into one-channel objects."""
@@ -199,14 +208,7 @@ class ProjectileTargetSystem:
                     self.couplings[l],
                 )
             )
-            asymptotics.append(
-                Asymptotics(
-                    Hp=np.array([tables[e].Hp[l] for e in eta_array]),
-                    Hm=np.array([tables[e].Hm[l] for e in eta_array]),
-                    Hpp=np.array([tables[e].Hpp[l] for e in eta_array]),
-                    Hmp=np.array([tables[e].Hmp[l] for e in eta_array]),
-                )
-            )
+            asymptotics.append(Asymptotics.from_table(tables, l, eta_array))
 
         return channels, asymptotics
 

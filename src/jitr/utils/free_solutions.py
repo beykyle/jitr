@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import NamedTuple
 
 import numpy as np
@@ -25,100 +24,22 @@ def Gamow_factor(l: int, eta: float) -> float:
     return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
 
 
-class FreeAsymptotics:
-    """Spherical-Bessel asymptotics for neutral-particle scattering."""
-
-    @staticmethod
-    def F(s: float, l: int, _eta: float | None = None) -> np.float64:
-        """Return the regular free solution."""
-        return s * sc.spherical_jn(l, s)
-
-    @staticmethod
-    def G(s: float, l: int, _eta: float | None = None) -> np.float64:
-        """Return the irregular free solution."""
-        return -s * sc.spherical_yn(l, s)
-
-
-class CoulombAsymptotics:
-    """Coulomb asymptotic functions evaluated through :mod:`mpmath`."""
-
-    @staticmethod
-    def F(s: float, l: int, eta: float) -> np.complex128:
-        """Return the regular Coulomb function."""
-        return np.complex128(coulombf(l, eta, s))
-
-    @staticmethod
-    def G(s: float, l: int, eta: float) -> np.complex128:
-        """Return the irregular Coulomb function."""
-        return np.complex128(coulombg(l, eta, s))
-
-
-def H_plus(
-    s: float,
-    l: int,
-    eta: float,
-    asym: type = CoulombAsymptotics,
-) -> complex:
-    """Return the outgoing Coulomb-Hankel function."""
-    return asym.G(s, l, eta) + 1j * asym.F(s, l, eta)
-
-
-def H_minus(
-    s: float,
-    l: int,
-    eta: float,
-    asym: type = CoulombAsymptotics,
-) -> complex:
-    """Return the incoming Coulomb-Hankel function."""
-    return asym.G(s, l, eta) - 1j * asym.F(s, l, eta)
-
-
-def coulomb_func_deriv(
-    func: Callable[[float, int, float], complex],
-    s: float,
-    l: int,
-    eta: float,
-) -> complex:
-    """Differentiate Coulomb or Coulomb-Hankel functions using recurrence relations."""
-    recurrence_factor = np.sqrt(1 + eta**2 / (l + 1) ** 2)
-    shift_term = (l + 1) / s + eta / (l + 1)
-    Xl = func(s, l, eta)
-    Xlp = func(s, l + 1, eta)
-    return shift_term * Xl - recurrence_factor * Xlp
-
-
-def H_plus_prime(
-    s: float,
-    l: int,
-    eta: float,
-    asym: type = CoulombAsymptotics,
-) -> complex:
-    """Return the derivative of the outgoing Coulomb-Hankel function."""
-    return coulomb_func_deriv(
-        lambda ss, ll, ee: H_plus(ss, ll, ee, asym=asym), s, l, eta
-    )
-
-
-def H_minus_prime(
-    s: float,
-    l: int,
-    eta: float,
-    dx: float = 1e-6,
-    asym: type = CoulombAsymptotics,
-) -> complex:
-    """Return the derivative of the incoming Coulomb-Hankel function."""
-    return coulomb_func_deriv(
-        lambda ss, ll, ee: H_minus(ss, ll, ee, asym=asym), s, l, eta
-    )
-
-
 class CoulombHankelTable(NamedTuple):
-    """Coulomb-Hankel functions and their derivatives for ``l = 0..lmax``."""
+    """Coulomb-Hankel functions ``H± = G ± iF`` and derivatives for ``l = 0..lmax``."""
 
     Hp: ComplexArray
     Hm: ComplexArray
     Hpp: ComplexArray
     Hmp: ComplexArray
+
+
+def _coulomb_FG(rho: float, eta: float, l: int) -> tuple[float, float]:
+    """Return the regular and irregular Coulomb functions from :mod:`mpmath`.
+
+    This is the only place the Coulomb functions are evaluated directly; the
+    tables below anchor their recurrences on it and fall back to it.
+    """
+    return float(coulombf(l, eta, rho)), float(coulombg(l, eta, rho))
 
 
 def _riccati_bessel_table(rho: float, lmax: int) -> tuple[FloatArray, FloatArray]:
@@ -132,12 +53,12 @@ def _coulomb_recurrence_table(
 ) -> tuple[FloatArray, FloatArray]:
     """Return ``F_l`` and ``G_l`` for ``l = 0..lmax`` from the three-term recurrence.
 
-    The recurrence is Abramowitz & Stegun 14.2.3, anchored on :mod:`mpmath` at
-    ``l = 0, 1`` (so ``lmax >= 1``).  ``G`` is recurred upward (stable: it is the
-    dominant solution above the turning point).  ``F`` is recurred downward from
-    ``l_top > max(lmax, rho)`` with an arbitrary start and normalised to the
-    :mod:`mpmath` value at ``l = 0`` (Miller's algorithm; stable because ``F`` is
-    the minimal solution).
+    The recurrence is Abramowitz & Stegun 14.2.3, anchored on :func:`_coulomb_FG`
+    at ``l = 0, 1`` (so ``lmax >= 1``).  ``G`` is recurred upward (stable: it is
+    the dominant solution above the turning point).  ``F`` is recurred downward
+    from ``l_top > max(lmax, rho)`` with an arbitrary start and normalised to the
+    anchor at ``l = 0`` (Miller's algorithm; stable because ``F`` is the minimal
+    solution).
     """
     assert lmax >= 1
     n = lmax + 1
@@ -151,10 +72,12 @@ def _coulomb_recurrence_table(
     def c(L):  # coefficient of u_{L-1}
         return (L + 1) * np.sqrt(L**2 + eta**2)
 
-    # G upward from the mpmath anchors
+    F0, G0 = _coulomb_FG(rho, eta, 0)
+    _, G1 = _coulomb_FG(rho, eta, 1)
+
+    # G upward from the anchors
     G = np.empty(n)
-    G[0] = float(coulombg(0, eta, rho))
-    G[1] = float(coulombg(1, eta, rho))
+    G[0], G[1] = G0, G1
     for L in range(1, n - 1):
         G[L + 1] = (b(L) * G[L] - c(L) * G[L - 1]) / a(L)
 
@@ -171,14 +94,14 @@ def _coulomb_recurrence_table(
             F[L - 1 :] /= 1e200
             u_next /= 1e200
             u /= 1e200
-    F = F[:n] * (float(coulombf(0, eta, rho)) / F[0])
+    F = F[:n] * (F0 / F[0])
     return F, G
 
 
 def _derivative_table(u: FloatArray, rho: float, eta: float) -> FloatArray:
     """Return ``u'_l`` for ``l = 0..len(u) - 2`` from ``u_l`` and ``u_{l+1}``.
 
-    This is the recurrence :func:`coulomb_func_deriv` uses, applied to a table.
+    Abramowitz & Stegun 14.2.1 applied to a table of ``F`` or ``G``.
     """
     L = np.arange(u.size - 1, dtype=np.float64)
     return ((L + 1) / rho + eta / (L + 1)) * u[:-1] - np.sqrt(
@@ -191,12 +114,12 @@ def coulomb_hankel_table(
 ) -> CoulombHankelTable:
     """Return ``H+``, ``H-``, ``H+'`` and ``H-'`` at ``rho`` for ``l = 0..lmax``.
 
-    Equivalent to :func:`H_plus`, :func:`H_minus`, :func:`H_plus_prime` and
-    :func:`H_minus_prime` per ``l``, but ``F`` and ``G`` come from the three-term
-    recurrence (two :mod:`mpmath` evaluations per table instead of ~six per
-    ``l``) and the derivatives from the exact recurrence.  Every ``l`` is
-    verified against the Wronskian ``F' G - F G' = 1``; any ``l`` failing
-    ``wronskian_tol`` is recomputed with :mod:`mpmath` directly.
+    For ``eta == 0`` the functions are Riccati-Bessel functions from
+    :mod:`scipy`; otherwise ``F`` and ``G`` come from the three-term recurrence
+    anchored on two :mod:`mpmath` evaluations.  The derivatives follow from the
+    exact recurrence.  Every ``l`` is verified against the Wronskian
+    ``F' G - F G' = 1``; any ``l`` failing ``wronskian_tol`` is recomputed with
+    :mod:`mpmath` directly.
     """
     # one extra l for the derivatives
     if eta == 0.0:
@@ -207,13 +130,35 @@ def coulomb_hankel_table(
     F, G = F[: lmax + 1], G[: lmax + 1]
     bad = np.flatnonzero(np.abs(Fp * G - F * Gp - 1.0) > wronskian_tol)
     for l in bad.tolist():
-        F[l] = CoulombAsymptotics.F(rho, l, eta).real
-        G[l] = CoulombAsymptotics.G(rho, l, eta).real
-        Fp[l] = coulomb_func_deriv(CoulombAsymptotics.F, rho, l, eta).real
-        Gp[l] = coulomb_func_deriv(CoulombAsymptotics.G, rho, l, eta).real
+        pair = np.array([_coulomb_FG(rho, eta, l), _coulomb_FG(rho, eta, l + 1)])
+        F[l], G[l] = pair[0]
+        Fp[l], Gp[l] = (
+            _derivative_table(pair[:, 0], rho, eta)[0],
+            _derivative_table(pair[:, 1], rho, eta)[0],
+        )
     return CoulombHankelTable(
         Hp=(G + 1j * F).astype(np.complex128),
         Hm=(G - 1j * F).astype(np.complex128),
         Hpp=(Gp + 1j * Fp).astype(np.complex128),
         Hmp=(Gp - 1j * Fp).astype(np.complex128),
     )
+
+
+def H_plus(s: float, l: int, eta: float) -> complex:
+    """Return the outgoing Coulomb-Hankel function ``G + iF`` at ``s``."""
+    return complex(coulomb_hankel_table(s, eta, l).Hp[l])
+
+
+def H_minus(s: float, l: int, eta: float) -> complex:
+    """Return the incoming Coulomb-Hankel function ``G - iF`` at ``s``."""
+    return complex(coulomb_hankel_table(s, eta, l).Hm[l])
+
+
+def H_plus_prime(s: float, l: int, eta: float) -> complex:
+    """Return the derivative of the outgoing Coulomb-Hankel function at ``s``."""
+    return complex(coulomb_hankel_table(s, eta, l).Hpp[l])
+
+
+def H_minus_prime(s: float, l: int, eta: float) -> complex:
+    """Return the derivative of the incoming Coulomb-Hankel function at ``s``."""
+    return complex(coulomb_hankel_table(s, eta, l).Hmp[l])
