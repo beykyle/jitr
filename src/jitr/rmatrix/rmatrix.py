@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+from scipy.linalg import block_diag
 
 from ..quadrature import Kernel
 from ..reactions.system import Asymptotics, Channels
@@ -14,6 +15,13 @@ from .core import solution_coeffs_with_inverse, solve_smatrix_with_inverse
 
 ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
+
+
+def _channel_scale(values: npt.ArrayLike | None, n_channels: int) -> FloatArray:
+    """Return per-channel scale factors, defaulting to ones when ``values`` is None."""
+    if values is None:
+        return np.ones(n_channels, dtype=np.float64)
+    return np.asarray(values, dtype=np.float64)
 
 
 class Solver:
@@ -53,55 +61,25 @@ class Solver:
             j = i
         return np.asarray(block(np.asarray(matrix), (i, j), (n_basis, n_basis)))
 
-    def kinetic_matrix(
-        self,
-        a: float,
-        l: npt.ArrayLike,
-        mu: npt.ArrayLike | None = None,
-    ) -> ComplexArray:
-        """Assemble the full kinetic-energy matrix."""
-        l_array = np.asarray(l)
-        mu_array = np.ones(l_array.shape, dtype=np.float64)
-        if mu is not None:
-            mu_array = np.asarray(mu, dtype=np.float64)
-
-        n_basis = self.kernel.quadrature.nbasis
-        n_channels = int(np.size(l_array))
-        size = n_basis * n_channels
-        kinetic = np.zeros((size, size), dtype=np.complex128)
-        for i in range(n_channels):
-            block_ij = (
-                self.kernel.quadrature.kinetic_matrix(a, int(l_array[i]))
-                * mu_array[0]
-                / mu_array[i]
-            )
-            kinetic[
-                (i * n_basis) : (i + 1) * n_basis, (i * n_basis) : (i + 1) * n_basis
-            ] += block_ij
-        return kinetic
-
-    def energy_matrix(
+    def _free_blocks(
         self,
         a: float,
         l: npt.ArrayLike,
         E: npt.ArrayLike | None = None,
-    ) -> ComplexArray:
-        """Assemble the full overlap-weighted energy matrix."""
-        l_array = np.asarray(l)
-        energy_scale = np.ones(l_array.shape, dtype=np.float64)
-        if E is not None:
-            energy_scale = np.asarray(E, dtype=np.float64)
-
-        n_basis = self.kernel.quadrature.nbasis
-        n_channels = int(np.size(l_array))
-        size = n_basis * n_channels
-        energy = np.zeros((size, size), dtype=np.complex128)
-        for i in range(n_channels):
-            energy[
-                (i * n_basis) : (i + 1) * n_basis, (i * n_basis) : (i + 1) * n_basis
-            ] += (self.kernel.overlap * energy_scale[i])
-
-        return energy / energy_scale[0]
+        mu: npt.ArrayLike | None = None,
+    ) -> list[ComplexArray]:
+        """Return the per-channel free block ``T_l mu_0 / mu_i - S E_i / E_0``."""
+        l_array = np.atleast_1d(np.asarray(l))
+        n_channels = l_array.size
+        mu_array = _channel_scale(mu, n_channels)
+        energy_scale = _channel_scale(E, n_channels)
+        overlap = self.kernel.overlap
+        return [
+            self.kernel.quadrature.kinetic_matrix(a, int(l_array[i]))
+            * (mu_array[0] / mu_array[i])
+            - overlap * (energy_scale[i] / energy_scale[0])
+            for i in range(n_channels)
+        ]
 
     def free_matrix(
         self,
@@ -111,17 +89,18 @@ class Solver:
         mu: npt.ArrayLike | None = None,
         coupled: bool = True,
     ) -> ComplexArray | list[ComplexArray]:
-        """Precompute the free Hamiltonian matrix."""
-        l_array = np.asarray(l)
-        free_matrix = self.kinetic_matrix(a, l_array, mu) - self.energy_matrix(
-            a, l_array, E
-        )
+        """Precompute the free Hamiltonian matrix.
 
+        With ``coupled=True`` return the full block-diagonal matrix over every
+        channel in ``l``.  With ``coupled=False`` the channels are independent, so
+        return one ``nbasis x nbasis`` block per channel instead; each block owns
+        its memory rather than viewing into the ``(nbasis * n_channels)**2``
+        coupled matrix.
+        """
+        blocks = self._free_blocks(a, l, E, mu)
         if coupled:
-            return free_matrix
-        return [
-            self.get_channel_block(free_matrix, i) for i in range(int(np.size(l_array)))
-        ]
+            return np.asarray(block_diag(*blocks), dtype=np.complex128)
+        return blocks
 
     def interaction_matrix(
         self,
