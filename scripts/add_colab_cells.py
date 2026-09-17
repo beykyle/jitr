@@ -58,12 +58,7 @@ EXTRAS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 
 # Why a requirement above carries a version floor. Kept next to it in the generated
 # cell, so nobody drops it again as redundant.
-PACKAGE_NOTES = {
-    "matplotlib>=3.10.3": (
-        "# matplotlib 3.10.0-3.10.1, which Colab preinstalls, mangles an RGBA tuple",
-        "# passed as a facecolor to ax.hist -- it breaks the corner plots below",
-    ),
-}
+PACKAGE_NOTES = {}
 
 # Notebooks whose full run will not finish on a free Colab CPU runtime. They already
 # read JITR_QUICK themselves; the badge cell says so, since it changes the result.
