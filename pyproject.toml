@@ -40,14 +40,13 @@ docs = [
 ]
 
 examples = [
-    "matplotlib",
+    "matplotlib>=3.10.3",
     "exfor_tools",
     "nbmake",
     "nbval",
     "ipykernel",
     "jupyter",
     "pytest",
-    "matplotlib",
     "black[jupyter]>=26.3.1",
     "dynesty>=3.0.0",
     "corner>=2.0.0",
