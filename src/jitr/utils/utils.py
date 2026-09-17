@@ -9,13 +9,7 @@ import numpy as np
 import numpy.typing as npt
 from numba import njit
 
-from .free_solutions import (
-    CoulombAsymptotics,
-    H_minus,
-    H_minus_prime,
-    H_plus,
-    H_plus_prime,
-)
+from .free_solutions import coulomb_hankel_table
 
 ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
@@ -75,17 +69,10 @@ def schrodinger_eqn_ivp_order1(
     return [uprime, second_derivative_op(s, channel, interaction, args) * u]
 
 
-def smatrix(
-    Rl: complex,
-    a: float,
-    l: int,
-    eta: float,
-    asym: type = CoulombAsymptotics,
-) -> complex:
+def smatrix(Rl: complex, a: float, l: int, eta: float) -> complex:
     """Compute an S-matrix element from a channel R-matrix value."""
-    return (
-        H_minus(a, l, eta, asym=asym) - a * Rl * H_minus_prime(a, l, eta, asym=asym)
-    ) / (H_plus(a, l, eta, asym=asym) - a * Rl * H_plus_prime(a, l, eta, asym=asym))
+    Hp, Hm, Hpp, Hmp = (v[l] for v in coulomb_hankel_table(a, eta, l))
+    return complex((Hm - a * Rl * Hmp) / (Hp - a * Rl * Hpp))
 
 
 def delta(Sl: complex) -> tuple[np.float64, np.float64]:

@@ -14,13 +14,14 @@ from .quadrature import (
     FloatArray,
     LagrangeLaguerreQuadrature,
     LagrangeLegendreQuadrature,
+    LagrangeQuadrature,
     generate_laguerre_quadrature,
     generate_legendre_quadrature,
     laguerre,
     legendre,
 )
 
-Quadrature: TypeAlias = LagrangeLaguerreQuadrature | LagrangeLegendreQuadrature
+Quadrature: TypeAlias = LagrangeQuadrature
 BasisFunction: TypeAlias = Callable[[int, float, float, Quadrature], complex]
 
 

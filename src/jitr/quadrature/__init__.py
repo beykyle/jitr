@@ -4,6 +4,7 @@ from .kernel import Kernel
 from .quadrature import (
     LagrangeLaguerreQuadrature,
     LagrangeLegendreQuadrature,
+    LagrangeQuadrature,
     generate_laguerre_quadrature,
     generate_legendre_quadrature,
     laguerre,
@@ -14,6 +15,7 @@ __all__ = [
     "Kernel",
     "LagrangeLaguerreQuadrature",
     "LagrangeLegendreQuadrature",
+    "LagrangeQuadrature",
     "generate_laguerre_quadrature",
     "generate_legendre_quadrature",
     "laguerre",

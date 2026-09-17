@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ..utils.constants import HBARC
-from ..utils.free_solutions import H_minus, H_minus_prime, H_plus, H_plus_prime
+from ..utils.free_solutions import CoulombHankelTable, coulomb_hankel_table
 
 FloatArray: TypeAlias = npt.NDArray[np.float64]
 ComplexArray: TypeAlias = npt.NDArray[np.complex128]
@@ -49,6 +49,15 @@ class Asymptotics:
         self.Hpp = Hpp
         self.Hmp = Hmp
         self.size = Hp.shape[0]
+
+    @classmethod
+    def from_table(
+        cls, tables: dict[float, CoulombHankelTable], l: int, eta: FloatArray
+    ) -> Asymptotics:
+        """Gather partial wave ``l`` for each channel's ``eta`` from tabulated functions."""
+        rows = np.array([tables[float(e)][:] for e in eta], dtype=np.complex128)
+        Hp, Hm, Hpp, Hmp = rows[:, :, l].T
+        return cls(Hp=Hp, Hm=Hm, Hpp=Hpp, Hmp=Hmp)
 
     def decouple(self) -> list[Asymptotics]:
         """Split diagonal asymptotics into one-channel objects."""
@@ -166,6 +175,12 @@ class ProjectileTargetSystem:
         """Build channel and asymptotic objects for every partial wave."""
         channels: list[Channels] = []
         asymptotics: list[Asymptotics] = []
+        # Coulomb-Hankel functions and derivatives for all partial waves, tabulated
+        # once per distinct Sommerfeld parameter
+        tables = {
+            float(e): coulomb_hankel_table(self.channel_radius, float(e), self.lmax)
+            for e in np.unique(np.atleast_1d(np.asarray(eta, dtype=np.float64)))
+        }
         for l in range(0, self.lmax + 1):
             num_channels = self.couplings[l].shape[0]
             eta_array = uniform_array_from_scalar_or_array(eta, num_channels)
@@ -193,38 +208,7 @@ class ProjectileTargetSystem:
                     self.couplings[l],
                 )
             )
-            asymptotics.append(
-                Asymptotics(
-                    Hp=np.array(
-                        [
-                            H_plus(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta_array
-                        ],
-                        dtype=np.complex128,
-                    ),
-                    Hm=np.array(
-                        [
-                            H_minus(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta_array
-                        ],
-                        dtype=np.complex128,
-                    ),
-                    Hpp=np.array(
-                        [
-                            H_plus_prime(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta_array
-                        ],
-                        dtype=np.complex128,
-                    ),
-                    Hmp=np.array(
-                        [
-                            H_minus_prime(self.channel_radius, l, channel_eta)
-                            for channel_eta in eta_array
-                        ],
-                        dtype=np.complex128,
-                    ),
-                )
-            )
+            asymptotics.append(Asymptotics.from_table(tables, l, eta_array))
 
         return channels, asymptotics
 

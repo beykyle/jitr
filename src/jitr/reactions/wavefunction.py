@@ -7,7 +7,7 @@ from collections.abc import Callable
 import numpy as np
 import numpy.typing as npt
 
-from ..utils.free_solutions import CoulombAsymptotics, H_minus, H_plus
+from ..utils.free_solutions import H_minus, H_plus
 
 ComplexArray = npt.NDArray[np.complex128]
 
@@ -23,7 +23,6 @@ class Wavefunctions:
         uext_prime_boundary: ComplexArray,
         channels,
         incoming_weights: npt.NDArray[np.float64] | None = None,
-        asym=CoulombAsymptotics,
     ) -> None:
         """Store the ingredients needed to reconstruct channel wavefunctions."""
         self.solver = solver
@@ -35,7 +34,6 @@ class Wavefunctions:
             incoming_weights = np.zeros(channels.size, dtype=np.float64)
             incoming_weights[0] = 1
         self.incoming_weights = incoming_weights
-        self.asym = asym
 
     def uext(self) -> list[Callable[[npt.ArrayLike], ComplexArray]]:
         """Return external-channel wavefunctions valid beyond the boundary."""
@@ -45,14 +43,12 @@ class Wavefunctions:
             eta = self.channels.eta[i]
 
             def asym_func_in(s: float) -> complex:
-                return self.incoming_weights[i] * H_minus(s, l, eta, asym=self.asym)
+                return self.incoming_weights[i] * H_minus(s, l, eta)
 
             def asym_func_out(s: float) -> complex:
                 return np.sum(
                     [
-                        self.incoming_weights[j]
-                        * self.S[i, j]
-                        * H_plus(s, l, eta, asym=self.asym)
+                        self.incoming_weights[j] * self.S[i, j] * H_plus(s, l, eta)
                         for j in range(len(self.channels))
                     ],
                     axis=0,
