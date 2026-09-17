@@ -2,6 +2,7 @@
 
 `jitr` includes a growing collection of example notebooks that demonstrate how to use the library in various contexts, which live in `examples/notebooks/`.
 
+Every notebook also runs in [Google Colab](https://colab.research.google.com/): click the **Open in Colab** badges below. 
 
 ```{toctree}
 :hidden:
@@ -31,10 +32,13 @@
 
 - [Quickstart](/examples/notebooks/quickstart)
   compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb)
 - [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
   extends the quickstart to a full Bayesian calibration which reveals shell effects in $\alpha$ + $^{40,44,48}$Ca. Includes construction of an error model which is jointly inferred with the optical model parameters, and checking the posterior predictive against the data using empirical coverages.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca_calibration.ipynb)
 - [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity)
   extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, providing a Bayesian perspective of the famous discrete parameter ambiguity in the binding of the interaction between nuclei and light ions.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca48_ambiguity.ipynb)
 
 
 
@@ -42,29 +46,42 @@
 
 - [Reactions and kinematics](/examples/notebooks/reaction)
   introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/reaction.ipynb)
 - [Koning-Delaroche neutron elastic scattering](/examples/notebooks/kd03_neutron_dxs_demo)
   shows how to compute the elastic scattering cross section for neutrons on various targets using the built-in Koning-Delaroche optical potential in `jitr`.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/kd03_neutron_dxs_demo.ipynb)
 - [Compare built-in uncertainty-quantified optical potentials](/examples/notebooks/builtin_omps_uq)
-  walks through posterior sampling, solver setup, and interval construction 
+  walks through posterior sampling, solver setup, and interval construction
   for several of the built-in uncertainty quantified optical potentials in `jitr`.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/builtin_omps_uq.ipynb)
 - [Tabulated neutron and proton densities](/examples/notebooks/tabulated_density_demo)
   shows how to grab the tabulated nuclear densities in `jitr`.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/tabulated_density_demo.ipynb)
 - [JLM and JLMB semi-microscopic optical-potentials](/examples/notebooks/example_jlm)
   converts the original JLM example into a notebook and walks through folded
   microscopic potentials, Lane trends, and tabulated self-energy usage.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/example_jlm.ipynb)
 - [Compare global optical-potential radial forms](/examples/notebooks/chuq_kduq_comp)
   provides a quick visual comparison of the radial forms of the built-in global potentials in `jitr`.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/chuq_kduq_comp.ipynb)
 - [Visualize global optical potential volume integrals](/examples/notebooks/volume_integrals)
   shows how to compute and visualize volume integrals for the built-in global optical potentials in `jitr`.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/volume_integrals.ipynb)
 - [Channel-radius convergence study for elastic scattering](/examples/notebooks/convergence_channel_radius)
   shows how to check for numerical convergence in realistic calculations.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/convergence_channel_radius.ipynb)
 - [Dispersive optical model](/examples/notebooks/dispersive_optical_model)
   shows how to use the built-in dispersive optical model in `jitr`
-- [UQ demo with Koning-Delaroche potential](/examples/notebooks/kduq_uq_demo) 
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/dispersive_optical_model.ipynb)
+- [UQ demo with Koning-Delaroche potential](/examples/notebooks/kduq_uq_demo)
   demos propagating the uncertainty of the built-in KDUQ interaction.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/kduq_uq_demo.ipynb)
 - [Optical potential interface](/examples/notebooks/local_omp_demo)
   shows how to define a custom optical potential using a common interface, and how to use it in a calculation.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/local_omp_demo.ipynb)
 - [Transmission coefficients by partial wave](/examples/notebooks/angular_reaction_xs)
   performs uncertainty quantification for partial wave transmission coefficients
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/angular_reaction_xs.ipynb)
 - [Mass-model effects on transmission-coefficient uncertainty](/examples/notebooks/mass_exploration)
   explores how mass-model choices propagate into transmission coefficients.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/mass_exploration.ipynb)

@@ -1,5 +1,6 @@
 [![Python package](https://github.com/beykyle/jitr/actions/workflows/python-package.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/python-package.yml)
 [![PyPI publish](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/beykyle/jitr/actions/workflows/pypi-publish.yml)
+[![Open the quickstart in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb)
 
 Documentation site: <https://beykyle.github.io/jitr/>
 
@@ -41,7 +42,9 @@ For `uv` users and other install options, see [Installation](https://beykyle.git
 
 ## Tutorials
 
-Tutorials live in [`examples/notebooks/`](./examples/notebooks). See [Examples and tutorials](https://beykyle.github.io/jitr/getting-started.html#examples-and-tutorials) for how to run them locally, and the [examples page](https://beykyle.github.io/jitr/examples/index.html) for an annotated list.
+Tutorials live in [`examples/notebooks/`](./examples/notebooks). Every notebook opens and runs in Google Colab with nothing to install: click the **Open in Colab** badge at the top of any notebook, [browse them all in Colab](https://colab.research.google.com/github/beykyle/jitr), or start with the [quickstart](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb). The first cell installs `jitr` and downloads the data files that notebook reads.
+
+See [Examples and tutorials](https://beykyle.github.io/jitr/getting-started.html#examples-and-tutorials) for how to run them locally, and the [examples page](https://beykyle.github.io/jitr/examples/index.html) for an annotated list.
 
 ## BAND
 

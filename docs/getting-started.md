@@ -47,7 +47,17 @@ python -c "import jitr; print(jitr.__version__)"
 
 ## Examples and tutorials
 
-Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md). First, clone the repository and navigate to the project directory:
+Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md).
+
+### Run them in your browser
+
+Every notebook carries an **Open in Colab** badge at the top, and you can
+[browse them all in Colab](https://colab.research.google.com/github/beykyle/jitr) or jump straight to the [quickstart](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb).
+
+
+### Run them locally
+
+For real work, clone the repo and open the notebooks with the default `Python 3 (ipykernel)` kernel, which lives inside the uv-managed environment. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected. No kernel registration is needed.
 
 ```
 git clone https://github.com/beykyle/jitr.git
@@ -56,13 +66,13 @@ cd jitr
 
 Before you can run the notebooks, there are some additional requirements which need to be installed into the environment. They live in the `examples` dependency group. To install them, from the main project directory, run:
 
-```
+```bash
 uv sync --group examples
 ```
 
 Then, you can launch `jupyter` inside the uv-managed environment. For example, to spin up a JupyterLab server:
 
-```
+```bash
 uv run --group examples jupyter lab
 ```
 
