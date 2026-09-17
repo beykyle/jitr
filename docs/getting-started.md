@@ -53,15 +53,7 @@ Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/m
 
 Every notebook carries an **Open in Colab** badge at the top, and you can
 [browse them all in Colab](https://colab.research.google.com/github/beykyle/jitr) or jump straight to the [quickstart](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb).
-There is nothing to install: the first cell of each notebook detects the Colab runtime,
-`pip install`s `jitr` plus any extra packages that notebook needs, and downloads the data
-files it reads. Outside Colab that cell does nothing, so the same notebook runs unchanged on
-your own machine. If Colab asks you to restart the runtime after the install, restart and
-re-run from the top.
 
-The two Bayesian calibration notebooks run with `JITR_QUICK=1` on Colab, which uses fewer
-data points and live points so that the sampler finishes inside a free CPU runtime; the
-posteriors are correspondingly coarser than the ones rendered here.
 
 ### Run them locally
 
