@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Any, TypeAlias
 
 import numpy as np
@@ -27,7 +28,7 @@ def laguerre(n: int, a: float, s: float, quadrature: Any) -> complex:
     return (
         (-1) ** n
         / np.sqrt(xn)
-        * sc.special.eval_laguerre(n, x)
+        * sc.eval_laguerre(quadrature.nbasis, x)
         / (x - xn)
         * x
         * np.exp(-x / 2)
@@ -74,7 +75,53 @@ def generate_legendre_quadrature(nbasis: int) -> tuple[FloatArray, FloatArray]:
     return x, w
 
 
-class LagrangeLaguerreQuadrature:
+class LagrangeQuadrature:
+    r"""
+    A Lagrange mesh on the dimensionless coordinate ``x = s / a`` shared by the
+    Laguerre and Legendre bases.  Subclasses supply the ``l``-independent
+    radial kinetic matrix at ``a = 1`` and the basis overlap; everything else
+    (scaling to a channel radius ``a`` and adding the centrifugal term) is
+    common.
+    """
+
+    def __init__(
+        self,
+        abscissa: FloatArray,
+        weights: FloatArray,
+        overlap: FloatArray | None = None,
+    ) -> None:
+        assert len(abscissa) == len(weights)
+        self.nbasis = len(abscissa)
+        self.abscissa = np.asarray(abscissa, dtype=np.float64)
+        self.weights = np.asarray(weights, dtype=np.float64)
+        self.overlap = self._default_overlap() if overlap is None else overlap
+
+    def _default_overlap(self) -> FloatArray:
+        raise NotImplementedError
+
+    @cached_property
+    def _radial_kinetic_matrix(self) -> FloatArray:
+        r"""
+        The ``l``-independent part of the kinetic operator (plus Bloch operator
+        where the basis needs one) at ``a = 1``, computed once per mesh.
+        """
+        raise NotImplementedError
+
+    def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
+        r"""
+        Return the kinetic operator matrix for orbital angular momentum ``l`` at
+        channel radius ``a = k r``, scaled by ``1 / E``.
+
+        The radial part scales as ``1 / a**2`` and the centrifugal part is
+        diagonal, so the matrix is the cached radial matrix over ``a**2`` plus
+        ``l (l + 1) / (a x_n)**2`` on the diagonal.
+        """
+        F = np.array(self._radial_kinetic_matrix / a**2, dtype=np.complex128)
+        F[np.diag_indices(self.nbasis)] += l * (l + 1) / (a * self.abscissa) ** 2
+        return F
+
+
+class LagrangeLaguerreQuadrature(LagrangeQuadrature):
     r"""
     Lagrange Laguerre mesh for the Schrödinger equation following ch. 3.3 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -83,72 +130,28 @@ class LagrangeLaguerreQuadrature:
     it's asymptotic kinetic energy in the channel T_i = E_inc - E_i
     """
 
-    def __init__(
-        self,
-        abscissa: FloatArray,
-        weights: FloatArray,
-        overlap: FloatArray | None = None,
-    ) -> None:
-        """
-        Construct the Schrödinger equation in a basis of Lagrange Laguerre
-        functions.
-        """
-        self.nbasis = len(abscissa)
-        assert len(abscissa) == len(weights)
-        self.abscissa = abscissa
-        self.weights = weights
+    def _default_overlap(self) -> FloatArray:
+        # Eq. 3.71 in Baye, 2015: the regularised basis is not orthogonal
+        x = self.abscissa
+        imj = np.arange(self.nbasis) - np.arange(self.nbasis)[:, np.newaxis]
+        return np.eye(self.nbasis) + (-1.0) ** imj / np.sqrt(np.outer(x, x))
 
-        if overlap is None:
-            # Eq. 3.71 in Baye, 2015
-            imj = np.arange(self.nbasis) - np.arange(self.nbasis)[:, np.newaxis]
-            self.overlap = (-1.0) ** imj / np.sqrt(np.outer(abscissa, abscissa))
-        else:
-            self.overlap = overlap
-
-    def kinetic_operator_element(
-        self,
-        n: int,
-        m: int,
-        a: float,
-        l: int,  # noqa: E741
-    ) -> float:
-        """
-        Return the (n,m)th matrix element for the kinetic energy operator at
-        channel radius a = k*r with orbital angular momentum l.
-        """
-        assert n <= self.nbasis and n >= 1
-        assert m <= self.nbasis and m >= 1
-
-        xn, xm = self.abscissa[n - 1], self.abscissa[m - 1]
+    @cached_property
+    def _radial_kinetic_matrix(self) -> FloatArray:
+        # Eqs. 3.75-3.77 in Baye, 2015: the Gauss-approximation matrix elements
+        # of -d^2/dx^2 minus the exact correction (-1)^(n-m) / (4 sqrt(x_n x_m))
+        x = self.abscissa
         N = self.nbasis
-
-        # Eq. 3.77 in Baye, 2015
-        correction = (-1) ** (n - m) / 4 / np.sqrt(xn * xm)
-
-        if n == m:
-            # Eq. 3.75 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = -1.0 / (12 * xn**2) * (xn**2 - 2 * (2 * N + 1) * xn - 4) / a**2
-            return radial - correction + centrifugal
-        else:
-            # Eq. 3.76 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            return (-1) ** (n - m) * (xn + xm) / np.sqrt(xn * xm) / (
-                xn - xm
-            ) ** 2 / a**2 - correction
-
-    def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
-        r"""
-        Return the kinetic operator matrix in the Lagrange Laguerre basis.
-        """
-        F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
-        for n in range(1, self.nbasis + 1):
-            for m in range(n, self.nbasis + 1):
-                F[n - 1, m - 1] = self.kinetic_operator_element(n, m, a, l)
-        F = F + np.triu(F, k=1).T
-        return F
+        xn, xm = np.meshgrid(x, x, indexing="ij")
+        n, m = np.meshgrid(np.arange(1, N + 1), np.arange(1, N + 1), indexing="ij")
+        sign = (-1.0) ** (n - m)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            F = sign * (xn + xm) / np.sqrt(xn * xm) / (xn - xm) ** 2
+        F[np.diag_indices(N)] = -(x**2 - 2 * (2 * N + 1) * x - 4) / (12 * x**2)
+        return F - sign / (4 * np.sqrt(xn * xm))
 
 
-class LagrangeLegendreQuadrature:
+class LagrangeLegendreQuadrature(LagrangeQuadrature):
     r"""
     Lagrange Legendre mesh for the Schrödinger equation following ch. 3.4 of
     Baye, D.  (2015). The Lagrange-mesh method. Physics reports, 565, 1-107,
@@ -157,55 +160,18 @@ class LagrangeLegendreQuadrature:
     asymptotic kinetic energy in the channel T_i = E_inc - E_i
     """
 
-    def __init__(
-        self,
-        abscissa: FloatArray,
-        weights: FloatArray,
-        overlap: FloatArray | None = None,
-    ) -> None:
-        """
-        Construct the Schrödinger equation in a basis of Lagrange Legendre
-        functions.
-        """
-        self.nbasis = len(abscissa)
-        assert len(abscissa) == len(weights)
-        self.abscissa = abscissa
-        self.weights = weights
+    def _default_overlap(self) -> FloatArray:
+        return np.eye(self.nbasis)
 
-        if overlap is None:
-            self.overlap = np.diag(np.ones(self.nbasis))
-        else:
-            self.overlap = overlap
-
-    def kinetic_operator_element(
-        self,
-        n: int,
-        m: int,
-        a: float,
-        l: int,  # noqa: E741
-    ) -> float:
-        """
-        Return the (n,m)th matrix element for the kinetic energy + Bloch
-        operator at channel radius a = k*r with orbital angular momentum l.
-        """
-        assert n <= self.nbasis and n >= 1
-        assert m <= self.nbasis and m >= 1
-
-        xn, xm = self.abscissa[n - 1], self.abscissa[m - 1]
+    @cached_property
+    def _radial_kinetic_matrix(self) -> FloatArray:
+        # Eqs. 3.128-3.129 in Baye, 2015: kinetic + Bloch operator
+        x = self.abscissa
         N = self.nbasis
-
-        if n == m:
-            # Eq. 3.128 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            centrifugal = l * (l + 1) / (a * xn) ** 2
-            radial = (
-                ((4 * N**2 + 4 * N + 3) * xn * (1 - xn) - 6 * xn + 1)
-                / (3 * xn**2 * (1 - xn) ** 2)
-                / a**2
-            )
-            return radial + centrifugal
-        else:
-            # Eq. 3.129 in [Baye, 2015], scaled by 1/E and with r->s=kr
-            return (
+        xn, xm = np.meshgrid(x, x, indexing="ij")
+        n, m = np.meshgrid(np.arange(1, N + 1), np.arange(1, N + 1), indexing="ij")
+        with np.errstate(divide="ignore", invalid="ignore"):
+            F = (
                 (-1.0) ** (n + m)
                 * (
                     (N**2 + N + 1.0)
@@ -214,16 +180,8 @@ class LagrangeLegendreQuadrature:
                     - 1.0 / (1.0 - xm)
                 )
                 / np.sqrt(xn * xm * (1.0 - xn) * (1.0 - xm))
-                / a**2
             )
-
-    def kinetic_matrix(self, a: float, l: int) -> ComplexArray:  # noqa: E741
-        r"""
-        Return the kinetic operator matrix in the Lagrange Legendre basis.
-        """
-        F = np.zeros((self.nbasis, self.nbasis), dtype=np.complex128)
-        for n in range(1, self.nbasis + 1):
-            for m in range(n, self.nbasis + 1):
-                F[n - 1, m - 1] = self.kinetic_operator_element(n, m, a, l)
-        F = F + np.triu(F, k=1).T
+        F[np.diag_indices(N)] = ((4 * N**2 + 4 * N + 3) * x * (1 - x) - 6 * x + 1) / (
+            3 * x**2 * (1 - x) ** 2
+        )
         return F
