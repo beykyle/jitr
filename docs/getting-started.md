@@ -47,17 +47,35 @@ python -c "import jitr; print(jitr.__version__)"
 
 ## Examples and tutorials
 
-Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md). The best way to run them is to clone the repo and open them with the default `Python 3 (ipykernel)` kernel, which lives inside the uv-managed environment. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected. No kernel registration is needed.
+Tutorials live in [`examples/notebooks/`](https://github.com/beykyle/jitr/tree/main/examples/notebooks) in the repository, and rendered copies are listed on the [examples page](examples/index.md).
+
+### Run them in your browser
+
+Every notebook carries an **Open in Colab** badge at the top, and you can
+[browse them all in Colab](https://colab.research.google.com/github/beykyle/jitr) or jump straight to the [quickstart](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb).
+There is nothing to install: the first cell of each notebook detects the Colab runtime,
+`pip install`s `jitr` plus any extra packages that notebook needs, and downloads the data
+files it reads. Outside Colab that cell does nothing, so the same notebook runs unchanged on
+your own machine. If Colab asks you to restart the runtime after the install, restart and
+re-run from the top.
+
+The two Bayesian calibration notebooks run with `JITR_QUICK=1` on Colab, which uses fewer
+data points and live points so that the sampler finishes inside a free CPU runtime; the
+posteriors are correspondingly coarser than the ones rendered here.
+
+### Run them locally
+
+For real work, clone the repo and open the notebooks with the default `Python 3 (ipykernel)` kernel, which lives inside the uv-managed environment. This way, you can be sure that all the dependencies are correct and that the notebooks will run as expected. No kernel registration is needed.
 
 There are some additional requirements to run the examples. Once you've cloned the repo, from the main directory, run:
 
-```
+```bash
 uv sync --group examples
 ```
 
 and start a JupyterLab server from the same directory:
 
-```
+```bash
 uv run --group examples jupyter lab
 ```
 
