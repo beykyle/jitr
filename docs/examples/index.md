@@ -2,7 +2,7 @@
 
 `jitr` includes a growing collection of example notebooks that demonstrate how to use the library in various contexts, which live in `examples/notebooks/`.
 
-Every notebook also runs in [Google Colab](https://colab.research.google.com/) with nothing to install: click the **Open in Colab** badge at the top of a notebook, or use the badges below. The first cell of each notebook installs `jitr` and downloads any data files it reads, and does so only when it detects a Colab runtime.
+Every notebook also runs in [Google Colab](https://colab.research.google.com/): click the **Open in Colab** badges below. 
 
 ```{toctree}
 :hidden:
