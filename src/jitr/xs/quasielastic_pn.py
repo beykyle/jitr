@@ -15,6 +15,138 @@ ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
 
 
+def isovector_factor(reaction: Reaction) -> float:
+    r"""Return :math:`\sqrt{|N-Z|}/(N-Z-1)` for the target of ``reaction``.
+
+    This scales the difference of the neutron and proton optical potentials
+    into the default (p,n) transition potential.
+    """
+    A = reaction.target.A
+    Z = reaction.target.Z
+    N = A - Z
+    return float(np.sqrt(np.fabs(N - Z)) / (N - Z - 1))
+
+
+def as_local_potential(
+    potential: npt.ArrayLike, nbasis: int, name: str
+) -> ComplexArray:
+    """Validate and cast a local potential array on the quadrature grid."""
+    potential_array = np.asarray(potential, dtype=np.complex128)
+    if potential_array.shape != (nbasis,):
+        raise ValueError(f"{name} must have shape {(nbasis,)}")
+    return potential_array
+
+
+def as_optional_local_potential(
+    potential: npt.ArrayLike | None, nbasis: int, name: str
+) -> ComplexArray:
+    """Return a validated local potential or a zero array when omitted."""
+    if potential is None:
+        return np.zeros(nbasis, dtype=np.complex128)
+    return as_local_potential(potential, nbasis, name)
+
+
+def pn_potentials(
+    nbasis: int,
+    isovector_factor: float,
+    U_p_coulomb: npt.ArrayLike,
+    U_p_central: npt.ArrayLike,
+    U_p_spin_orbit: npt.ArrayLike | None = None,
+    U_n_central: npt.ArrayLike | None = None,
+    U_n_spin_orbit: npt.ArrayLike | None = None,
+    U1_central: npt.ArrayLike | None = None,
+    U1_spin_orbit: npt.ArrayLike | None = None,
+) -> dict[str, ComplexArray]:
+    """Validate the (p,n) potentials and fill in the default transition terms.
+
+    Args:
+        nbasis: Size of the quadrature grid.
+        isovector_factor: Scale applied to ``U_n - U_p`` in the default
+            transition potentials (see :func:`isovector_factor`).
+        U_p_coulomb: Coulomb interaction for the proton.
+        U_p_central: Central interaction for the proton.
+        U_p_spin_orbit: Spin-orbit interaction for the proton.
+        U_n_central: Central interaction for the neutron (required).
+        U_n_spin_orbit: Spin-orbit interaction for the neutron.
+        U1_central: Central transition potential, used as-is. Defaults to
+            ``-(U_n_central - U_p_central) * isovector_factor``.
+        U1_spin_orbit: Spin-orbit transition potential, used as-is. Defaults
+            to ``-(U_n_spin_orbit - U_p_spin_orbit) * isovector_factor``.
+
+    Returns:
+        Validated complex arrays keyed by argument name; omitted spin-orbit
+        terms are zero.
+    """
+    if U_n_central is None:
+        raise TypeError("U_n_central is required")
+    potentials = {
+        "U_p_coulomb": as_local_potential(U_p_coulomb, nbasis, "U_p_coulomb"),
+        "U_p_central": as_local_potential(U_p_central, nbasis, "U_p_central"),
+        "U_p_spin_orbit": as_optional_local_potential(
+            U_p_spin_orbit, nbasis, "U_p_spin_orbit"
+        ),
+        "U_n_central": as_local_potential(U_n_central, nbasis, "U_n_central"),
+        "U_n_spin_orbit": as_optional_local_potential(
+            U_n_spin_orbit, nbasis, "U_n_spin_orbit"
+        ),
+    }
+    if U1_central is None:
+        potentials["U1_central"] = (
+            -(potentials["U_n_central"] - potentials["U_p_central"]) * isovector_factor
+        )
+    else:
+        potentials["U1_central"] = as_local_potential(U1_central, nbasis, "U1_central")
+    if U1_spin_orbit is None:
+        potentials["U1_spin_orbit"] = (
+            -(potentials["U_n_spin_orbit"] - potentials["U_p_spin_orbit"])
+            * isovector_factor
+        )
+    else:
+        potentials["U1_spin_orbit"] = as_local_potential(
+            U1_spin_orbit, nbasis, "U1_spin_orbit"
+        )
+    return potentials
+
+
+def spin_half_transition_geometry(lmax: int, angles: FloatArray) -> ComplexArray:
+    r"""Angular factors for a spin-1/2 transition on a spin-0 target.
+
+    For a transition that conserves :math:`l` and :math:`j`, the amplitude
+    for projectile spin projection :math:`m \to m'` is a sum over partial
+    waves of
+
+    .. math::
+        \sqrt{2l+1} \langle l 0 \tfrac{1}{2} m | j m \rangle
+        \langle l, m-m'; \tfrac{1}{2} m' | j m \rangle Y_l^{m-m'}(\theta, 0)
+
+    times a partial-wave amplitude.
+
+    Args:
+        lmax: Maximum orbital angular momentum.
+        angles: Scattering angles in radians.
+
+    Returns:
+        Array of shape ``(2, 2, lmax + 1, 2, len(angles))`` indexed by
+        ``[m, m', l, j]``, with ``m, m'`` in ``(-1/2, +1/2)`` and ``j`` in
+        ``(l + 1/2, l - 1/2)``. Entries with no allowed ``j`` are zero.
+    """
+    geometry = np.zeros((2, 2, lmax + 1, 2, angles.shape[0]), dtype=np.complex128)
+    for im, m in enumerate([-0.5, 0.5]):
+        for imp, mp in enumerate([-0.5, 0.5]):
+            for l in range(0, lmax + 1):
+                for ijp, jp in enumerate(
+                    [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
+                ):
+                    if abs(m - mp) <= l:
+                        ylm = sph_harm_y(l, int(m - mp), angles, 0)
+                        cg0 = float(clebsch_gordan(l, 1 / 2, jp, m - mp, mp, m))
+                        cg1 = float(clebsch_gordan(l, 1 / 2, jp, 0, m, m))
+                        geometry[im, imp, l, ijp, :] = (
+                            cg1 * cg0 * np.sqrt(2 * l + 1) * ylm
+                        )
+    return geometry
+
+
 class System:
     r"""
     System for (p,n) quasi-elastic scattering observables for local interactions
@@ -141,10 +273,7 @@ class Workspace:
         self.angles = angles
 
         # precompute for DWBA matrix element
-        A = self.reaction.target.A
-        Z = self.reaction.target.Z
-        N = A - Z
-        self.isovector_factor = np.sqrt(np.fabs(N - Z)) / (N - Z - 1)
+        self.isovector_factor = isovector_factor(self.reaction)
 
         # precompute things for entrance channel
         self.free_matrices_p = self.solver.free_matrix(
@@ -188,55 +317,22 @@ class Workspace:
             * self.kinematics_exit.mu
             / (4 * np.pi**2 * constants.HBARC**4 * (2 * 1.0 / 2 + 1))
         )
-        self.geometric_factor = np.zeros(
-            (2, 2, self.sys.lmax + 1, 2, self.angles.shape[0]), dtype=np.complex128
-        )
         self.sigma_c = np.angle(
             gamma(1 + self.sys.l + 1j * self.kinematics_entrance.eta)
         )
-        for im, m in enumerate([-0.5, 0.5]):
-            for imp, mp in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax + 1):
-                    for ijp, jp in enumerate(
-                        [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
-                    ):
-                        if abs(m - mp) <= l and jp >= 0:
-                            ylm = sph_harm_y(l, int(m - mp), self.angles, 0)
-                            cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, mp, m)
-                            cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
-
-                            self.geometric_factor[im, imp, l, ijp, :] = (
-                                (4 * np.pi) ** (3.0 / 2.0)
-                                / (self.kinematics_entrance.k * self.kinematics_exit.k)
-                                * np.exp(1j * self.sigma_c[l])
-                                * cg1
-                                * cg0
-                                * np.sqrt(2 * l + 1)
-                                * (-1) ** (2 * jp + 1)
-                                * ylm
-                            )
+        # (-1)^(2j+1) = 1 for half-integer j
+        self.geometric_factor = (
+            (4 * np.pi) ** (3.0 / 2.0)
+            / (self.kinematics_entrance.k * self.kinematics_exit.k)
+            * np.exp(1j * self.sigma_c)[:, np.newaxis, np.newaxis]
+            * spin_half_transition_geometry(self.sys.lmax, self.angles)
+        )
 
     def radial_grid(self) -> FloatArray:
         """Return the physical quadrature grid used for local potentials."""
         return self.solver.radial_grid(
             self.p_channels[0][0].a, self.kinematics_entrance.k
         )
-
-    def _local_potential(self, potential: npt.ArrayLike, name: str) -> ComplexArray:
-        """Validate and cast a local potential array on the quadrature grid."""
-        potential_array = np.asarray(potential, dtype=np.complex128)
-        expected_shape = (self.solver.kernel.quadrature.nbasis,)
-        if potential_array.shape != expected_shape:
-            raise ValueError(f"{name} must have shape {expected_shape}")
-        return potential_array
-
-    def _optional_local_potential(
-        self, potential: npt.ArrayLike | None, name: str
-    ) -> ComplexArray:
-        """Return a validated local potential or a zero array when omitted."""
-        if potential is None:
-            return np.zeros(self.solver.kernel.quadrature.nbasis, dtype=np.complex128)
-        return self._local_potential(potential, name)
 
     def tmatrix(
         self,
@@ -276,20 +372,27 @@ class Workspace:
         Sn = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
         Sp = np.zeros((self.sys.lmax + 1, 2), dtype=np.complex128)
 
+        potentials = pn_potentials(
+            self.solver.kernel.quadrature.nbasis,
+            self.isovector_factor,
+            U_p_coulomb,
+            U_p_central,
+            U_p_spin_orbit,
+            U_n_central,
+            U_n_spin_orbit,
+            U1_central,
+            U1_spin_orbit,
+        )
+        proton_central = potentials["U_p_central"]
+        proton_spin_orbit = potentials["U_p_spin_orbit"]
+        proton_coulomb = potentials["U_p_coulomb"]
+        neutron_central = potentials["U_n_central"]
+        neutron_spin_orbit = potentials["U_n_spin_orbit"]
+        transition_central = potentials["U1_central"]
+        transition_spin_orbit = potentials["U1_spin_orbit"]
+
         # precomute central, spin-obit, and Coulomb interaction matrices
         # for entrance channel distorted waves
-        if U_n_central is None:
-            raise TypeError("U_n_central is required")
-
-        proton_central = self._local_potential(U_p_central, "U_p_central")
-        proton_spin_orbit = self._optional_local_potential(
-            U_p_spin_orbit, "U_p_spin_orbit"
-        )
-        proton_coulomb = self._local_potential(U_p_coulomb, "U_p_coulomb")
-        neutron_central = self._local_potential(U_n_central, "U_n_central")
-        neutron_spin_orbit = self._optional_local_potential(
-            U_n_spin_orbit, "U_n_spin_orbit"
-        )
 
         im_central_p = self.solver.interaction_matrix(
             self.p_channels[0][0].k[0],
@@ -330,17 +433,6 @@ class Workspace:
             local_potential=neutron_spin_orbit,
         )
 
-        if U1_central is None:
-            U1_central = -(neutron_central - proton_central) * self.isovector_factor
-        else:
-            U1_central = self._local_potential(U1_central, "U1_central")
-        if U1_spin_orbit is None:
-            U1_spin_orbit = (
-                -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
-            )
-        else:
-            U1_spin_orbit = self._local_potential(U1_spin_orbit, "U1_spin_orbit")
-
         def tmatrix_element(l, ji, l_dot_s):
             nch = self.n_channels[l]
             pch = self.p_channels[l]
@@ -369,7 +461,7 @@ class Workspace:
             )
 
             tlj = (
-                np.sum(xp * (U1_central + l_dot_s * U1_spin_orbit) * xn)
+                np.sum(xp * (transition_central + l_dot_s * transition_spin_orbit) * xn)
                 / self.sys.channel_radius_fm
                 / self.kinematics_entrance.k
                 / self.kinematics_exit.k
