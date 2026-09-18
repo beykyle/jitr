@@ -245,6 +245,8 @@ class Workspace:
         U_p_spin_orbit: npt.ArrayLike | None = None,
         U_n_central: npt.ArrayLike | None = None,
         U_n_spin_orbit: npt.ArrayLike | None = None,
+        U1_central: npt.ArrayLike | None = None,
+        U1_spin_orbit: npt.ArrayLike | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the transition matrix for (p,n) quasi-elastic scattering
@@ -256,6 +258,13 @@ class Workspace:
             U_p_spin_orbit: Spin-orbit interaction for the proton.
             U_n_central: Central interaction for the neutron.
             U_n_spin_orbit: Spin-orbit interaction for the neutron.
+            U1_central: Central (p,n) transition potential on the quadrature
+                grid, used as-is in the radial integral. If None, defaults to
+                ``-(U_n_central - U_p_central) * isovector_factor``.
+            U1_spin_orbit: Spin-orbit (p,n) transition potential on the
+                quadrature grid, used as-is in the radial integral. If None,
+                defaults to
+                ``-(U_n_spin_orbit - U_p_spin_orbit) * isovector_factor``.
 
         Returns:
             Tuple (Tpn, Sn, Sp) where Tpn is the transition matrix for the
@@ -321,10 +330,16 @@ class Workspace:
             local_potential=neutron_spin_orbit,
         )
 
-        U1_central = -(neutron_central - proton_central) * self.isovector_factor
-        U1_spin_orbit = (
-            -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
-        )
+        if U1_central is None:
+            U1_central = -(neutron_central - proton_central) * self.isovector_factor
+        else:
+            U1_central = self._local_potential(U1_central, "U1_central")
+        if U1_spin_orbit is None:
+            U1_spin_orbit = (
+                -(neutron_spin_orbit - proton_spin_orbit) * self.isovector_factor
+            )
+        else:
+            U1_spin_orbit = self._local_potential(U1_spin_orbit, "U1_spin_orbit")
 
         def tmatrix_element(l, ji, l_dot_s):
             nch = self.n_channels[l]
@@ -385,6 +400,8 @@ class Workspace:
         U_p_spin_orbit: npt.ArrayLike | None = None,
         U_n_central: npt.ArrayLike | None = None,
         U_n_spin_orbit: npt.ArrayLike | None = None,
+        U1_central: npt.ArrayLike | None = None,
+        U1_spin_orbit: npt.ArrayLike | None = None,
     ) -> np.ndarray:
         """
         Calculate the differential cross section for (p,n) quasi-elastic
@@ -396,6 +413,13 @@ class Workspace:
             U_p_spin_orbit: Spin-orbit interaction for the proton.
             U_n_central: Central interaction for the neutron.
             U_n_spin_orbit: Spin-orbit interaction for the neutron.
+            U1_central: Central (p,n) transition potential on the quadrature
+                grid, used as-is in the radial integral. If None, defaults to
+                ``-(U_n_central - U_p_central) * isovector_factor``.
+            U1_spin_orbit: Spin-orbit (p,n) transition potential on the
+                quadrature grid, used as-is in the radial integral. If None,
+                defaults to
+                ``-(U_n_spin_orbit - U_p_spin_orbit) * isovector_factor``.
 
         Returns:
             Differential cross section for the (p,n) reaction in mb/Sr.
@@ -408,6 +432,8 @@ class Workspace:
             U_p_spin_orbit=U_p_spin_orbit,
             U_n_central=U_n_central,
             U_n_spin_orbit=U_n_spin_orbit,
+            U1_central=U1_central,
+            U1_spin_orbit=U1_spin_orbit,
         )
         # TODO cast into a np.sum
         for im, m in enumerate([-0.5, 0.5]):
