@@ -202,7 +202,7 @@ class Workspace:
                     ):
                         if abs(m - mp) <= l and jp >= 0:
                             ylm = sph_harm_y(l, int(m - mp), self.angles, 0)
-                            cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, m, mp)
+                            cg0 = clebsch_gordan(l, 1 / 2, jp, m - mp, mp, m)
                             cg1 = clebsch_gordan(l, 1 / 2, jp, 0, m, m)
 
                             self.geometric_factor[im, imp, l, ijp, :] = (
@@ -412,7 +412,7 @@ class Workspace:
         # TODO cast into a np.sum
         for im, m in enumerate([-0.5, 0.5]):
             for imp, mp in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax):
+                for l in range(0, self.sys.lmax + 1):
                     for ijp, jp in enumerate([l + 0.5, l - 0.5]):
                         if abs(m - mp) <= l and jp >= 0:
                             Tmmp[im, imp, :] += (
