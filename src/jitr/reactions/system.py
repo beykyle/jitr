@@ -194,7 +194,20 @@ class ProjectileTargetSystem:
         k: float | FloatArray,
         eta: float | FloatArray,
     ) -> tuple[list[Channels], list[Asymptotics]]:
-        """Build channel and asymptotic objects for every partial wave."""
+        """Build channel and asymptotic objects for every partial wave.
+
+        Args:
+            Elab: Unused; kept so that a :class:`ChannelKinematics` can be
+                unpacked directly into this call.
+            Ecm: Unused; the channel energy is ``hbar^2 k^2 / (2 mu)``.
+            mu: Reduced mass of each channel, or one value for all.
+            k: Wavenumber of each channel, or one value for all.
+            eta: Sommerfeld parameter of each channel, or one value for all.
+
+        Returns:
+            One :class:`Channels` and one :class:`Asymptotics` per partial
+            wave, with channel ``i`` matched at ``rho_i = k_i a``.
+        """
         channels: list[Channels] = []
         asymptotics: list[Asymptotics] = []
         # Coulomb-Hankel functions and derivatives for all partial waves, tabulated
@@ -229,9 +242,13 @@ class ProjectileTargetSystem:
                 )
             )
             rho_array = self.channel_radius * k_array / k_array[0]
-            for key in zip(eta_array.tolist(), rho_array.tolist(), strict=True):
-                if key not in tables:
-                    tables[key] = coulomb_hankel_table(key[1], key[0], self.lmax)
+            for eta_i, rho_i in zip(
+                eta_array.tolist(), rho_array.tolist(), strict=True
+            ):
+                if (eta_i, rho_i) not in tables:
+                    tables[(eta_i, rho_i)] = coulomb_hankel_table(
+                        rho=rho_i, eta=eta_i, lmax=self.lmax
+                    )
             asymptotics.append(Asymptotics.from_table(tables, l, eta_array, rho_array))
 
         return channels, asymptotics

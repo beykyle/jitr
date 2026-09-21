@@ -24,6 +24,11 @@ def isovector_factor(reaction: Reaction) -> float:
     A = reaction.target.A
     Z = reaction.target.Z
     N = A - Z
+    if N - Z == 1:
+        raise ValueError(
+            f"the (p,n) isovector factor diverges for N - Z = 1 targets like "
+            f"{reaction.target}; supply U1_central and U1_spin_orbit explicitly"
+        )
     return float(np.sqrt(np.fabs(N - Z)) / (N - Z - 1))
 
 
@@ -134,16 +139,15 @@ def spin_half_transition_geometry(lmax: int, angles: FloatArray) -> ComplexArray
     for im, m in enumerate([-0.5, 0.5]):
         for imp, mp in enumerate([-0.5, 0.5]):
             for l in range(0, lmax + 1):
+                if abs(m - mp) > l:
+                    continue
+                ylm = sph_harm_y(l, int(m - mp), angles, 0)
                 for ijp, jp in enumerate(
                     [l + 1 / 2, l - 1 / 2] if l > 0 else [l + 1 / 2]
                 ):
-                    if abs(m - mp) <= l:
-                        ylm = sph_harm_y(l, int(m - mp), angles, 0)
-                        cg0 = float(clebsch_gordan(l, 1 / 2, jp, m - mp, mp, m))
-                        cg1 = float(clebsch_gordan(l, 1 / 2, jp, 0, m, m))
-                        geometry[im, imp, l, ijp, :] = (
-                            cg1 * cg0 * np.sqrt(2 * l + 1) * ylm
-                        )
+                    cg0 = float(clebsch_gordan(l, 1 / 2, jp, m - mp, mp, m))
+                    cg1 = float(clebsch_gordan(l, 1 / 2, jp, 0, m, m))
+                    geometry[im, imp, l, ijp, :] = cg1 * cg0 * np.sqrt(2 * l + 1) * ylm
     return geometry
 
 
@@ -517,7 +521,6 @@ class Workspace:
             Differential cross section for the (p,n) reaction in mb/Sr.
         """
 
-        Tmmp = np.zeros((2, 2, self.angles.shape[0]), dtype=np.complex128)
         Tlj, Sn, Sp = self.tmatrix(
             U_p_coulomb=U_p_coulomb,
             U_p_central=U_p_central,
@@ -527,13 +530,7 @@ class Workspace:
             U1_central=U1_central,
             U1_spin_orbit=U1_spin_orbit,
         )
-        # TODO cast into a np.sum
-        for im, m in enumerate([-0.5, 0.5]):
-            for imp, mp in enumerate([-0.5, 0.5]):
-                for l in range(0, self.sys.lmax + 1):
-                    for ijp, jp in enumerate([l + 0.5, l - 0.5]):
-                        if abs(m - mp) <= l and jp >= 0:
-                            Tmmp[im, imp, :] += (
-                                self.geometric_factor[im, imp, l, ijp, :] * Tlj[l, ijp]
-                            )
+        # geometric_factor is zero wherever the (l, j, m, m') combination is
+        # not allowed, so the sum needs no further selection rules
+        Tmmp = np.einsum("abljt,lj->abt", self.geometric_factor, Tlj)
         return self.xs_factor * 10 * np.sum(np.absolute(Tmmp) ** 2, axis=(0, 1))

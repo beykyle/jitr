@@ -102,6 +102,7 @@ class Workspace:
             Zproj=reaction.projectile.Z,
             coupling=lambda l: np.eye(2),
         )
+        # Elab and Ecm are unused; the per-channel energy is hbar^2 k^2 / (2 mu)
         self.channels, self.asymptotics = self.sys.get_partial_wave_channels(
             kinematics_entrance.Elab, kinematics_entrance.Ecm, mu, k, eta
         )
