@@ -28,7 +28,9 @@ from ..rmatrix import Solver
 from ..utils.kinematics import ChannelKinematics
 from .elastic import check_angles
 from .quasielastic_pn import (
+    QuasielasticPnXS,
     isovector_factor,
+    pn_observables,
     pn_potentials,
     spin_half_transition_geometry,
 )
@@ -246,6 +248,36 @@ class Workspace:
         )
         return self.xs_from_smatrix(S)
 
+    def observables(
+        self,
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
+        U1_central: npt.ArrayLike | None = None,
+        U1_spin_orbit: npt.ArrayLike | None = None,
+    ) -> QuasielasticPnXS:
+        """
+        Differential cross section, analyzing power and spin-rotation function
+        in the outgoing neutron angle, from the coupled-channels S-matrix.
+
+        Args are as for :meth:`rsmatrix`.
+
+        Returns:
+            Observables at ``self.angles``; the cross section is in mb/sr.
+        """
+        _, S = self.rsmatrix(
+            U_p_coulomb,
+            U_p_central,
+            U_p_spin_orbit,
+            U_n_central,
+            U_n_spin_orbit,
+            U1_central,
+            U1_spin_orbit,
+        )
+        return self.observables_from_smatrix(S)
+
     def integrated_xs(
         self,
         U_p_coulomb: npt.ArrayLike,
@@ -293,8 +325,43 @@ class Workspace:
         Returns:
             Differential cross section at ``self.angles`` in mb/sr.
         """
-        f = np.einsum("abljt,lj->abt", self.geometric_factor, S[:, :, NEUTRON, PROTON])
-        return 10 * 0.5 * np.sum(np.abs(f) ** 2, axis=(0, 1))
+        return self.observables_from_smatrix(S).dsdo
+
+    def amplitudes_from_smatrix(self, S: ComplexArray) -> ComplexArray:
+        r"""
+        Spin-1/2 transition amplitude matrix from the coupled S-matrix.
+
+        .. math::
+            f_{m m'}(\theta) = \frac{\sqrt{4\pi}}{2 i k_p} \sum_{lj}
+            \sqrt{2l+1}\langle l 0 \tfrac{1}{2} m | j m \rangle
+            \langle l, m-m'; \tfrac{1}{2} m' | j m \rangle
+            e^{i(\sigma_l^p + \sigma_l^n)} S^{lj}_{np} Y_l^{m-m'}(\theta, 0)
+
+        Args:
+            S: Flux-normalized S-matrix from :meth:`rsmatrix`.
+
+        Returns:
+            Amplitudes :math:`f_{mm'}(\theta)` with shape
+            ``(2, 2, len(self.angles))``.
+        """
+        return np.einsum(
+            "abljt,lj->abt", self.geometric_factor, S[:, :, NEUTRON, PROTON]
+        )
+
+    def observables_from_smatrix(self, S: ComplexArray) -> QuasielasticPnXS:
+        r"""
+        Observables from the coupled S-matrix,
+        :math:`\frac{d\sigma}{d\Omega} = \frac{1}{2}\sum_{m m'} |f_{m m'}|^2`
+        and the analyzing power and spin-rotation function of
+        :func:`jitr.xs.quasielastic_pn.pn_observables`.
+
+        Args:
+            S: Flux-normalized S-matrix from :meth:`rsmatrix`.
+
+        Returns:
+            Observables at ``self.angles``; the cross section is in mb/sr.
+        """
+        return pn_observables(self.amplitudes_from_smatrix(S))
 
     def integrated_xs_from_smatrix(self, S: ComplexArray) -> float:
         r"""

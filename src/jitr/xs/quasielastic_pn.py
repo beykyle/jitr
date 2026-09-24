@@ -1,5 +1,7 @@
 """DWBA workspaces for quasi-elastic ``(p,n)`` scattering observables."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import numpy.typing as npt
 from scipy.special import gamma, sph_harm_y
@@ -13,6 +15,21 @@ from .elastic import check_angles
 
 ComplexArray = npt.NDArray[np.complex128]
 FloatArray = npt.NDArray[np.float64]
+
+
+@dataclass
+class QuasielasticPnXS:
+    """Container for quasi-elastic ``(p,n)`` observables.
+
+    Attributes:
+        dsdo: Differential cross section in mb/sr.
+        Ay: Analyzing power.
+        Q: Spin-rotation function.
+    """
+
+    dsdo: FloatArray
+    Ay: FloatArray
+    Q: FloatArray
 
 
 def isovector_factor(reaction: Reaction) -> float:
@@ -149,6 +166,59 @@ def spin_half_transition_geometry(lmax: int, angles: FloatArray) -> ComplexArray
                     cg1 = float(clebsch_gordan(l, 1 / 2, jp, 0, m, m))
                     geometry[im, imp, l, ijp, :] = cg1 * cg0 * np.sqrt(2 * l + 1) * ylm
     return geometry
+
+
+def pn_observables(
+    f: ComplexArray, xs_factor: float = 0.5, eps: float = 1e-30
+) -> QuasielasticPnXS:
+    r"""Observables from the spin-1/2 transition amplitude matrix.
+
+    The scattering plane is taken at :math:`\phi = 0`, so the normal is
+    :math:`\hat n = \hat k_{in} \times \hat k_{out} = \hat y` and, for a
+    transition with :math:`l = s = j = 0` transfer, the amplitude matrix is
+
+    .. math::
+        M = A + B\, \sigma \cdot \hat n ,
+
+    with :math:`A` the non-spin-flip and :math:`B` the spin-flip amplitude.
+    In the ``f[m, m']`` basis of :func:`spin_half_transition_geometry` this is
+    :math:`A = f[1, 1] = f[0, 0]` and
+    :math:`\langle -|M|+\rangle = f[1, 0] = i B`, which gives
+
+    .. math::
+        \frac{d\sigma}{d\Omega} = \frac{1}{2}\sum_{mm'}|f_{mm'}|^2
+        = |A|^2 + |B|^2, \qquad
+        A_y = \frac{2\,\mathrm{Im}(A^* f[1,0])}{|A|^2 + |B|^2}, \qquad
+        Q = \frac{2\,\mathrm{Re}(A^* f[1,0])}{|A|^2 + |B|^2}.
+
+    This is the same convention as :func:`jitr.xs.elastic.differential_elastic_xs`
+    and as Eq. (12) of Gosset, Mayer and Escudie, Phys. Rev. C 14, 878 (1976).
+
+    The cross section is the full sum over ``m, m'``. The analyzing power and
+    spin-rotation function, on the other hand, are only meaningful when ``f``
+    really does reduce to two amplitudes, i.e. when the transition conserves
+    ``l`` and ``j`` on a spin-0 target so that ``f[0, 0] == f[1, 1]`` and
+    ``f[0, 1] == -f[1, 0]``.
+
+    Args:
+        f: Amplitude matrix with shape ``(2, 2, len(angles))`` indexed by
+            ``[m, m', theta]``, with ``m, m'`` in ``(-1/2, +1/2)``.
+        xs_factor: Overall factor multiplying :math:`\sum_{mm'}|f_{mm'}|^2` to
+            give the cross section in fm^2/sr. Defaults to the ``1/(2s+1)``
+            spin average of a flux-normalized S-matrix amplitude.
+        eps: Floor on the cross section used to regularize the ratios.
+
+    Returns:
+        The differential cross section in mb/sr, the analyzing power and the
+        spin-rotation function at each angle.
+    """
+    total = np.sum(np.absolute(f) ** 2, axis=(0, 1))
+    denom = np.maximum(0.5 * total, eps)
+    return QuasielasticPnXS(
+        dsdo=10.0 * xs_factor * total,
+        Ay=2.0 * np.imag(np.conjugate(f[1, 1]) * f[1, 0]) / denom,
+        Q=2.0 * np.real(np.conjugate(f[1, 1]) * f[1, 0]) / denom,
+    )
 
 
 class System:
@@ -520,8 +590,36 @@ class Workspace:
         Returns:
             Differential cross section for the (p,n) reaction in mb/Sr.
         """
+        return self.observables(
+            U_p_coulomb=U_p_coulomb,
+            U_p_central=U_p_central,
+            U_p_spin_orbit=U_p_spin_orbit,
+            U_n_central=U_n_central,
+            U_n_spin_orbit=U_n_spin_orbit,
+            U1_central=U1_central,
+            U1_spin_orbit=U1_spin_orbit,
+        ).dsdo
 
-        Tlj, Sn, Sp = self.tmatrix(
+    def observables(
+        self,
+        U_p_coulomb: npt.ArrayLike,
+        U_p_central: npt.ArrayLike,
+        U_p_spin_orbit: npt.ArrayLike | None = None,
+        U_n_central: npt.ArrayLike | None = None,
+        U_n_spin_orbit: npt.ArrayLike | None = None,
+        U1_central: npt.ArrayLike | None = None,
+        U1_spin_orbit: npt.ArrayLike | None = None,
+    ) -> QuasielasticPnXS:
+        """
+        Differential cross section, analyzing power and spin-rotation function
+        for (p,n) quasi-elastic scattering in DWBA.
+
+        Args are as for :meth:`xs`.
+
+        Returns:
+            Observables at ``self.angles``; the cross section is in mb/Sr.
+        """
+        Tlj, _, _ = self.tmatrix(
             U_p_coulomb=U_p_coulomb,
             U_p_central=U_p_central,
             U_p_spin_orbit=U_p_spin_orbit,
@@ -530,7 +628,34 @@ class Workspace:
             U1_central=U1_central,
             U1_spin_orbit=U1_spin_orbit,
         )
+        return self.observables_from_tmatrix(Tlj)
+
+    def amplitudes_from_tmatrix(self, Tlj: ComplexArray) -> ComplexArray:
+        r"""
+        Spin-1/2 transition amplitude matrix from the DWBA T-matrix.
+
+        Args:
+            Tlj: Partial-wave T-matrix from :meth:`tmatrix`, with shape
+                ``(lmax + 1, 2)`` indexed by ``[l, j]``.
+
+        Returns:
+            Amplitudes :math:`T_{mm'}(\theta)` with shape
+            ``(2, 2, len(self.angles))``.
+        """
         # geometric_factor is zero wherever the (l, j, m, m') combination is
         # not allowed, so the sum needs no further selection rules
-        Tmmp = np.einsum("abljt,lj->abt", self.geometric_factor, Tlj)
-        return self.xs_factor * 10 * np.sum(np.absolute(Tmmp) ** 2, axis=(0, 1))
+        return np.einsum("abljt,lj->abt", self.geometric_factor, Tlj)
+
+    def observables_from_tmatrix(self, Tlj: ComplexArray) -> QuasielasticPnXS:
+        """
+        Observables from the DWBA T-matrix.
+
+        Args:
+            Tlj: Partial-wave T-matrix from :meth:`tmatrix`.
+
+        Returns:
+            Observables at ``self.angles``; the cross section is in mb/Sr.
+        """
+        return pn_observables(
+            self.amplitudes_from_tmatrix(Tlj), xs_factor=self.xs_factor
+        )
