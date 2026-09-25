@@ -16,6 +16,7 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 /examples/notebooks/example_jlm
 /examples/notebooks/kd03_neutron_dxs_demo
 /examples/notebooks/builtin_omps_uq
+/examples/notebooks/qepn_analyzing_power
 /examples/notebooks/tabulated_density_demo
 /examples/notebooks/chuq_kduq_comp
 /examples/notebooks/volume_integrals
@@ -54,6 +55,9 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
   walks through posterior sampling, solver setup, and interval construction
   for several of the built-in uncertainty quantified optical potentials in `jitr`.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/builtin_omps_uq.ipynb)
+- [Analyzing power of the quasi-elastic (p,n) reaction](/examples/notebooks/qepn_analyzing_power)
+  pulls nine angular distributions from EXFOR, solves the coupled Lane channels for the charge-exchange transition to the isobaric analog state, and propagates the KDUQ, WLH and CHUQ posteriors through to the analyzing power, an observable that depends almost entirely on the isovector spin-orbit potential.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/qepn_analyzing_power.ipynb)
 - [Tabulated neutron and proton densities](/examples/notebooks/tabulated_density_demo)
   shows how to grab the tabulated nuclear densities in `jitr`.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/tabulated_density_demo.ipynb)

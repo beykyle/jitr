@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -17,12 +18,13 @@ from jitr.folding.jlm import (
     spin_orbit_jlmb,
 )
 from jitr.optical_potentials.omp import LocalOpticalPotential
-from jitr.reactions import ElasticReaction, Nucleus, Particle
+from jitr.reactions import ElasticReaction, Nucleus, Particle, Reaction
 from jitr.rmatrix import Solver
 from jitr.utils.constants import AMU
 from jitr.utils.density import density_table
 from jitr.utils.kinematics import classical_kinematics, classical_kinematics_cm
 from jitr.xs.elastic import DifferentialWorkspace
+from jitr.xs.quasielastic_pn import Workspace as QuasielasticPnWorkspace
 
 from ._readers import ReferenceCase
 
@@ -33,15 +35,177 @@ class BuiltCase:
 
     workspace: Any
     xs_kwargs: dict[str, np.ndarray | None]
+    # elastic workspaces return an ElasticXS; the (p,n) workspace returns dsdo itself
+    extract_dsdo: Callable[[Any], np.ndarray] = field(
+        default=lambda result: result.dsdo
+    )
+
+    def dsdo(self) -> np.ndarray:
+        """Return the differential cross section in mb/sr for this case."""
+        return self.extract_dsdo(self.workspace.xs(**self.xs_kwargs))
 
 
 def build_case(ref: ReferenceCase) -> BuiltCase:
     """Build the workspace and input arrays for a committed reference case."""
-    if ref.observable_type != "elastic":
+    if ref.observable_type == "elastic":
+        return _build_elastic_case(ref)
+    if ref.observable_type == "quasielastic_pn":
+        return _build_quasielastic_pn_case(ref)
+    raise NotImplementedError(
+        f"{ref.case_id} uses unsupported observable_type {ref.observable_type!r}"
+    )
+
+
+def _evaluate_local_potential(
+    reaction_model,
+    channel_kinematics,
+    radial_grid: np.ndarray,
+    block: dict[str, Any],
+    coulomb_radius: float,
+    scale_radii_by_At_and_Ap: bool,
+) -> tuple[np.ndarray, np.ndarray, Any]:
+    """Evaluate one KD-style local potential block on the quadrature grid.
+
+    ``block`` carries the 13 KD02 parameters as named in the deck
+    (``V rv av W rw aw Wd rvd avd Vso Wso rvso avso``); the surface real depth
+    ``Vd`` is zero for these decks.
+    """
+    model = LocalOpticalPotential(
+        scale_radii_by_At_and_Ap=scale_radii_by_At_and_Ap,
+    )
+    return model.evaluate(
+        radial_grid,
+        reaction_model,
+        channel_kinematics,
+        float(block["V"]),
+        float(block["rv"]),
+        float(block["av"]),
+        float(block["W"]),
+        float(block["rw"]),
+        float(block["aw"]),
+        float(block["Wd"]),
+        0.0,
+        float(block["rvd"]),
+        float(block["avd"]),
+        float(block["Vso"]),
+        float(block["Wso"]),
+        float(block["rvso"]),
+        float(block["avso"]),
+        coulomb_radius,
+    )
+
+
+def _build_quasielastic_pn_case(ref: ReferenceCase) -> BuiltCase:
+    """Build a DWBA (p,n) case against a Frescox charge-exchange deck.
+
+    Both channels use the deck's own lab energies and integer-amu masses, so
+    jitR and Frescox see identical kinematics. ``U1_central`` is left to jitR's
+    default isovector difference, which equals the form factor the deck reads;
+    ``U1_spin_orbit`` is zero because a Frescox ``KIND=1`` form factor is
+    central only.
+    """
+    metadata = ref.metadata
+    reaction_data = metadata["reaction"]
+    mass_kwargs = metadata.get("mass_kwargs", {})
+    mass_model = metadata.get("mass_model", "tabulated")
+    particles = {
+        name: _build_reaction_particle(reaction_data[name], mass_model, mass_kwargs)
+        for name in ("target", "projectile", "product", "residual")
+    }
+    reaction = Reaction(
+        particles["target"],
+        particles["projectile"],
+        particles["product"],
+        particles["residual"],
+        mass_kwargs=mass_kwargs,
+    )
+    exit_reaction = Reaction(
+        particles["residual"],
+        particles["product"],
+        process="El",
+        mass_kwargs=mass_kwargs,
+    )
+
+    kinematics = metadata["kinematics"]
+    frame = kinematics["frame"]
+    if frame != "lab" or bool(kinematics.get("relativistic", True)):
         raise NotImplementedError(
-            f"{ref.case_id} uses unsupported observable_type {ref.observable_type!r}"
+            f"{ref.case_id}: (p,n) cases expect non-relativistic lab kinematics"
         )
-    return _build_elastic_case(ref)
+    kinematics_entrance = classical_kinematics(
+        reaction.target.m0,
+        reaction.projectile.m0,
+        float(kinematics["energy_MeV"]),
+        reaction.target.Z * reaction.projectile.Z,
+    )
+    kinematics_exit = classical_kinematics(
+        exit_reaction.target.m0,
+        exit_reaction.projectile.m0,
+        float(kinematics["exit_energy_MeV"]),
+        exit_reaction.target.Z * exit_reaction.projectile.Z,
+    )
+
+    matching = metadata["matching"]
+    workspace = QuasielasticPnWorkspace(
+        reaction=reaction,
+        kinematics_entrance=kinematics_entrance,
+        kinematics_exit=kinematics_exit,
+        solver=Solver(int(matching["nbasis"])),
+        angles=ref.theta_cm_rad,
+        lmax=int(matching["lmax"]),
+        channel_radius_fm=float(matching["channel_radius_fm"]),
+        tmatrix_abs_tol=0.0,
+    )
+
+    potential = metadata["optical_potential"]
+    kind = potential["kind"]
+    if kind != "woods_saxon_local_pn":
+        raise NotImplementedError(
+            f"{ref.case_id} uses unsupported optical_potential.kind {kind!r}"
+        )
+    scale_radii = bool(potential["scale_radii_by_At_and_Ap"])
+    radial_grid = workspace.radial_grid()
+    coulomb_radius = float(potential["coulomb"]["rC"])
+    proton_central, proton_spin_orbit, proton_coulomb = _evaluate_local_potential(
+        reaction,
+        kinematics_entrance,
+        radial_grid,
+        potential["proton"],
+        coulomb_radius,
+        scale_radii,
+    )
+    neutron_central, neutron_spin_orbit, _ = _evaluate_local_potential(
+        exit_reaction,
+        kinematics_exit,
+        radial_grid,
+        potential["neutron"],
+        coulomb_radius,
+        scale_radii,
+    )
+
+    transition = metadata["transition_potential"]
+    if transition["central"] != "default_isovector_difference":
+        raise NotImplementedError(
+            f"{ref.case_id}: unsupported transition_potential.central "
+            f"{transition['central']!r}"
+        )
+    if transition["spin_orbit"] != "zero":
+        raise NotImplementedError(
+            f"{ref.case_id}: unsupported transition_potential.spin_orbit "
+            f"{transition['spin_orbit']!r}"
+        )
+    return BuiltCase(
+        workspace=workspace,
+        xs_kwargs={
+            "U_p_coulomb": np.asarray(proton_coulomb, dtype=np.complex128),
+            "U_p_central": np.asarray(proton_central, dtype=np.complex128),
+            "U_p_spin_orbit": np.asarray(proton_spin_orbit, dtype=np.complex128),
+            "U_n_central": np.asarray(neutron_central, dtype=np.complex128),
+            "U_n_spin_orbit": np.asarray(neutron_spin_orbit, dtype=np.complex128),
+            "U1_spin_orbit": np.zeros_like(radial_grid, dtype=np.complex128),
+        },
+        extract_dsdo=lambda result: np.asarray(result, dtype=np.float64),
+    )
 
 
 def _build_jlm_elastic_case(
