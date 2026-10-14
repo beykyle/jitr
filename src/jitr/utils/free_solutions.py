@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import numpy as np
 import scipy.special as sc
-from mpmath import coulombf, coulombg
+from mpmath import coulombf, coulombg, whitw
 from numba import njit
 
 from .._types import ComplexArray, FloatArray
@@ -162,3 +162,17 @@ def H_plus_prime(s: float, l: int, eta: float) -> complex:
 def H_minus_prime(s: float, l: int, eta: float) -> complex:
     """Return the derivative of the incoming Coulomb-Hankel function at ``s``."""
     return complex(coulomb_hankel_table(s, eta, l).Hmp[l])
+
+
+def whittaker_log_derivative(l: int, eta: float, z: float) -> float:
+    r"""Return ``z W'(z) / W(z)`` for the Whittaker function ``W_{-eta, l+1/2}``.
+
+    A closed channel with ``kappa = sqrt(-k^2)`` decays as ``W(2 kappa r)``, so
+    this is its logarithmic derivative ``a u'(a) / u(a)`` at ``z = 2 kappa a``:
+    the Bloch constant ``B_c`` that removes the channel from the matching. By
+    DLMF 13.15.23, ``z W'_{k,m} = (z/2 - k) W_{k,m} - W_{k+1,m}``, so only a
+    ratio of Whittaker functions is needed, which stays finite where ``W``
+    itself underflows.
+    """
+    m = l + 0.5
+    return float(z / 2 + eta - whitw(1 - eta, m, z) / whitw(-eta, m, z))

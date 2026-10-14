@@ -25,6 +25,7 @@ dependencies = [
     "periodictable",
     "numba",
     "pandas",
+    "jax>=0.4.35",
 ]
 
 [dependency-groups]
