@@ -67,6 +67,8 @@ class Workspace:
         nbasis: Number of Lagrange mesh points.
         angles: Optional c.m. angles in radians for the angular observables.
         batch_size: Passed to :class:`jitr.xs.coupled.Workspace`.
+        block_sizes: Passed to :class:`jitr.xs.coupled.Workspace`; for a
+            deuteron, ``2`` solves the one- and two-channel blocks apart.
     """
 
     def __init__(
@@ -78,6 +80,7 @@ class Workspace:
         nbasis: int,
         angles=None,
         batch_size=None,
+        block_sizes=None,
     ):
         projectile = (reaction.projectile.A, reaction.projectile.Z)
         if projectile == (reaction.target.A, reaction.target.Z):
@@ -96,6 +99,7 @@ class Workspace:
             mu,
             eta,
             batch_size=batch_size,
+            block_sizes=block_sizes,
         )
         self.spin_orbit = spin_orbit(self.solver.blocks, self.solver.levels)
         self.k, self.eta = np.sqrt(k2[:, 0]), eta[:, 0]

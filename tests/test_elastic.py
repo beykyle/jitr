@@ -237,18 +237,22 @@ def test_gpu_matches_cpu():
     np.testing.assert_allclose(gpu, cpu, rtol=1e-10)
 
 
-def test_deuteron_is_spin_one():
+def deuteron_xs(**settings):
     d = Reaction(target=(40, 20), projectile=(2, 1), process="El")
-    ws = Workspace(d, d.kinematics(np.array([20.0, 50.0])), 12.0, 16, 40, angles=ANGLES)
-    assert ws.s == 1.0
+    kin = d.kinematics(np.array([20.0, 50.0]))
+    ws = Workspace(d, kin, 12.0, 16, 40, angles=ANGLES, **settings)
     r = ws.r
-    xs = ws.xs(
-        Potential(
-            central=(-90 - 15j) * woods_saxon_safe(r, 4.3, 0.75),
-            spin_orbit=3.0 * thomas_safe(r, 4.0, 0.6),
-            coulomb=coulomb_charged_sphere(r, 20, 4.4),
-        )
+    potential = Potential(
+        central=(-90 - 15j) * woods_saxon_safe(r, 4.3, 0.75),
+        spin_orbit=3.0 * thomas_safe(r, 4.0, 0.6),
+        coulomb=coulomb_charged_sphere(r, 20, 4.4),
     )
+    return ws, ws.xs(potential)
+
+
+def test_deuteron_is_spin_one():
+    ws, xs = deuteron_xs()
+    assert ws.s == 1.0
     assert xs.T.shape == (2, 5, ANGLES.size)  # iT11 ... T22
     assert np.abs(np.real(1j * xs.T[:, 1])).max() > 1e-2  # vector analyzing power
     assert np.all(xs.rxn > 0) and np.all(np.isfinite(xs.dsdo))
@@ -314,3 +318,12 @@ def test_at_angles_shares_the_solver():
     for a, b in zip(moved.xs(kd03(ws, kin)), fresh.xs(kd03(ws, kin)), strict=True):
         np.testing.assert_allclose(a, b, rtol=1e-12, atol=1e-14)
     np.testing.assert_allclose(moved.rutherford, fresh.rutherford, rtol=1e-12)
+
+
+def test_deuteron_block_groups_do_not_change_observables():
+    """The one- and two-channel deuteron blocks solved apart (block_sizes=2)."""
+    ws, xs = deuteron_xs()
+    grouped, xs2 = deuteron_xs(block_sizes=2)
+    assert [n for _, n in grouped.solver.groups] == [1, 2]
+    for a, b in zip(xs2, xs, strict=True):
+        np.testing.assert_allclose(a, b, rtol=1e-10, atol=1e-12)

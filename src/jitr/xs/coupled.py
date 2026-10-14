@@ -23,6 +23,16 @@ Results are energy first: ``S`` has shape ``(NE, NB, nch, nch)``. Blocks
 with fewer channels are padded with decoupled closed channels; their rows and
 columns of ``S``, like those of closed channels, are zero (so the diagonal of
 ``S`` there is 0, not 1: use the ``open`` mask in any sum over channels).
+
+By default every block is solved padded to the largest one, ``nch``. When
+block sizes differ a lot, ``block_sizes`` solves groups of blocks, each padded
+only to its own largest block; every group is compiled separately, so a few
+groups pay off and many cost compile time. The results are the same.
+
+A batch of potentials (e.g. one per parameter sample) is solved in one call
+with :func:`jax.vmap`, the forms carrying a leading sample axis. Each step of
+the solver then holds ``batch_size`` systems per sample, so for large blocks
+build the workspace with a smaller ``batch_size``.
 """
 
 from __future__ import annotations
@@ -68,6 +78,46 @@ def potential_terms(potential: Potential, C, spin_orbit) -> tuple[list, list]:
     )
 
 
+def _groups(counts, block_sizes) -> tuple[tuple[tuple[int, ...], int], ...]:
+    """Blocks grouped by padded size: ``((block indices), size)`` per group.
+
+    ``counts`` is the number of active channels of each block. ``block_sizes``
+    is ``None`` (one group, padded to the largest block), the largest number
+    of groups (sizes chosen to minimize the padded cost, the sum over blocks
+    of size cubed), or the padded sizes themselves.
+    """
+    counts = np.asarray(counts)
+    if block_sizes is None:
+        return ((tuple(range(counts.size)), int(counts.max())),)
+    if isinstance(block_sizes, (int, np.integer)):
+        sizes, mult = np.unique(counts, return_counts=True)
+        # cost[g, i]: cheapest padding of sizes[:i] in g groups (dynamic program)
+        m, k = sizes.size, min(int(block_sizes), sizes.size)
+        cost = np.full((k + 1, m + 1), np.inf)
+        cost[0, 0], cut = 0.0, np.zeros((k + 1, m + 1), int)
+        for g in range(1, k + 1):
+            for i in range(1, m + 1):
+                for j in range(i):
+                    c = cost[g - 1, j] + sizes[i - 1] ** 3 * mult[j:i].sum()
+                    if c < cost[g, i]:
+                        cost[g, i], cut[g, i] = c, j
+        g, i, chosen = int(np.argmin(cost[:, m])), m, []
+        while i:
+            chosen.append(int(sizes[i - 1]))
+            i, g = cut[g, i], g - 1
+        block_sizes = chosen
+    padded = np.sort(np.asarray(block_sizes, int))
+    if padded[-1] < counts.max():
+        raise ValueError(
+            f"block_sizes {list(padded)} cannot hold a block of {counts.max()} channels"
+        )
+    size = padded[np.searchsorted(padded, counts)]
+    return tuple(
+        (tuple(int(b) for b in np.flatnonzero(size == n)), int(n))
+        for n in np.unique(size)
+    )
+
+
 def promote(v, is_nonlocal: bool, NE: int, lmax: int, N: int):
     """A form in one of the three layouts, as ``(L, NE or 1, N[, N])``."""
     base = 1 + is_nonlocal
@@ -102,10 +152,25 @@ class Workspace:
             default keeps about 256 MB of matrices in flight (each system
             needs about three copies of its matrix): everything at once for
             single-channel problems, about ten 720 x 720 blocks at a time.
+        block_sizes: How blocks are padded (see the module docstring):
+            ``None`` pads every block to the largest; an ``int`` is the most
+            groups of blocks to pad separately, with sizes chosen to minimize
+            the work; a sequence gives the padded sizes themselves.
     """
 
     def __init__(
-        self, a, nbasis, levels, lmax, k2, mu, eta, J=None, parity=None, batch_size=None
+        self,
+        a,
+        nbasis,
+        levels,
+        lmax,
+        k2,
+        mu,
+        eta,
+        J=None,
+        parity=None,
+        batch_size=None,
+        block_sizes=None,
     ):
         k2, mu, eta = (np.atleast_2d(np.asarray(x, float)) for x in (k2, mu, eta))
         at_threshold = np.argwhere(np.abs(k2) < 1e-12)
@@ -130,12 +195,26 @@ class Workspace:
         self.active2 = b.active[:, :, None] & b.active[:, None, :]
         self.same_l = b.l[:, :, None] == b.l[:, None, :]
         self._batch_size = batch_size
-        self.batch_size = batch_size or self._default_batch_size()
+        self.groups = _groups(b.active.sum(1), block_sizes)
 
-    def _default_batch_size(self):
-        matrix_bytes = 16 * (self.nch * self.mesh.x.size) ** 2
-        n = self.k2.shape[0] * self.k2.shape[1]
-        return int(min(n, max(1, 2**28 // (3 * matrix_bytes))))
+    def _batch_sizes(self):
+        """Systems solved at once in each group: ``batch_size``, or about
+        256 MB of matrices in flight (three copies of each)."""
+        if self._batch_size:
+            return tuple(self._batch_size for _ in self.groups)
+        NE, N = self.k2.shape[0], self.mesh.x.size
+        sizes = []
+        for idx, n in self.groups:
+            systems = NE * len(idx)
+            budget = min(systems, max(1, 2**28 // (3 * 16 * (n * N) ** 2)))
+            # equal batches: a small remainder batch would cost a whole step
+            sizes.append(-(-systems // -(-systems // budget)))
+        return tuple(sizes)
+
+    @property
+    def batch_size(self):
+        """Systems solved at once (in the largest group)."""
+        return self._batch_sizes()[-1]
 
     def channel(self, c: int) -> Workspace:
         """The one-level workspace of channel ``c`` of every block, sliced
@@ -162,7 +241,7 @@ class Workspace:
         ws.eta_level = self.eta_level[:, level : level + 1]
         ws.active2 = ws.blocks.active[:, :, None] & ws.blocks.active[:, None, :]
         ws.same_l = ws.blocks.l[:, :, None] == ws.blocks.l[:, None, :]
-        ws.batch_size = self._batch_size or ws._default_batch_size()
+        ws.groups = _groups(ws.blocks.active.sum(1), None)
         return ws
 
     @property
@@ -217,7 +296,8 @@ class Workspace:
             forms,
             spec,
             weights,
-            self.batch_size,
+            self.groups,
+            self._batch_sizes(),
         )
 
     def smatrix(self, local=(), nonlocal_=()):
@@ -256,8 +336,59 @@ class Workspace:
         return S, c / jnp.sqrt(m.a * m.w), c @ m.b / jnp.sqrt(m.a)
 
 
-@partial(jax.jit, static_argnames=("spec", "batch_size"))
+@partial(jax.jit, static_argnames=("spec", "groups", "batch_sizes"))
 def _solve_all(
+    mesh, l, k2, M, H, Bc, is_open, couplings, forms, spec, weights, groups, batch_sizes
+):
+    """Solve every (energy, block): each group of blocks padded to its own
+    size, the results padded back to ``nch`` channels."""
+    if len(groups) == 1 and groups[0][1] == l.shape[1]:
+        return _solve_group(
+            mesh,
+            l,
+            k2,
+            M,
+            H,
+            Bc,
+            is_open,
+            couplings,
+            forms,
+            spec,
+            weights,
+            batch_sizes[0],
+        )
+    NE, NB, nch = k2.shape
+    S = jnp.zeros((NE, NB, nch, nch), complex)
+    c = (
+        None
+        if weights is None
+        else jnp.zeros((NE, NB, weights.shape[1], nch, mesh.x.size), complex)
+    )
+    for (idx, n), batch_size in zip(groups, batch_sizes, strict=True):
+        b = np.array(idx)
+        out = _solve_group(
+            mesh,
+            l[b, :n],
+            k2[:, b, :n],
+            M[:, b, :n, :n],
+            H[:, b, :, :n],
+            Bc[:, b, :n],
+            is_open[:, b, :n],
+            [C[b, :n, :n] for C in couplings],
+            forms,
+            spec,
+            None if weights is None else weights[:n],
+            batch_size,
+        )
+        if weights is None:
+            S = S.at[:, b, :n, :n].set(out)
+        else:
+            S = S.at[:, b, :n, :n].set(out[0])
+            c = c.at[:, b, :, :n].set(out[1])
+    return S if weights is None else (S, c)
+
+
+def _solve_group(
     mesh, l, k2, M, H, Bc, is_open, couplings, forms, spec, weights, batch_size
 ):
     """Map :func:`rmatrix.solve` over every (energy, block), ``batch_size``
@@ -285,7 +416,9 @@ def _solve_all(
         )
 
     one = jax.checkpoint(one)
-    out = jax.lax.map(
-        lambda i: one(i // NB, i % NB), jnp.arange(NE * NB), batch_size=batch_size
-    )
-    return jax.tree.map(lambda x: x.reshape(NE, NB, *x.shape[1:]), out)
+    # whole batches only (the last system repeated): lax.map's separate
+    # remainder step can cost several full steps
+    n = NE * NB
+    i = jnp.minimum(jnp.arange(-(-n // batch_size) * batch_size), n - 1)
+    out = jax.lax.map(lambda i: one(i // NB, i % NB), i, batch_size=batch_size)
+    return jax.tree.map(lambda x: x[:n].reshape(NE, NB, *x.shape[1:]), out)

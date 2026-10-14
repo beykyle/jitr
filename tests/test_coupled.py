@@ -387,3 +387,49 @@ def test_channel_slice_keeps_explicit_batch_size():
 def test_filters_leaving_no_block_are_rejected():
     with pytest.raises(ValueError, match="no J"):
         jpi_blocks([Level(0)], 5, J=[0.5])
+
+
+def test_block_groups():
+    counts = [1, 1, 1, 1, 2, 9, 9, 3]
+    assert coupled._groups(counts, None) == ((tuple(range(8)), 9),)
+    # 2 groups: pad {1, 2, 3} to 3 and keep the 9s (4*27 + 2*729 beats the rest)
+    assert coupled._groups(counts, 2) == (((0, 1, 2, 3, 4, 7), 3), ((5, 6), 9))
+    assert coupled._groups(counts, 10) == (
+        ((0, 1, 2, 3), 1),
+        ((4,), 2),
+        ((7,), 3),
+        ((5, 6), 9),
+    )
+    assert coupled._groups(counts, [4, 9]) == (((0, 1, 2, 3, 4, 7), 4), ((5, 6), 9))
+    with pytest.raises(ValueError, match="cannot hold"):
+        coupled._groups(counts, [4, 8])
+
+
+def grouped_rotor(block_sizes):
+    """An alpha-like 0+, 2+, 4+ rotor over two energies (1 to 9 channels per
+    block), with wavefunctions for incoming waves in the first two channels."""
+    levels = [Level(0), Level(2), Level(4)]
+    mf = 20.736 / 3.0
+    k2 = (np.array([[14.0], [20.0]]) - np.array([[0.0, 4.44, 14.08]])) / mf
+    mu = np.full_like(k2, HBARC**2 / (2 * mf))
+    ws = coupled.Workspace(
+        10.0, 50, levels, 10, k2, mu, 0 * k2, block_sizes=block_sizes
+    )
+    r = ws.r
+    f = 1 / (1 + np.exp((r - 4.0) / 0.5))
+    g = np.exp((r - 4.0) / 0.5) / (0.5 * (1 + np.exp((r - 4.0) / 0.5)) ** 2)
+    terms = [
+        (np.eye(ws.nch), (-60 - 10j) * f),
+        (rotor(ws.blocks, levels, 2), (-60 - 10j) * 0.5 * g),
+    ]
+    return ws, ws.wavefunctions(local=terms, weights=np.eye(ws.nch)[:, :2])
+
+
+@pytest.mark.parametrize("block_sizes", [2, 4, 100, [5, 9]])
+def test_block_groups_do_not_change_the_results(block_sizes):
+    ws, reference = grouped_rotor(None)
+    grouped, results = grouped_rotor(block_sizes)
+    assert len(grouped.groups) > 1 and len(ws.groups) == 1
+    for a, b in zip(results, reference, strict=True):
+        assert a.shape == b.shape
+        np.testing.assert_allclose(a, b, rtol=1e-10, atol=1e-10)

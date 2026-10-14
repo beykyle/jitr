@@ -28,6 +28,9 @@ see ``docs/migration-v4.md`` for a table mapping the v3 API onto v4.
 * The built-in optical potentials evaluate over an energy grid, returning
   ``(NE, N)`` terms for a workspace over the same energies;
   ``elastic.Workspace.at_angles`` reuses a solver for new angles.
+* ``block_sizes`` solves groups of J^pi blocks each padded only to its own
+  largest block (opt-in; one compiled solve per group). Batches of
+  potentials go through ``jax.vmap`` (documented and tested).
 * No early exit in partial waves: every wave up to ``lmax`` is solved, and
   ``jitr.utils.suggest_lmax`` picks ``lmax``.
 * Fixes: nonlocal interactions were divided by the channel wavenumber once too

@@ -29,6 +29,23 @@ the v3 API onto v4.
 - **Precision.** `import jitr` enables 64-bit floats in JAX for the whole
   process.
 
+## Batches of potentials
+
+A batch of potentials, e.g. one per parameter sample, is solved in one call
+with `jax.vmap`: give every field of the `Potential` a leading sample axis
+(`jax.tree.map(lambda *x: jnp.stack(x), *potentials)` stacks a list), and
+every result gains that axis:
+
+```python
+xs = jax.vmap(ws.xs)(potentials)                    # xs.dsdo: (P, NE, Nθ)
+xs = jax.vmap(ws.dwba, in_axes=(0, None))(Up, Un)   # Un shared by the batch
+```
+
+Each batch size compiles once. Each step of the solver then holds
+`batch_size` systems per sample, so for large blocks build the workspace with
+a smaller `batch_size`. On a CPU the gain over a loop is modest; on a GPU the
+batch fills the device.
+
 ## Elastic scattering
 
 | v3 | v4 |
@@ -42,6 +59,10 @@ the v3 API onto v4.
 | `ws.rutherford` `(Nθ,)` | `(NE, Nθ)`, or `None` for neutral projectiles |
 | `splus, sminus = ws.smatrix(...)` | `S = ws.smatrix(Potential(...))`, `(NE, NB, nch, nch)` over J^π blocks; `ws.to_lj(S)` gives `[energy, l, j]` with `j = l + 1/2, l - 1/2` |
 | `ws.transmission_coefficients(...)` | `1 - abs(ws.to_lj(S))**2` |
+
+Blocks are padded to the largest one. For a deuteron (one- and two-channel
+blocks) `Workspace(..., block_sizes=2)` solves them apart, about twice as
+fast; see `jitr.xs.coupled` for the trade-off with compile time.
 
 `Potential` is `jitr.xs.coupled.Potential`, with fields `central`,
 `spin_orbit`, `coulomb`, `nonlocal_central` and `nonlocal_spin_orbit`, each
