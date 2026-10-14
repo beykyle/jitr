@@ -9,6 +9,7 @@ from ..reactions import reaction
 from ..utils import kinematics
 from ..utils.constants import WAVENUMBER_PION
 from .potential_forms import (
+    _complex,
     coulomb_charged_sphere,
     thomas_safe,
     woods_saxon_prime_safe,
@@ -44,11 +45,9 @@ class SingleChannelOpticalModel:
 
 
 def _as_potential_array(result: complex | np.ndarray) -> PotentialArray:
-    """Return a potential result with repository-standard complex dtypes."""
-
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    """Return a potential result with repository-standard complex dtypes:
+    ``complex`` for scalars, complex arrays (numpy or jax) otherwise."""
+    return _complex(result)
 
 
 def central(

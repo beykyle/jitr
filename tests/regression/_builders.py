@@ -23,7 +23,8 @@ from jitr.rmatrix import Solver
 from jitr.utils.constants import AMU
 from jitr.utils.density import density_table
 from jitr.utils.kinematics import classical_kinematics, classical_kinematics_cm
-from jitr.xs.elastic import DifferentialWorkspace
+from jitr.xs.coupled import Potential
+from jitr.xs.elastic import Workspace as ElasticWorkspace
 from jitr.xs.quasielastic_pn import Workspace as QuasielasticPnWorkspace
 
 from ._readers import ReferenceCase
@@ -35,9 +36,10 @@ class BuiltCase:
 
     workspace: Any
     xs_kwargs: dict[str, np.ndarray | None]
-    # elastic workspaces return an ElasticXS; the (p,n) workspace returns dsdo itself
+    # elastic workspaces return an ElasticXS over (one) energy; the (p,n)
+    # workspace returns dsdo itself
     extract_dsdo: Callable[[Any], np.ndarray] = field(
-        default=lambda result: result.dsdo
+        default=lambda result: np.asarray(result.dsdo[0])
     )
 
     def dsdo(self) -> np.ndarray:
@@ -215,7 +217,7 @@ def _build_jlm_elastic_case(
     workspace,
     potential: dict,
 ) -> BuiltCase:
-    radial_grid = workspace.radial_grid()
+    radial_grid = workspace.r
     variant = potential["variant"]
     if variant != "jlmb":
         raise ValueError(f"{ref.case_id}: unknown JLM variant {variant!r}")
@@ -281,9 +283,9 @@ def _build_jlm_elastic_case(
     return BuiltCase(
         workspace=workspace,
         xs_kwargs={
-            "central_potential": central,
-            "spin_orbit_potential": spin_orbit,
-            "coulomb_potential": coulomb,
+            "potential": Potential(
+                central=central, spin_orbit=spin_orbit, coulomb=coulomb
+            )
         },
     )
 
@@ -327,13 +329,12 @@ def _build_elastic_case(ref: ReferenceCase) -> BuiltCase:
         raise ValueError(f"{ref.case_id} uses unsupported frame {frame!r}")
 
     matching = metadata["matching"]
-    solver = Solver(int(matching["nbasis"]))
-    workspace = DifferentialWorkspace.build_from_system(
-        reaction=reaction,
-        kinematics=channel_kinematics,
+    workspace = ElasticWorkspace(
+        reaction,
+        channel_kinematics,
         channel_radius_fm=float(matching["channel_radius_fm"]),
-        solver=solver,
         lmax=int(matching["lmax"]),
+        nbasis=int(matching["nbasis"]),
         angles=ref.theta_cm_rad,
     )
 
@@ -363,7 +364,7 @@ def _build_ws_elastic_case(
     model = LocalOpticalPotential(
         scale_radii_by_At_and_Ap=bool(potential["scale_radii_by_At_and_Ap"])
     )
-    radial_grid = workspace.radial_grid()
+    radial_grid = workspace.r
     central_data = potential["central"]
     spin_orbit_data = potential["spin_orbit"]
     charge_product = reaction.target.Z * reaction.projectile.Z
@@ -394,13 +395,15 @@ def _build_ws_elastic_case(
     return BuiltCase(
         workspace=workspace,
         xs_kwargs={
-            "central_potential": central,
-            "spin_orbit_potential": spin_orbit,
-            "coulomb_potential": (
-                np.asarray(coulomb, dtype=np.complex128)
-                if charge_product != 0
-                else None
-            ),
+            "potential": Potential(
+                central=central,
+                spin_orbit=spin_orbit,
+                coulomb=(
+                    np.asarray(coulomb, dtype=np.complex128)
+                    if charge_product != 0
+                    else None
+                ),
+            )
         },
     )
 

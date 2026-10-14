@@ -22,6 +22,7 @@ columns of ``S``, like those of closed channels, are zero (so the diagonal of
 from __future__ import annotations
 
 from functools import partial
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -30,6 +31,34 @@ import numpy as np
 from .. import lagrange
 from ..reactions.system import Blocks, asymptotics, jpi_blocks
 from ..utils.constants import HBARC
+
+
+class Potential(NamedTuple):
+    """The terms of an optical potential, each optional, on a workspace mesh.
+
+    Local terms are ``(N,)`` or ``(NE, N)`` in MeV; nonlocal terms are
+    ``(N, N)`` or ``(NE, N, N)`` in MeV fm^-1. Either kind may carry a leading
+    ``l`` axis (see the module docstring). The spin-orbit terms multiply
+    ``2 l.s`` (``l.sigma`` for spin 1/2).
+    """
+
+    central: Any = None
+    spin_orbit: Any = None
+    coulomb: Any = None
+    nonlocal_central: Any = None
+    nonlocal_spin_orbit: Any = None
+
+
+def potential_terms(potential: Potential, C, spin_orbit):
+    """``(local, nonlocal_)`` term lists of a potential acting with coupling
+    ``C`` (``spin_orbit`` is the ``2 l.s`` coupling of the blocks)."""
+    p = potential
+    local = [(C, p.central), (C, p.coulomb), (C * spin_orbit, p.spin_orbit)]
+    nonlocal_ = [(C, p.nonlocal_central), (C * spin_orbit, p.nonlocal_spin_orbit)]
+    return (
+        [t for t in local if t[1] is not None],
+        [t for t in nonlocal_ if t[1] is not None],
+    )
 
 
 class Workspace:

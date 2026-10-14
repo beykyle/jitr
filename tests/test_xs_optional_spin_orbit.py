@@ -2,7 +2,8 @@ import numpy as np
 
 from jitr.reactions import ElasticReaction, Reaction
 from jitr.rmatrix import Solver
-from jitr.xs.elastic import DifferentialWorkspace, IntegralWorkspace
+from jitr.xs.coupled import Potential
+from jitr.xs.elastic import Workspace
 from jitr.xs.quasielastic_pn import Workspace as QuasielasticWorkspace
 
 
@@ -12,45 +13,21 @@ def _gaussian_potential(
     return np.asarray(strength * np.exp(-((rgrid / radius) ** 2)), dtype=np.complex128)
 
 
-def test_elastic_workspaces_treat_missing_spin_orbit_as_zero() -> None:
+def test_elastic_workspace_treats_missing_spin_orbit_as_zero() -> None:
     reaction = ElasticReaction((48, 20), (1, 0))
-    kinematics = reaction.kinematics(12.0)
-    solver = Solver(16)
-    integral = IntegralWorkspace(
-        reaction=reaction,
-        kinematics=kinematics,
+    workspace = Workspace(
+        reaction,
+        reaction.kinematics(12.0),
         channel_radius_fm=8.0,
-        solver=solver,
         lmax=4,
+        nbasis=16,
+        angles=np.linspace(0.1, np.pi - 0.1, 7),
     )
-    angles = np.linspace(0.1, np.pi - 0.1, 7)
-    differential = DifferentialWorkspace(integral, angles)
-
-    rgrid = integral.radial_grid()
-    central = _gaussian_potential(rgrid, -25.0 - 2.5j, 3.0)
-    zero_spin_orbit = np.zeros_like(rgrid, dtype=np.complex128)
-
-    omitted_splus, omitted_sminus = integral.smatrix(central)
-    explicit_splus, explicit_sminus = integral.smatrix(central, zero_spin_orbit)
-    np.testing.assert_allclose(omitted_splus, explicit_splus)
-    np.testing.assert_allclose(omitted_sminus, explicit_sminus)
-
-    omitted_total = integral.xs(central)
-    explicit_total = integral.xs(central, zero_spin_orbit)
-    np.testing.assert_allclose(omitted_total, explicit_total)
-
-    omitted_transmission = integral.transmission_coefficients(central)
-    explicit_transmission = integral.transmission_coefficients(central, zero_spin_orbit)
-    np.testing.assert_allclose(omitted_transmission[0], explicit_transmission[0])
-    np.testing.assert_allclose(omitted_transmission[1], explicit_transmission[1])
-
-    omitted_differential = differential.xs(central)
-    explicit_differential = differential.xs(central, zero_spin_orbit)
-    np.testing.assert_allclose(omitted_differential.dsdo, explicit_differential.dsdo)
-    np.testing.assert_allclose(omitted_differential.Ay, explicit_differential.Ay)
-    np.testing.assert_allclose(omitted_differential.Q, explicit_differential.Q)
-    np.testing.assert_allclose(omitted_differential.t, explicit_differential.t)
-    np.testing.assert_allclose(omitted_differential.rxn, explicit_differential.rxn)
+    central = _gaussian_potential(workspace.r, -25.0 - 2.5j, 3.0)
+    omitted = workspace.xs(Potential(central=central))
+    explicit = workspace.xs(Potential(central=central, spin_orbit=0 * central))
+    for a, b in zip(omitted, explicit, strict=True):
+        np.testing.assert_allclose(a, b)
 
 
 def test_quasielastic_workspace_treats_missing_spin_orbit_as_zero() -> None:
