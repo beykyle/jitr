@@ -393,7 +393,12 @@ def _build_ws_elastic_case(
         xs_kwargs={
             "potential": Potential(
                 central=central,
-                spin_orbit=spin_orbit,
+                # omitted when zero: a spin-0 workspace rejects any spin-orbit
+                spin_orbit=(
+                    spin_orbit
+                    if spin_orbit_data["Vso"] or spin_orbit_data["Wso"]
+                    else None
+                ),
                 coulomb=(
                     np.asarray(coulomb, dtype=np.complex128)
                     if charge_product != 0
