@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -19,7 +18,6 @@ from jitr.folding.jlm import (
 )
 from jitr.optical_potentials.omp import LocalOpticalPotential
 from jitr.reactions import ElasticReaction, Nucleus, Particle, Reaction
-from jitr.rmatrix import Solver
 from jitr.utils.constants import AMU
 from jitr.utils.density import density_table
 from jitr.utils.kinematics import classical_kinematics, classical_kinematics_cm
@@ -35,16 +33,14 @@ class BuiltCase:
     """Concrete workspace and inputs for one regression case."""
 
     workspace: Any
-    xs_kwargs: dict[str, np.ndarray | None]
-    # elastic workspaces return an ElasticXS over (one) energy; the (p,n)
-    # workspace returns dsdo itself
-    extract_dsdo: Callable[[Any], np.ndarray] = field(
-        default=lambda result: np.asarray(result.dsdo[0])
-    )
+    xs_kwargs: dict[str, Any]
+    # the workspace method returning observables over (one) energy
+    method: str = "xs"
 
     def dsdo(self) -> np.ndarray:
         """Return the differential cross section in mb/sr for this case."""
-        return self.extract_dsdo(self.workspace.xs(**self.xs_kwargs))
+        result = getattr(self.workspace, self.method)(**self.xs_kwargs)
+        return np.asarray(result.dsdo[0])
 
 
 def build_case(ref: ReferenceCase) -> BuiltCase:
@@ -149,14 +145,13 @@ def _build_quasielastic_pn_case(ref: ReferenceCase) -> BuiltCase:
 
     matching = metadata["matching"]
     workspace = QuasielasticPnWorkspace(
-        reaction=reaction,
-        kinematics_entrance=kinematics_entrance,
-        kinematics_exit=kinematics_exit,
-        solver=Solver(int(matching["nbasis"])),
-        angles=ref.theta_cm_rad,
-        lmax=int(matching["lmax"]),
+        reaction,
+        kinematics_entrance,
+        kinematics_exit,
         channel_radius_fm=float(matching["channel_radius_fm"]),
-        tmatrix_abs_tol=0.0,
+        lmax=int(matching["lmax"]),
+        nbasis=int(matching["nbasis"]),
+        angles=ref.theta_cm_rad,
     )
 
     potential = metadata["optical_potential"]
@@ -166,7 +161,7 @@ def _build_quasielastic_pn_case(ref: ReferenceCase) -> BuiltCase:
             f"{ref.case_id} uses unsupported optical_potential.kind {kind!r}"
         )
     scale_radii = bool(potential["scale_radii_by_At_and_Ap"])
-    radial_grid = workspace.radial_grid()
+    radial_grid = workspace.r
     coulomb_radius = float(potential["coulomb"]["rC"])
     proton_central, proton_spin_orbit, proton_coulomb = _evaluate_local_potential(
         reaction,
@@ -199,14 +194,15 @@ def _build_quasielastic_pn_case(ref: ReferenceCase) -> BuiltCase:
     return BuiltCase(
         workspace=workspace,
         xs_kwargs={
-            "U_p_coulomb": np.asarray(proton_coulomb, dtype=np.complex128),
-            "U_p_central": np.asarray(proton_central, dtype=np.complex128),
-            "U_p_spin_orbit": np.asarray(proton_spin_orbit, dtype=np.complex128),
-            "U_n_central": np.asarray(neutron_central, dtype=np.complex128),
-            "U_n_spin_orbit": np.asarray(neutron_spin_orbit, dtype=np.complex128),
-            "U1_spin_orbit": np.zeros_like(radial_grid, dtype=np.complex128),
+            "Up": Potential(
+                central=proton_central,
+                spin_orbit=proton_spin_orbit,
+                coulomb=proton_coulomb,
+            ),
+            "Un": Potential(central=neutron_central, spin_orbit=neutron_spin_orbit),
+            "U1": Potential(spin_orbit=np.zeros_like(radial_grid)),
         },
-        extract_dsdo=lambda result: np.asarray(result, dtype=np.float64),
+        method="dwba",
     )
 
 

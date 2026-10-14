@@ -61,6 +61,17 @@ def potential_terms(potential: Potential, C, spin_orbit):
     )
 
 
+def promote(v, is_nonlocal: bool, NE: int, lmax: int):
+    """A form in one of the three layouts, as ``(L, NE or 1, N[, N])``."""
+    base = 1 + is_nonlocal
+    v = jnp.asarray(v)
+    assert base <= v.ndim <= base + 2, f"form must have {base} to {base + 2} axes"
+    v = v.reshape((1,) * (base + 2 - v.ndim) + v.shape)
+    assert v.shape[1] in (1, NE), "energy axis must be 1 or NE"
+    assert v.shape[0] == 1 or v.shape[0] > lmax, "l-dependent form needs L > lmax"
+    return v
+
+
 class Workspace:
     """Precomputed channels, mesh and boundary values for a set of levels.
 
@@ -119,22 +130,13 @@ class Workspace:
     def _terms(self, local, nonlocal_):
         """Masked couplings, forms promoted to ``(L, NE, ...)``, static spec."""
         NE = self.k2.shape[0]
+        lmax = self.blocks.l[self.blocks.active].max()
         couplings, forms, spec = [], [], []
         for is_nonlocal, terms in ((False, local), (True, nonlocal_)):
             for C, v in terms:
                 C = np.broadcast_to(C, self.active2.shape) * self.active2
-                base = 1 + is_nonlocal
-                v = jnp.asarray(v)
-                if v.ndim == base:
-                    v = v[None, None]
-                elif v.ndim == base + 1:
-                    v = v[None]
-                    assert v.shape[1] in (1, NE), "energy axis must be 1 or NE"
-                else:
-                    assert v.ndim == base + 2, f"form must have {base}-{base + 2} axes"
-                    assert v.shape[1] in (1, NE), "energy axis must be 1 or NE"
-                    lmax = self.blocks.l[self.blocks.active].max()
-                    assert v.shape[0] > lmax, "l-dependent form needs L > lmax"
+                v = promote(v, is_nonlocal, NE, lmax)
+                if v.shape[0] > 1:
                     assert not np.any((C != 0) & ~self.same_l), (
                         "l-dependent forms need couplings that conserve l"
                     )
