@@ -51,10 +51,16 @@ uv run python tests/regression/frescox/tools/parse_frescox.py \
    --output tests/regression/frescox/outputs/B1-high-el.out \
    --metadata tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.json \
    --csv-out tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.csv \
-   --case-index 0 --min-angle-deg 1.0
+   --case-index 1 --min-angle-deg 1.0
 
-# repeat for F5 (--case-index 1), F6/F7/F8 from B1_n-high-el.out
+# repeat for F5 (B1-high-el.out, --case-index 2) and F6/F7/F8
+# (B1_n-high-el.out, --case-index 0/1/2)
 ```
+
+Both decks run `elab = 49.35, 100, 200` MeV, so the cross-section blocks are
+indexed 0, 1, 2 in that order; each case's `reference_run.case_index` records
+its block. Block 0 of `B1-high-el.out` is unused: it repeats F3 (49.35 MeV
+protons) and agrees with the upstream F3 output to 0.2%.
 
 ## Regenerating the (p,n) IAS cases (F9–F10)
 
