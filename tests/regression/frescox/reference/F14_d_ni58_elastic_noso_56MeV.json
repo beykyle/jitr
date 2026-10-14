@@ -1,0 +1,77 @@
+{
+  "case_id": "F14_d_ni58_elastic_noso_56MeV",
+  "reference_code": "frescox",
+  "observable_type": "elastic",
+  "description": "Frescox deuteron elastic scattering on 58Ni at Elab = 56 MeV without spin-orbit: dsdo is spin independent, so this checks the deck conventions of the tensor-analyzing-power cases.",
+  "source_example": "d_ni58-noso-el.in",
+  "reaction": {
+    "target": {
+      "A": 58,
+      "Z": 28,
+      "name": "58Ni"
+    },
+    "projectile": {
+      "A": 2,
+      "Z": 1,
+      "name": "d",
+      "spin": 1.0
+    }
+  },
+  "mass_kwargs": {
+    "model": "BMA"
+  },
+  "mass_model": "integer_amu",
+  "kinematics": {
+    "energy_MeV": 56.0,
+    "frame": "lab",
+    "relativistic": false
+  },
+  "optical_potential": {
+    "kind": "woods_saxon_local",
+    "scale_radii_by_At_and_Ap": false,
+    "central": {
+      "Vv": 90.0,
+      "rv": 1.17,
+      "av": 0.75,
+      "Wv": 2.0,
+      "rw": 1.32,
+      "aw": 0.7,
+      "Wd": 10.0,
+      "Vd": 0.0,
+      "rd": 1.32,
+      "ad": 0.7
+    },
+    "spin_orbit": {
+      "Vso": 0.0,
+      "Wso": 0.0,
+      "rso": 1.07,
+      "aso": 0.66
+    },
+    "coulomb": {
+      "rC": 1.3
+    }
+  },
+  "matching": {
+    "channel_radius_fm": 30.0,
+    "lmax": 50,
+    "nbasis": 80
+  },
+  "tolerances": {
+    "dsdo_mb_per_sr": {
+      "rtol": 0.005,
+      "atol": 1e-06
+    }
+  },
+  "reference_run": {
+    "code": "frescox",
+    "version": "7.2-20-ga7f491 (gfortran)",
+    "output": "tests/regression/frescox/outputs/d_ni58-noso-el.out",
+    "parser": "tests/regression/frescox/tools/parse_frescox.py",
+    "parser_flags": [],
+    "case_index": 1,
+    "min_angle_deg": 1.0
+  },
+  "observables": [
+    "dsdo_mb_per_sr"
+  ]
+}
