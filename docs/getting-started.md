@@ -87,7 +87,7 @@ The [quickstart example](/examples/notebooks/quickstart) gives a fast end-to-end
 - defining a parametric interaction potential and calculating a cross section
 - fitting the potential parameters to real experimental data
 
-A follow-up notebook extends  this example to a full [Bayesian calibration](/examples/notebooks/alpha_ca_calibration) over multiple target isotopes, and checks the posterior predictive against the experimental data.
+A follow-up notebook extends this example to a [Bayesian analysis](/examples/notebooks/alpha_ca48_ambiguity) of $\alpha$ + $^{48}$Ca, which learns the error scales from the data and maps out the discrete ambiguity of the potential.
 
 ## API reference and development
 

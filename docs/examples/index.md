@@ -10,7 +10,6 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 :titlesonly:
 
 /examples/notebooks/quickstart
-/examples/notebooks/alpha_ca_calibration
 /examples/notebooks/alpha_ca48_ambiguity
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
@@ -36,9 +35,6 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 - [Quickstart](/examples/notebooks/quickstart)
   builds a workspace for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb)
-- [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
-  extends the quickstart to a full Bayesian calibration which reveals shell effects in $\alpha$ + $^{40,44,48}$Ca. Includes construction of an error model which is jointly inferred with the optical model parameters, and checking the posterior predictive against the data using empirical coverages.
-  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca_calibration.ipynb)
 - [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity)
   extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, providing a Bayesian perspective of the famous discrete parameter ambiguity in the binding of the interaction between nuclei and light ions.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca48_ambiguity.ipynb)
