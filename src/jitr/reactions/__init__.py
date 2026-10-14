@@ -21,16 +21,22 @@ from .reaction import (
 )
 from .system import (
     Asymptotics,
+    Blocks,
     Channels,
+    Level,
     ProjectileTargetSystem,
+    jpi_blocks,
+    rotor,
     scalar_couplings,
     spin_half_orbit_coupling,
+    spin_orbit,
 )
 from .wavefunction import Wavefunctions
 
 __all__ = [
     "AbsorptionReaction",
     "Asymptotics",
+    "Blocks",
     "Channels",
     "ElasticReaction",
     "Electron",
@@ -38,6 +44,7 @@ __all__ = [
     "GammaCaptureReaction",
     "InclusiveReaction",
     "InelasticReaction",
+    "Level",
     "Nucleus",
     "Particle",
     "Positron",
@@ -49,8 +56,11 @@ __all__ = [
     "cluster_separation_energy",
     "get_latex",
     "get_symbol",
+    "jpi_blocks",
     "make_channel_data",
+    "rotor",
     "scalar_couplings",
     "spin_half_orbit_coupling",
+    "spin_orbit",
     "these_things_are_all_nuclei",
 ]
