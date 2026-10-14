@@ -19,7 +19,7 @@ from .._types import ArrayOrScalar, PotentialArray
 from ..reactions.reaction import Reaction
 from ..utils.constants import ALPHA, HBARC
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel, _as_potential_array
+from .omp import SingleChannelOpticalModel, _as_potential_array, energy_grid
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -354,14 +354,14 @@ def calculate_params(
     Ec = coulomb_correction(Z * Zp, RC) if is_proton else 0.0
     delta_E = Ecm - Ec - Ef
 
-    V0 = float(V_depth(delta_E, v0, v1))
-    Vso = float(Vso_depth(delta_E, vso0, v1))
-    Wv = float(Wv_depth(delta_E, wv0, wv1))
-    Ws = float(Ws_depth(delta_E, ws0, ws1, ws2))
-    Wso = float(Wso_depth(delta_E, wso0, wso1))
-    Delta_Vv = float(Delta_Vv_depth(delta_E, wv0, wv1))
-    Delta_Vso = float(Delta_Vso_depth(delta_E, wso0, wso1))
-    Delta_Vs = float(Delta_Vs_depth(delta_E, ws0, ws1, ws2))
+    V0 = _depth(V_depth(delta_E, v0, v1))
+    Vso = _depth(Vso_depth(delta_E, vso0, v1))
+    Wv = _depth(Wv_depth(delta_E, wv0, wv1))
+    Ws = _depth(Ws_depth(delta_E, ws0, ws1, ws2))
+    Wso = _depth(Wso_depth(delta_E, wso0, wso1))
+    Delta_Vv = _depth(Delta_Vv_depth(delta_E, wv0, wv1))
+    Delta_Vso = _depth(Delta_Vso_depth(delta_E, wso0, wso1))
+    Delta_Vs = _depth(Delta_Vs_depth(delta_E, ws0, ws1, ws2))
 
     central_params = (
         V0,
@@ -380,6 +380,11 @@ def calculate_params(
     coulomb_params = (float(Z * Zp), RC)
 
     return central_params, spin_orbit_params, coulomb_params
+
+
+def _depth(value):
+    """A float at one energy; an array (e.g. an energy column) as is."""
+    return float(value) if np.ndim(value) == 0 else np.asarray(value)
 
 
 def coulomb_correction(Zz: int, RC: float) -> float:
@@ -489,6 +494,7 @@ class DOM(SingleChannelOpticalModel):
     def __init__(self) -> None:
         super().__init__(params=get_param_names())
 
+    @energy_grid
     def evaluate(
         self,
         rgrid: ArrayOrScalar,

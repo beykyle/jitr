@@ -62,14 +62,9 @@ def test_observables_reproduce_v3_goldens(name):
 
 def kd03(ws, kinematics):
     """KD03 for p + 48Ca at each workspace energy, shapes (NE, N)."""
-    params = kduq.get_kd03((1, 1))
-    model = kduq.KDUQ((1, 1))
-    terms = [
-        model.evaluate(ws.r, P48CA, P48CA.kinematics(E), *params)
-        for E in np.atleast_1d(kinematics.Elab)
-    ]
-    central, spin_orbit, coulomb = (np.array(t) for t in zip(*terms, strict=True))
-    return Potential(central=central, spin_orbit=spin_orbit, coulomb=coulomb)
+    return Potential(
+        *kduq.KDUQ((1, 1))(ws.r, P48CA, kinematics, *kduq.get_kd03((1, 1)))
+    )
 
 
 def test_energy_grid_equals_single_energy_workspaces():
@@ -307,3 +302,15 @@ def test_integrated_cross_sections_need_no_angles():
     np.testing.assert_allclose(b.rxn, a.rxn, rtol=1e-12)
     np.testing.assert_allclose(b.t, a.t, rtol=1e-12)
     assert b.dsdo.shape == (2, 0)
+
+
+def test_at_angles_shares_the_solver():
+    kin = P48CA.kinematics(np.array([10.0, 40.0]))
+    ws = Workspace(P48CA, kin, 12.0, 20, 40, angles=ANGLES)
+    other = np.linspace(0.3, 2.5, 7)
+    moved = ws.at_angles(other)
+    assert moved.solver is ws.solver and ws.angles is ANGLES
+    fresh = Workspace(P48CA, kin, 12.0, 20, 40, angles=other)
+    for a, b in zip(moved.xs(kd03(ws, kin)), fresh.xs(kd03(ws, kin)), strict=True):
+        np.testing.assert_allclose(a, b, rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(moved.rutherford, fresh.rutherford, rtol=1e-12)

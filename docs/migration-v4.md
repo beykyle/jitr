@@ -17,7 +17,9 @@ the v3 API onto v4.
   `k`. `jitr.utils.suggest_lmax(kin.k, channel_radius_fm)` replaces the old
   early-exit tolerances (`smatrix_abs_tol`, `tmatrix_abs_tol`), which are gone.
 - **Potentials** are arrays on `ws.r`: local `(N,)` or energy-dependent
-  `(NE, N)`; nonlocal `(N, N)` or `(NE, N, N)` evaluated on
+  `(NE, N)`. The built-in optical potentials (KDUQ, CHUQ, WLH, DOM, local)
+  evaluated with the workspace kinematics return `(NE, N)` terms directly:
+  `Potential(*model(ws.r, reaction, ws.kinematics, *params))`; nonlocal `(N, N)` or `(NE, N, N)` evaluated on
   `np.meshgrid(ws.r, ws.r, indexing="ij")`. An optional leading `l` axis,
   `(L, NE, N[, N])`, makes a form `l`-dependent.
 - **Compilation.** The first call of a workspace compiles (about half a
@@ -45,7 +47,8 @@ the v3 API onto v4.
 `spin_orbit`, `coulomb`, `nonlocal_central` and `nonlocal_spin_orbit`, each
 optional. The projectile spin follows from the reaction: 1/2 for n, p, t and
 ³He, 1 for d (with tensor analyzing powers), 0 otherwise (no spin-orbit). The
-spin-orbit potential multiplies `2 l·s` (`l·σ` for nucleons). For experimental
+spin-orbit potential multiplies `2 l·s` (`l·σ` for nucleons). `ws.at_angles(angles)`
+gives the same workspace at other angles, sharing the solver. For experimental
 data at different angles at each energy,
 `ws.xs_from_smatrix(S, [angles_0, angles_1, ...])` returns one result per
 energy without recompiling the solve.

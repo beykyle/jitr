@@ -17,6 +17,7 @@ otherwise. The spin-orbit potential multiplies ``2 l.s`` (``l.σ`` for spin
 
 from __future__ import annotations
 
+import copy
 from functools import partial
 from typing import NamedTuple
 
@@ -98,9 +99,12 @@ class Workspace:
         )
         self.spin_orbit = spin_orbit(self.solver.blocks, self.solver.levels)
         self.k, self.eta = np.sqrt(k2[:, 0]), eta[:, 0]
+        self._geometry = amplitudes.transition_geometry(self.solver, 0, 0)
+        self._set_angles(angles)
+
+    def _set_angles(self, angles):
         self.angles = angles
         self.rutherford = None
-        self._geometry = amplitudes.transition_geometry(self.solver, 0, 0)
         # without angles, only the integrated cross sections are computed
         self._tables = amplitudes.transition_tables(
             self.solver, self._geometry, np.empty(0) if angles is None else angles
@@ -112,6 +116,13 @@ class Workspace:
                 if np.any(self.eta)
                 else None
             )
+
+    def at_angles(self, angles) -> Workspace:
+        """The same workspace at other angles. The solver, its mesh and
+        asymptotics are shared, so this is much cheaper than a new workspace."""
+        ws = copy.copy(self)
+        ws._set_angles(angles)
+        return ws
 
     @property
     def r(self):
