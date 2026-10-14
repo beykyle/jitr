@@ -10,7 +10,7 @@ import pytest
 from mpmath import whitw
 from scipy.integrate import quad, solve_ivp
 
-from jitr import lagrange
+from jitr import rmatrix
 from jitr.utils.constants import HBARC
 from jitr.utils.free_solutions import (
     coulomb_hankel_table,
@@ -26,7 +26,7 @@ def hankel(k, eta, a, l):
 def solve_single(mesh, l, k, eta, mass_factor, v):
     """S-matrix of one open channel with local potential ``v(r)`` in MeV, where
     ``mass_factor = 2 mu / (hbar c)^2``."""
-    return lagrange.solve(
+    return rmatrix.solve(
         mesh,
         np.array([l]),
         np.array([k**2]),
@@ -42,7 +42,7 @@ def test_legendre_kinetic_matrix_is_exact_integral():
     """F/a^2 is <f_n| -d^2/dr^2 + delta(r - a) d/dr |f_m> for the x-regularized
     Lagrange-Legendre functions on [0, a], integrated exactly."""
     N, a = 6, 3.0
-    m = lagrange.mesh(N, a)
+    m = rmatrix.mesh(N, a)
 
     def f(n, r):
         x = r / a
@@ -76,7 +76,7 @@ def test_laguerre_matrices_are_exact_integrals():
     """The Laguerre kinetic and overlap matrices are exact integrals over the
     regularized basis (Baye 2015, Eq. 3.70), not just Gauss approximations."""
     N = 6
-    r, _, F, overlap = lagrange.laguerre(N, 1.0)
+    r, _, F, overlap = rmatrix.laguerre(N, 1.0)
     L = np.polynomial.laguerre.Laguerre.basis(N)
 
     def f(n, s):
@@ -101,17 +101,17 @@ def test_laguerre_matrices_are_exact_integrals():
 
 def test_laguerre_harmonic_oscillator():
     """-u'' + r^2 u = 2E u has 2E = 4n + 3 for l = 0."""
-    r, _, F, _ = lagrange.laguerre(60, 0.1)
+    r, _, F, _ = rmatrix.laguerre(60, 0.1)
     eigenvalues = np.sort(np.linalg.eigvalsh(F + np.diag(r**2)))
     np.testing.assert_allclose(eigenvalues[:6], 4 * np.arange(6) + 3, rtol=1e-6)
 
 
 def test_quadrature_integrates_polynomials_exactly():
-    m = lagrange.mesh(20, 2.0)
+    m = rmatrix.mesh(20, 2.0)
     r = m.r
-    np.testing.assert_allclose(lagrange.integrate(m, r**5), 2.0**6 / 6, rtol=1e-12)
+    np.testing.assert_allclose(rmatrix.integrate(m, r**5), 2.0**6 / 6, rtol=1e-12)
     np.testing.assert_allclose(
-        lagrange.integrate2(m, np.outer(r, r**2)),
+        rmatrix.integrate2(m, np.outer(r, r**2)),
         (2.0**2 / 2) * (2.0**3 / 3),
         rtol=1e-12,
     )
@@ -150,7 +150,7 @@ def test_single_channel_matches_direct_integration(l):
     S_ode = (du * Hm - k * u * Hmp) / (du * Hp - k * u * Hpp)
 
     # the charged-sphere kink at r = 4.5 fm limits Gauss convergence to ~1e-6
-    m = lagrange.mesh(100, a)
+    m = rmatrix.mesh(100, a)
     S = solve_single(m, l, k, eta, 2 * mu / HBARC**2, v(m.r))
     np.testing.assert_allclose(S, S_ode, rtol=1e-5)
 
@@ -165,7 +165,7 @@ def _coulomb(r, eta, k, mu):
 
 
 def _coupled(a, nch, k, mu, eta, coupling, N=40):
-    m = lagrange.mesh(N, a)
+    m = rmatrix.mesh(N, a)
     r = m.r
     V = np.zeros((nch, nch, N, N), complex)
     for i in range(nch):
@@ -176,7 +176,7 @@ def _coupled(a, nch, k, mu, eta, coupling, N=40):
         V[i, i + 1] = V[i + 1, i] = np.diag(coupling * _ws(r))
     H = np.array([hankel(k[i], eta[i], a, 1) for i in range(nch)]).T
     M = 2 * np.sqrt(np.outer(mu, mu)) / HBARC**2
-    return lagrange.solve(
+    return rmatrix.solve(
         m, np.ones(nch, int), k**2, M, V, H, np.zeros(nch), np.ones(nch, bool)
     )
 
@@ -188,7 +188,7 @@ ETA = np.array([0.5, 0.0, 0.8])
 
 def test_uncoupled_channels_equal_single_channel_solves():
     S = _coupled(14.0, 3, K, MU, ETA, coupling=0.0)
-    m = lagrange.mesh(40, 14.0)
+    m = rmatrix.mesh(40, 14.0)
     for i in range(3):
         v = -40.0 * (1 + 0.1 * i) * _ws(m.r) + _coulomb(m.r, ETA[i], K[i], MU[i])
         Si = solve_single(m, 1, K[i], ETA[i], 2 * MU[i] / HBARC**2, v)
@@ -216,7 +216,7 @@ def test_closed_channel_drops_out_and_matches_whittaker_tail():
     block, and the closed channel's interior wave continues as its Whittaker
     tail W(2 kappa r) beyond the range of the potential."""
     a, N, mf = 20.0, 120, 1.0  # mass factor hbar^2/2mu = 1 MeV fm^2
-    m = lagrange.mesh(N, a)
+    m = rmatrix.mesh(N, a)
     r = m.r
     E, threshold, l = 0.6, 1.0, np.array([0, 2])
     k2 = (E - np.array([0.0, threshold])) / mf
@@ -232,7 +232,7 @@ def test_closed_channel_drops_out_and_matches_whittaker_tail():
     H = np.zeros((4, 2), complex)
     H[:, 0] = hankel(np.sqrt(k2[0]), 0.0, a, 0)
     is_open = np.array([True, False])
-    S, c = lagrange.solve(
+    S, c = rmatrix.solve(
         m, l, k2, np.ones((2, 2)) / mf, V, H, Bc, is_open, np.array([[1.0], [0.0]])
     )
     S = np.asarray(S)
@@ -251,7 +251,7 @@ def test_coefficients_reproduce_exterior_wave_at_boundary():
     """The interior expansion evaluated at r = a equals the asymptotic form
     (i/2) k^{-1/2} [w H- - (S w) H+] for coupled channels and general weights."""
     a, N = 14.0, 40
-    m = lagrange.mesh(N, a)
+    m = rmatrix.mesh(N, a)
     r = m.r
     V = np.zeros((3, 3, N, N), complex)
     for i in range(3):
@@ -261,7 +261,7 @@ def test_coefficients_reproduce_exterior_wave_at_boundary():
     H = np.array([hankel(K[i], ETA[i], a, 1) for i in range(3)]).T
     M = 2 * np.sqrt(np.outer(MU, MU)) / HBARC**2
     w = np.array([[1.0, 0.0, 0.6], [0.0, 1.0, 0.8], [0.0, 0.0, 0.3]])
-    S, c = lagrange.solve(
+    S, c = rmatrix.solve(
         m, np.ones(3, int), K**2, M, V, H, np.zeros(3), np.ones(3, bool), w
     )
     u_a = np.asarray(c) @ m.b / np.sqrt(a)  # (nw, nch)

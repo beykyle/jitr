@@ -4,9 +4,7 @@ import jax
 
 from . import (
     folding,
-    lagrange,
     optical_potentials,
-    quadrature,
     reactions,
     rmatrix,
     utils,
@@ -23,9 +21,7 @@ __all__ = [
     "__version__",
     "data_dir",
     "folding",
-    "lagrange",
     "optical_potentials",
-    "quadrature",
     "reactions",
     "rmatrix",
     "utils",

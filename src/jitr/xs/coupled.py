@@ -2,7 +2,7 @@ r"""Coupled-channels workspace: every J^pi block at every energy in one call.
 
 The channels are enumerated from a list of :class:`~jitr.reactions.Level`
 (see :func:`~jitr.reactions.system.jpi_blocks`); each J^pi block is solved
-with :func:`jitr.lagrange.solve`, vectorized with ``jax.vmap`` over blocks and
+with :func:`jitr.rmatrix.solve`, vectorized with ``jax.vmap`` over blocks and
 energies. The interaction is a sum of terms ``C ⊗ v``: a coupling matrix
 ``C`` per block, shape ``(NB, nch, nch)`` (or ``(nch, nch)`` for all blocks),
 times a radial form ``v`` on the mesh, in MeV. Forms come in three layouts,
@@ -35,7 +35,7 @@ import jax.numpy as jnp
 import numpy as np
 from scipy.special import loggamma
 
-from .. import lagrange
+from .. import rmatrix
 from ..reactions.system import Blocks, asymptotics, jpi_blocks
 from ..utils.constants import HBARC
 
@@ -116,7 +116,7 @@ class Workspace:
                 "(k^2 = 0): shift the energy grid off the threshold"
             )
         self.levels = list(levels)
-        self.mesh = lagrange.mesh(nbasis, a)
+        self.mesh = rmatrix.mesh(nbasis, a)
         self.blocks: Blocks = jpi_blocks(self.levels, lmax, J, parity)
         b = self.blocks
         self.H, self.Bc, self.open = asymptotics(b, k2, eta, a)
@@ -260,7 +260,7 @@ class Workspace:
 def _solve_all(
     mesh, l, k2, M, H, Bc, is_open, couplings, forms, spec, weights, batch_size
 ):
-    """Map :func:`lagrange.solve` over every (energy, block), ``batch_size``
+    """Map :func:`rmatrix.solve` over every (energy, block), ``batch_size``
     at a time (vectorized within a batch); the interaction of each one is
     assembled inside the map, so only a batch of matrices is ever in memory.
     Each solve is checkpointed: reverse-mode autodiff stores only its inputs
@@ -276,11 +276,11 @@ def _solve_all(
             if not by_l:
                 vc = jnp.broadcast_to(vc, (lb.shape[0], *vc.shape))
             if is_nonlocal:
-                Vc = lagrange.interaction(mesh, nonlocal_=vc)
+                Vc = rmatrix.interaction(mesh, nonlocal_=vc)
             else:
-                Vc = lagrange.interaction(mesh, local=vc)
+                Vc = rmatrix.interaction(mesh, local=vc)
             V = V + C[b][:, :, None, None] * Vc[:, None]
-        return lagrange.solve(
+        return rmatrix.solve(
             mesh, lb, k2[e, b], M[e, b], V, H[e, b], Bc[e, b], is_open[e, b], weights
         )
 

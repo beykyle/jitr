@@ -4,7 +4,7 @@ The published examples are solved with a single R-matrix interval at the
 published channel radius ``a``; the reference values are the paper's output
 tables (``data/descouvemont2016.json``). Units follow the paper: the
 interaction enters through ``hbar^2 / 2 mu`` in MeV fm^2 and ``e^2 = 1.44``
-MeV fm, so the symmetric mass factor of :func:`jitr.lagrange.solve` is
+MeV fm, so the symmetric mass factor of :func:`jitr.rmatrix.solve` is
 ``M = 1 / (hbar^2 / 2 mu)``.
 """
 
@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-from jitr import lagrange
+from jitr import rmatrix
 from jitr.reactions import Level, rotor
 from jitr.utils.constants import HBARC
 from jitr.utils.free_solutions import coulomb_hankel_table
@@ -39,7 +39,7 @@ def solve_open(mesh, l, mass_factor, E, z12, V):
     H = np.array([hankel(k, eta, mesh.a, li) for li in l]).T
     nch = l.size
     return np.asarray(
-        lagrange.solve(
+        rmatrix.solve(
             mesh,
             l,
             np.full(nch, k**2),
@@ -56,7 +56,7 @@ def solve_open(mesh, l, mass_factor, E, z12, V):
 def test_example1_alpha_pb208(ref):
     """alpha + 208Pb, l = 20: Woods-Saxon optical potential plus point Coulomb."""
     d = DATA["ex1_alpha_pb208"]
-    m = lagrange.mesh(ref["N"], ref["a"])
+    m = rmatrix.mesh(ref["N"], ref["a"])
     r = m.r
     ws = 1 / (1 + np.exp((r - d["R"]) / d["a"]))
     v = -complex(d["V"], d["W"]) * ws + d["z1z2"] * E2 / r
@@ -96,7 +96,7 @@ def test_example2_np_reid_j1(ref):
     mesh is compared with one interval of N = 60 points at the same radius.
     """
     d = DATA["ex2_np_reid_j1"]
-    m = lagrange.mesh(60, ref["a"])
+    m = rmatrix.mesh(60, ref["a"])
     central, tensor, spin_orbit = reid_triplet(m.r)
     s8 = 2 * np.sqrt(2)
     couplings = [np.eye(2), np.array([[0, s8], [s8, -2]]), np.diag([0.0, -3.0])]
@@ -116,11 +116,11 @@ def test_example5_yamaguchi_nonlocal(ref):
     """Separable nonlocal potential, l = 0. The a = 15 fm, N = 20 entry is the
     exact large-radius phase shift."""
     d = DATA["ex5_yamaguchi"]
-    m = lagrange.mesh(ref["N"], ref["a"])
+    m = rmatrix.mesh(ref["N"], ref["a"])
     r = m.r
     alpha, beta, mf = d["alpha"], d["beta"], d["hbar2_over_2mu"]
     kernel = -2 * beta * (alpha + beta) ** 2 * np.exp(-beta * np.add.outer(r, r)) * mf
-    V = lagrange.interaction(m, nonlocal_=kernel)[None, None]
+    V = rmatrix.interaction(m, nonlocal_=kernel)[None, None]
     delta = [
         np.degrees(np.angle(solve_open(m, 0, mf, E, 0, V)[0, 0]) / 2)
         for E in ref["energies"]

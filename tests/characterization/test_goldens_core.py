@@ -1,7 +1,7 @@
 """The Lagrange core reproduces the jitr v3 engine to round-off.
 
 The goldens (see ``generate.py``) hold the v3 inputs and outputs; here every
-partial wave is solved directly with :func:`jitr.lagrange.solve` on the same
+partial wave is solved directly with :func:`jitr.rmatrix.solve` on the same
 inputs. Physics conventions that must agree exactly: the flux-normalized S,
 semi-relativistic kinematics (only k and mu enter), per-channel k/mu/eta in
 coupled channels, the incoming-weight contraction of the Bloch source, and
@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from jitr import lagrange
+from jitr import rmatrix
 from jitr.optical_potentials.dispersion import DispersionSolver
 from jitr.utils.constants import HBARC
 from jitr.utils.free_solutions import coulomb_hankel_table
@@ -31,7 +31,7 @@ def hankel(k, eta, a, l):
 
 def solve1(mesh, l, k, eta, mu, v, weights=None):
     """One open channel with local potential v (MeV)."""
-    return lagrange.solve(
+    return rmatrix.solve(
         mesh,
         np.array([l]),
         np.array([k**2]),
@@ -55,27 +55,27 @@ def partial_waves(lmax):
 
 def test_mesh_and_transforms():
     d = load("transforms_and_grid")
-    m = lagrange.mesh(int(d["nbasis"]), float(d["radius"]))
+    m = rmatrix.mesh(int(d["nbasis"]), float(d["radius"]))
     np.testing.assert_allclose(m.x, d["x"], rtol=1e-14)
     np.testing.assert_allclose(m.w, d["w"], rtol=1e-14)
     np.testing.assert_allclose(m.F, d["F"].real, rtol=1e-12)
     np.testing.assert_allclose(m.b, d["b"], rtol=1e-12)
     k = d["kgrid"]
     np.testing.assert_allclose(
-        lagrange.fourier_bessel(m, 0, d["f"], k), d["fb0"], rtol=1e-12
+        rmatrix.fourier_bessel(m, 0, d["f"], k), d["fb0"], rtol=1e-12
     )
     np.testing.assert_allclose(
-        lagrange.fourier_bessel(m, 2, d["f"], k), d["fb2"], rtol=1e-12
+        rmatrix.fourier_bessel(m, 2, d["f"], k), d["fb2"], rtol=1e-12
     )
     np.testing.assert_allclose(
-        lagrange.fourier_bessel2(m, 1, d["g"], k), d["dfb1"], rtol=1e-12
+        rmatrix.fourier_bessel2(m, 1, d["g"], k), d["dfb1"], rtol=1e-12
     )
 
 
 @pytest.mark.parametrize("name", ["elastic_p48ca", "elastic_alpha44ca"])
 def test_elastic_smatrix(name):
     d = load(name)
-    m = lagrange.mesh(int(d["nbasis"]), float(d["radius_fm"]))
+    m = rmatrix.mesh(int(d["nbasis"]), float(d["radius_fm"]))
     np.testing.assert_allclose(m.r, d["r"], rtol=1e-14)
     splus, sminus = np.atleast_2d(d["splus"]), np.atleast_2d(d["sminus"])
     central = np.atleast_2d(d["central"])
@@ -95,14 +95,14 @@ def test_coupled_wavefunction_three_channels():
     d = load("wavefunction_3ch")
     a, l = float(d["radius_fm"]), int(d["l"])
     k, mu, eta = d["k"], d["mu"], d["eta"]
-    m = lagrange.mesh(int(d["nbasis"]), a)
+    m = rmatrix.mesh(int(d["nbasis"]), a)
     H = np.array([hankel(k[i], eta[i], a, l) for i in range(3)]).T
     M = 2 * np.sqrt(np.outer(mu, mu)) / HBARC**2
     V = np.array([[np.diag(d["V"][i, j]) for j in range(3)] for i in range(3)])
     # v3 weights are raw (unit H- amplitude); flux weights carry sqrt(v_c / v_0)
     v = k / mu
     w = d["weights_raw"] * np.sqrt(v / v[0])
-    S, c = lagrange.solve(
+    S, c = rmatrix.solve(
         m, np.full(3, l), k**2, M, V, H, np.zeros(3), np.ones(3, bool), w[:, None]
     )
     np.testing.assert_allclose(S, d["S"], atol=1e-11)
@@ -116,7 +116,7 @@ def test_coupled_wavefunction_three_channels():
 
 def test_pn_dwba_and_coupled_channels():
     d = load("pn_48ca")
-    m = lagrange.mesh(int(d["nbasis"]), float(d["radius_fm"]))
+    m = rmatrix.mesh(int(d["nbasis"]), float(d["radius_fm"]))
     kp, mup, etap = d["p_kin_k"][0], d["p_kin_mu"][0], d["p_kin_eta"][0]
     kn, mun = d["n_kin_k"][0], d["n_kin_mu"][0]
     f = d["isovector_factor"]
@@ -138,7 +138,7 @@ def test_pn_dwba_and_coupled_channels():
         # coupled channels: p and n with different k, mu, eta in one block
         V = np.array([[np.diag(Up), np.diag(U1)], [np.diag(U1), np.diag(Un)]])
         H = np.array([hankel(kp, etap, m.a, l), hankel(kn, 0.0, m.a, l)]).T
-        S = lagrange.solve(
+        S = rmatrix.solve(
             m,
             np.array([l, l]),
             np.array([kp, kn]) ** 2,

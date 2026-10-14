@@ -35,7 +35,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .. import lagrange
+from .. import rmatrix
 from ..reactions import Level, Reaction, spin_orbit
 from ..utils.constants import HBARC
 from ..utils.kinematics import ChannelKinematics
@@ -210,7 +210,7 @@ class Workspace:
                 continue
             v = promote(v, is_nonlocal, NE, lmax, m.x.size)  # (L, NE or 1, N[, N])
             v = jnp.swapaxes(v[self.l] if v.shape[0] > 1 else v, 0, 1)
-            V = lagrange.interaction(m, **{"nonlocal_" if is_nonlocal else "local": v})
+            V = rmatrix.interaction(m, **{"nonlocal_" if is_nonlocal else "local": v})
             T = T + C * jnp.einsum("ebn,ebnm,ebm->eb", cp, V, cn)
         # flux-normalized waves are k^{-1/2} times unit-amplitude ones
         T = jnp.sqrt(self.k[:, :1] * self.k[:, 1:]) * T

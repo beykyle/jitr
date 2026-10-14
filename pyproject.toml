@@ -23,7 +23,6 @@ dependencies = [
     "scipy",
     "sympy",
     "periodictable",
-    "numba",
     "pandas",
     "jax>=0.4.35",
 ]
@@ -139,8 +138,6 @@ strict = false
 [[tool.mypy.overrides]]
 module = [
     "mpmath",
-    "numba",
-    "numba.*",
     "pandas",
     "periodictable",
     "scipy",
@@ -152,8 +149,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "jitr.reactions.wavefunction",
-    "jitr.rmatrix.rmatrix",
     "jitr.utils.free_solutions",
 ]
 ignore_errors = true

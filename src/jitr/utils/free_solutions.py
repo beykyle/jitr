@@ -7,21 +7,8 @@ from typing import NamedTuple
 import numpy as np
 import scipy.special as sc
 from mpmath import coulombf, coulombg, whitw
-from numba import njit
 
 from .._types import ComplexArray, FloatArray
-
-
-@njit
-def Gamow_factor(l: int, eta: float) -> float:
-    """Return the Coulomb Gamow factor for angular momentum ``l``."""
-    if eta == 0.0:
-        if l == 0:
-            return 1.0
-        return 1.0 / (2 * l + 1) * Gamow_factor(l - 1, 0.0)
-    if l == 0:
-        return np.sqrt(2 * np.pi * eta / (np.exp(2 * np.pi * eta) - 1))
-    return np.sqrt(l**2 + eta**2) / (l * (2 * l + 1)) * Gamow_factor(l - 1, eta)
 
 
 class CoulombHankelTable(NamedTuple):

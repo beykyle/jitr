@@ -2,7 +2,7 @@
 
 The solver is optimized for repeated evaluation at a fixed radial grid and a
 fixed scalar energy. Quantities that depend only on ``(r_grid, E, segments)``
-are precomputed at construction time, leaving a single numba-compiled inner
+are precomputed at construction time, leaving a single vectorized inner
 loop for each online evaluation.
 
 This makes the module useful for non-analytic or non-separable imaginary
@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 import numpy as np
-from numba import njit
 from numpy.polynomial.legendre import leggauss
 
 from .._types import FloatArray
@@ -73,27 +72,14 @@ def build_quadrature(
     return x_quad, w_quad, E_cut
 
 
-@njit(cache=True, fastmath=True)
 def _dispersion_kernel(
     W_grid: np.ndarray,
     W_at_E: np.ndarray,
     dx_inv_w: np.ndarray,
     log_term: float,
 ) -> np.ndarray:
-    """Evaluate the preconditioned dispersion sum in numba."""
-
-    N_r, N_q = W_grid.shape
-    inv_pi = 1.0 / np.pi
-    dV = np.empty(N_r, dtype=np.float64)
-
-    for i in range(N_r):
-        W_E = W_at_E[i]
-        total = 0.0
-        for k in range(N_q):
-            total += dx_inv_w[k] * (W_grid[i, k] - W_E)
-        dV[i] = (total + W_E * log_term) * inv_pi
-
-    return dV
+    """Evaluate the preconditioned dispersion sum: one matrix-vector product."""
+    return ((W_grid - W_at_E[:, None]) @ dx_inv_w + W_at_E * log_term) / np.pi
 
 
 class DispersionSolver:
