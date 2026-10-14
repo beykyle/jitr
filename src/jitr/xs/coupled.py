@@ -56,7 +56,7 @@ class Potential(NamedTuple):
     nonlocal_spin_orbit: Any = None
 
 
-def potential_terms(potential: Potential, C, spin_orbit):
+def potential_terms(potential: Potential, C, spin_orbit) -> tuple[list, list]:
     """``(local, nonlocal_)`` term lists of a potential acting with coupling
     ``C`` (``spin_orbit`` is the ``2 l.s`` coupling of the blocks)."""
     p = potential

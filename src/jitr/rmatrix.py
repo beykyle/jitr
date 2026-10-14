@@ -130,7 +130,8 @@ def interaction(mesh: Mesh, local=None, nonlocal_=None):
     if local is not None:
         V = V + local[..., :, None] * jnp.eye(N)
     if nonlocal_ is not None:
-        V = V + mesh.a * jnp.sqrt(jnp.outer(mesh.w, mesh.w)) * nonlocal_
+        w = jnp.asarray(mesh.w)
+        V = V + mesh.a * jnp.sqrt(jnp.outer(w, w)) * nonlocal_
     return V
 
 
@@ -158,13 +159,14 @@ def solve(mesh: Mesh, l, k2, M, V, H, Bc, is_open, weights=None):
         ``ũ_c(r_n) = c[:, c, n] / sqrt(a w_n)``.
     """
     nch, N, a = l.shape[0], mesh.x.size, mesh.a
+    b = jnp.asarray(mesh.b)
     r = a * mesh.x
     eye = jnp.eye(nch)
     diagonal = l[:, None] * (l[:, None] + 1) / r**2 - k2[:, None]
     A = (
         M[:, :, None, None] * V
         + eye[:, :, None, None] * (mesh.F / a**2)
-        - (eye * Bc)[:, :, None, None] * jnp.outer(mesh.b, mesh.b) / a**2
+        - (eye * Bc)[:, :, None, None] * jnp.outer(b, b) / a**2
         + eye[:, :, None, None] * (diagonal[:, None, :, None] * jnp.eye(N))
     )
     A = A.transpose(0, 2, 1, 3).reshape(nch * N, nch * N)

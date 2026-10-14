@@ -199,7 +199,7 @@ class Workspace:
         scale = jnp.sqrt(m.a * m.w)
         cp, cn = up[:, :, 0, 0] * scale, un[:, :, 0, 0] * scale  # (NE, NB, N)
         NE, lmax = cp.shape[0], int(self.l.max())
-        T = 0
+        T = jnp.zeros(cp.shape[:2], complex)
         for v, C, is_nonlocal in (
             (U1.central, 1.0, False),
             (U1.spin_orbit, self.ls[:, 0, 0], False),

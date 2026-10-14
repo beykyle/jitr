@@ -80,13 +80,13 @@ def jpi_blocks(levels, lmax, J=None, parity=None) -> Blocks:
             if parity is not None and pi != parity:
                 continue
             channels = [
-                (alpha, l, j2 / 2)
+                (alpha, l2 // 2, j2 / 2)
                 for alpha, lv in enumerate(levels)
                 for j2 in range(abs(J2 - I2[alpha]), J2 + I2[alpha] + 1, 2)
                 for l2 in range(abs(j2 - s2[alpha]), j2 + s2[alpha] + 1, 2)
                 if l2 % 2 == 0
-                and (l := l2 // 2) <= lmax
-                and lv.parity * (-1) ** l == pi
+                and l2 // 2 <= lmax
+                and lv.parity * (-1) ** (l2 // 2) == pi
             ]
             if channels:
                 blocks.append((J2 / 2, pi, sorted(channels)))

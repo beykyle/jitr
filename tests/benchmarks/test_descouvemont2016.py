@@ -273,3 +273,18 @@ def test_example4_alpha_c12_closed_channels():
         RotorCase("ex4_alpha_c12", 14.0, 130, E),
     )
     np.testing.assert_allclose(near.S, far.S, atol=1e-4)
+
+
+def test_example5_analytic_phase_shift():
+    """The closed-form Yamaguchi phase shift equals the exact large-radius
+    values of Example 5 (it had the sign of the scattering length wrong)."""
+    from jitr.optical_potentials.potential_forms import yamaguchi_swave_delta
+    from jitr.utils.constants import HBARC
+
+    d = DATA["ex5_yamaguchi"]
+    exact = d["references"][-1]
+    mu = HBARC**2 / (2 * d["hbar2_over_2mu"])
+    for E, delta in zip(exact["energies"], exact["delta_deg"], strict=True):
+        k = np.sqrt(2 * mu * E) / HBARC
+        params = (d["hbar2_over_2mu"], d["beta"], d["alpha"])
+        np.testing.assert_allclose(yamaguchi_swave_delta(k, *params), delta, atol=1e-5)

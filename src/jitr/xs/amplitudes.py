@@ -126,18 +126,18 @@ def transition_geometry(ws, entrance: int, exit: int) -> Geometry:
     s0, I0, s1, I1 = lv[entrance].s, lv[entrance].I, lv[exit].s, lv[exit].I
     initial = [(m, M) for m in projections(s0) for M in projections(I0)]
     final = [(m, M) for m in projections(s1) for M in projections(I1)]
-    pairs = [
+    found = [
         (bb, c, c0)
         for bb in range(b.l.shape[0])
         for c in np.flatnonzero(b.active[bb] & (b.level[bb] == exit))
         for c0 in np.flatnonzero(b.active[bb] & (b.level[bb] == entrance))
     ]
-    if not pairs:
+    if not found:
         raise ValueError(
             f"no block of the workspace holds channels of both level {entrance} "
             f"and level {exit} (check the J and parity filters and lmax)"
         )
-    pb, pc, pc0 = pairs = np.array(pairs).T
+    pb, pc, pc0 = pairs = np.array(found).T
     L, J = b.l[pb, pc], b.J[pb]
     L0, j0, j1 = b.l[pb, pc0], b.j[pb, pc0], b.j[pb, pc]
     W = np.zeros((len(final), len(initial), pairs.shape[1]))
@@ -260,9 +260,10 @@ def spin_half_polarization(xs: XS):
         raise ValueError("A_y and Q need a spin-1/2 projectile on spin-0 states")
     A, flip = xs.f[:, 1, 1], xs.f[:, 0, 1]
     denom = jnp.maximum(0.5 * jnp.sum(jnp.abs(xs.f) ** 2, axis=(1, 2)), 1e-30)
-    return 2 * jnp.imag(jnp.conj(A) * flip) / denom, 2 * jnp.real(
-        jnp.conj(A) * flip
-    ) / denom
+    return (
+        2 * jnp.imag(jnp.conj(A) * flip) / denom,
+        2 * jnp.real(jnp.conj(A) * flip) / denom,
+    )
 
 
 def integrated_cross_sections(ws, S, entrance: int = 0, energies=slice(None)):

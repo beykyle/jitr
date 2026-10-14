@@ -136,12 +136,15 @@ def yamaguchi_potential(r: float, rp: float, *params: float) -> float:
 
 
 def yamaguchi_swave_delta(k: float, *params: float) -> np.float64:
-    """Return the analytic s-wave phase shift for the Yamaguchi potential."""
+    """Return the analytic s-wave phase shift (degrees, modulo 180) for the
+    Yamaguchi potential whose bound state has wavenumber ``alpha``:
+    ``k cot δ = -1/a_s + ...`` with a positive scattering length
+    ``a_s = 2(α+β)^2 / (αβ(α+2β))``."""
     _, b, a = params
     denominator = 2 * (a + b) ** 2
 
     kcotdelta = (
-        a * b * (a + 2 * b) / denominator
+        -a * b * (a + 2 * b) / denominator
         + (a**2 + 2 * a * b + 3 * b**2) * k**2 / (b * denominator)
         + k**4 / (b * denominator)
     )

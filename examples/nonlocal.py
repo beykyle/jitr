@@ -1,48 +1,32 @@
+"""A nonlocal potential: the s-wave Yamaguchi interaction, whose phase shift is
+known analytically, solved on the Lagrange mesh at a few energies at once."""
+
 import numpy as np
 
-from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     yamaguchi_potential,
     yamaguchi_swave_delta,
 )
-from jitr.reactions import ProjectileTargetSystem
+from jitr.reactions import Level
 from jitr.utils.constants import HBARC
+from jitr.xs import coupled
 
 
 def nonlocal_interaction_example():
-    alpha = 0.2316053  # fm**-1
-    beta = 1.3918324  # fm**-1
-    W0 = 41.472  # Mev fm**2
-
+    alpha, beta, W0 = 0.2316053, 1.3918324, 41.472  # fm^-1, fm^-1, MeV fm^2
     params = (W0, beta, alpha)
-
-    ecom = 12
     mu = HBARC**2 / (2 * W0)
-    k = np.sqrt(2 * mu * ecom) / HBARC
-    eta = 0
-
-    sys = ProjectileTargetSystem(
-        channel_radius=30.0,
-        lmax=5,
+    E = np.array([0.1, 1.0, 12.0])
+    k = np.sqrt(2 * mu * E) / HBARC
+    ws = coupled.Workspace(
+        15.0, 20, [Level(0)], 0, k[:, None] ** 2, np.full((3, 1), mu), np.zeros((3, 1))
     )
-    channels, asymptotics = sys.get_partial_wave_channels(ecom, ecom, mu, k, eta)
-
-    l = 0
-    solver = rmatrix.Solver(20)
-    rgrid, rpgrid = solver.nonlocal_radial_grids(channels[l].a, channels[l].k[0])
-    nonlocal_potential = yamaguchi_potential(rgrid, rpgrid, *params)
-    _, S, _ = solver.solve(
-        channels[l],
-        asymptotics[l],
-        nonlocal_potential=nonlocal_potential,
-    )
-
-    delta = np.rad2deg(np.real(np.log(S[0, 0]) / 2j))
-
-    print("\nYamaguchi potential test:\n delta:")
-    print(f"Lagrange-Legendre Mesh: {delta:.6f} [degrees]")
-    analytic_delta = yamaguchi_swave_delta(channels[l].k[0], *params)
-    print(f"Analytic              : {analytic_delta:.6f} [degrees]")
+    r, rp = np.meshgrid(ws.r, ws.r, indexing="ij")
+    S, _ = ws.smatrix(nonlocal_=[(np.eye(1), yamaguchi_potential(r, rp, *params))])
+    delta = np.rad2deg(np.angle(np.asarray(S[:, 0, 0, 0])) / 2)
+    for e in range(3):
+        exact = yamaguchi_swave_delta(k[e], *params)
+        print(f"E = {E[e]:5.1f} MeV: mesh {delta[e]:10.6f}, exact {exact:10.6f} deg")
 
 
 if __name__ == "__main__":
