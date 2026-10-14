@@ -107,21 +107,21 @@ def rotor_workspace(levels, J, parity, E=12.0, a=10.0, N=60, lmax=12):
     return ws, ws.smatrix(local=terms)[0]
 
 
-def test_spin_half_rotor_is_recoupled_spin_zero_rotor():
+@pytest.mark.parametrize("s,J", [(0.5, 3.5), (1.0, 4.0)])
+def test_spinning_rotor_is_recoupled_spin_zero_rotor(s, J):
     """A spin-independent interaction leaves the projectile spin a spectator:
     S in the ((l s)j, I)J basis is an orthogonal recoupling of the spin-0
-    S-matrices with K = J -+ 1/2, so the eigenvalues coincide."""
-    J = 3.5
-    ws_half, S_half = rotor_workspace([Level(0, 1, 0.5), Level(2, 1, 0.5)], [J], -1)
-    eig_half = np.linalg.eigvals(np.asarray(S_half[0, 0]))
+    S-matrices with K = J - s, ..., J + s, so the eigenvalues coincide."""
+    ws_s, S_s = rotor_workspace([Level(0, 1, s), Level(2, 1, s)], [J], -1)
+    eig_s = np.linalg.eigvals(np.asarray(S_s[0, 0]))
     eig_zero = []
-    for K in (J - 0.5, J + 0.5):
+    for K in np.arange(J - s, J + s + 1):
         ws0, S0 = rotor_workspace([Level(0), Level(2)], [K], -1)
         n = ws0.blocks.active[0].sum()
         eig_zero.extend(np.linalg.eigvals(np.asarray(S0[0, 0, :n, :n])))
-    assert ws_half.blocks.active[0].sum() == len(eig_zero)
+    assert ws_s.blocks.active[0].sum() == len(eig_zero)
     np.testing.assert_allclose(
-        np.sort_complex(eig_half), np.sort_complex(eig_zero), atol=1e-10
+        np.sort_complex(eig_s), np.sort_complex(eig_zero), atol=1e-10
     )
 
 

@@ -1,43 +1,36 @@
-r"""Elastic scattering of a spin-0 or spin-1/2 projectile on a spin-0 target.
+r"""Elastic scattering of a projectile of any spin on a spin-0 target.
 
-Every J^pi block holds a single channel ``(l, j)``, so the elastic S-matrix is
-one number per block, ``S_b`` (shape ``(NE, NB)``). With the Coulomb amplitude
-``f_c`` and Coulomb phases ``σ_l``, the amplitudes are
-
-.. math::
-    A(θ) = f_c(θ) + \sum_b \frac{2j+1}{2s+1}\,
-        \frac{e^{2iσ_l}}{2ik} (S_b - 1) P_l(\cos θ), \qquad
-    B(θ) = \sum_b \pm \frac{e^{2iσ_l}}{2ik} S_b P^1_l(\cos θ),
-
-with ``+`` for ``j = l + 1/2``, ``-`` for ``j = l - 1/2`` and ``B = 0`` for a
-spin-0 projectile; for spin 1/2 these are the familiar
-``(l+1)(S_+ - 1) + l (S_- - 1)`` and ``S_+ - S_-`` sums. Then
-``dσ/dΩ = |A|^2 + |B|^2``, ``A_y = 2 Im(A^* B) / dσ/dΩ`` and
-``Q = 2 Re(A^* B) / dσ/dΩ``, and with the same block weights
+The S-matrix of each J^pi block comes from :class:`jitr.xs.coupled.Workspace`
+and the observables from :mod:`jitr.xs.amplitudes` (Thompson, Eqs. 38-41):
+the differential cross section, the spherical tensor analyzing powers
+``T_kq`` and, for spin 1/2, the analyzing power ``A_y = \sqrt 2\, iT_{11}`` and
+the spin-rotation function ``Q``. With block weights ``(2J+1)/(2s+1)``,
 
 .. math::
-    σ_R = \frac{π}{k^2} \sum_b \frac{2j+1}{2s+1} (1 - |S_b|^2), \qquad
-    σ_T = \frac{2π}{k^2} \sum_b \frac{2j+1}{2s+1} (1 - \mathrm{Re}\, S_b).
+    σ_R = \frac{π}{k^2} \sum_c \frac{2J+1}{2s+1} \Big(1 - \sum_{c'} |S_{c'c}|^2\Big), \qquad
+    σ_T = \frac{2π}{k^2} \sum_c \frac{2J+1}{2s+1} (1 - \mathrm{Re}\, S_{cc}).
 
-Cross sections are in mb (``10 fm^2``).
+Projectile spins: 1/2 for nucleons, tritons and helions, 1 for deuterons, 0
+otherwise. The spin-orbit potential multiplies ``2 l.s`` (``l.σ`` for spin
+1/2). Cross sections are in mb (``10 fm^2``).
 """
 
 from __future__ import annotations
 
+from functools import partial
 from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from scipy.special import eval_legendre, gamma, lpmv
 
 from ..reactions import Level, Reaction, spin_orbit
 from ..utils.kinematics import ChannelKinematics, level_kinematics
-from . import coupled
+from . import amplitudes, coupled
 from .coupled import Potential, potential_terms
 
-#: projectile spins by (A, Z): nucleons, triton and helion are spin 1/2
-SPIN_HALF = {(1, 0), (1, 1), (3, 1), (3, 2)}
+#: projectile spins by (A, Z); all others are taken as spin 0
+SPINS = {(1, 0): 0.5, (1, 1): 0.5, (3, 1): 0.5, (3, 2): 0.5, (2, 1): 1.0}
 
 
 class ElasticXS(NamedTuple):
@@ -46,10 +39,12 @@ class ElasticXS(NamedTuple):
 
     Attributes:
         dsdo: Differential cross section in mb/sr.
-        Ay: Analyzing power.
-        Q: Spin-rotation function.
-        t: Total cross section in mb.
+        Ay: Analyzing power (spin 1/2; zero otherwise).
+        Q: Spin-rotation function (spin 1/2; zero otherwise).
+        t: Total cross section in mb (meaningful for neutral projectiles).
         rxn: Reaction cross section in mb.
+        T: Analyzing powers ``T_kq``, ``(NE, n_kq, Nθ)``, ordered as
+            :func:`jitr.xs.amplitudes.kq_labels`.
     """
 
     dsdo: jax.Array
@@ -57,6 +52,7 @@ class ElasticXS(NamedTuple):
     Q: jax.Array
     t: jax.Array
     rxn: jax.Array
+    T: jax.Array
 
 
 class Workspace:
@@ -83,7 +79,9 @@ class Workspace:
         batch_size=None,
     ):
         projectile = (reaction.projectile.A, reaction.projectile.Z)
-        self.s = 0.5 if projectile in SPIN_HALF else 0.0
+        if projectile == (reaction.target.A, reaction.target.Z):
+            raise NotImplementedError("identical particles are not symmetrized")
+        self.s = SPINS.get(projectile, 0.0)
         self.reaction = reaction
         self.kinematics = kinematics
         self.lmax = lmax
@@ -98,34 +96,39 @@ class Workspace:
             eta,
             batch_size=batch_size,
         )
-        b = self.solver.blocks
-        self.l, self.j = b.l[:, 0], b.j[:, 0]
+        self.spin_orbit = spin_orbit(self.solver.blocks, self.solver.levels)
         self.k, self.eta = np.sqrt(k2[:, 0]), eta[:, 0]
-        self.spin_orbit = spin_orbit(b, self.solver.levels)
-        self.weight = (2 * self.j + 1) / (2 * self.s + 1)
-        self.sign = np.sign(self.j - self.l) if self.s else 0 * self.l
-        self.sigma_l = np.angle(gamma(1 + self.l + 1j * self.eta[:, None]))
-        self.zz = reaction.target.Z * reaction.projectile.Z
-        self.angles = None
+        self.angles = angles
         if angles is not None:
-            self.angles, self._tables = angles, self._angular_tables(angles)
-            self.rutherford = self._tables[3]
+            self._tables = amplitudes.transition_tables(self.solver, 0, 0, angles)
+            sin2 = np.sin(np.asarray(angles) / 2) ** 2
+            self.rutherford = (
+                10 * (self.eta[:, None] / (2 * self.k[:, None] * sin2)) ** 2
+                if np.any(self.eta)
+                else None
+            )
 
     @property
     def r(self):
         """Mesh points in fm, the grid on which potentials are evaluated."""
         return self.solver.r
 
+    @property
+    def blocks(self):
+        return self.solver.blocks
+
     def smatrix(self, potential: Potential):
-        """Elastic S-matrix of each block, shape ``(NE, NB)``."""
+        """S-matrix of each block, ``(NE, NB, nch, nch)`` (``nch = 1`` for
+        spin 0 and 1/2)."""
         if self.s == 0 and (
             potential.spin_orbit is not None
             or potential.nonlocal_spin_orbit is not None
         ):
             raise ValueError("a spin-0 projectile has no spin-orbit interaction")
-        local, nonlocal_ = potential_terms(potential, np.eye(1), self.spin_orbit)
-        S, _ = self.solver.smatrix(local, nonlocal_)
-        return S[:, :, 0, 0]
+        local, nonlocal_ = potential_terms(
+            potential, np.eye(self.solver.nch), self.spin_orbit
+        )
+        return self.solver.smatrix(local, nonlocal_)[0]
 
     def xs(self, potential: Potential) -> ElasticXS:
         """Observables at the workspace angles."""
@@ -137,72 +140,42 @@ class Workspace:
         :class:`ElasticXS` (one per energy, each with ``NE = 1``)."""
         if isinstance(angles, list):
             return [
-                _observables(
-                    S[e : e + 1], *self._angular_tables(a, e)[:3], *self._integral(e)
+                self._xs(
+                    S[e : e + 1],
+                    amplitudes.transition_tables(self.solver, 0, 0, a, slice(e, e + 1)),
+                    slice(e, e + 1),
                 )
                 for e, a in enumerate(angles)
             ]
         if angles is None and self.angles is None:
             raise ValueError("no angles: pass them here or to the workspace")
-        tables = self._tables if angles is None else self._angular_tables(angles)
-        return _observables(S, *tables[:3], *self._integral())
+        if angles is None:
+            return self._xs(S, self._tables)
+        return self._xs(S, amplitudes.transition_tables(self.solver, 0, 0, angles))
 
     def to_lj(self, S):
-        """``S`` indexed by ``[energy, l, j]`` with ``j = l + 1/2, l - 1/2``
-        (spin 1/2; the undefined ``l = 0, j = -1/2`` entry is 1), or by
-        ``[energy, l]`` for spin 0. Transmission coefficients are
+        """``S`` (spin 0 or 1/2) indexed by ``[energy, l, j]`` with
+        ``j = l + 1/2, l - 1/2`` (the undefined ``l = 0, j = -1/2`` entry is
+        1), or by ``[energy, l]`` for spin 0. Transmission coefficients are
         ``1 - |to_lj(S)|^2``."""
+        l, j = self.blocks.l[:, 0], self.blocks.j[:, 0]
+        S = S[:, :, 0, 0]
         if self.s == 0:
-            return S[:, np.argsort(self.l)]
+            return S[:, np.argsort(l)]
         out = jnp.ones((S.shape[0], self.lmax + 1, 2), S.dtype)
-        return out.at[:, self.l, (self.j < self.l).astype(int)].set(S)
+        return out.at[:, l, (j < l).astype(int)].set(S)
 
-    def _integral(self, e=None):
-        sel = slice(None) if e is None else slice(e, e + 1)
-        return self.k[sel], self.weight
-
-    def _angular_tables(self, angles, e=None):
-        """``(A, B)`` partial-wave coefficients times Legendre functions,
-        ``(NE, NB, Nθ)``, plus ``f_c`` and the Rutherford cross section."""
-        sel = slice(None) if e is None else slice(e, e + 1)
-        k, eta, sigma = self.k[sel, None], self.eta[sel, None], self.sigma_l[sel]
-        x = np.cos(angles)
-        phase = np.exp(2j * sigma) / (2j * k)
-        P = eval_legendre(self.l[:, None], x)
-        P1 = lpmv(1, self.l[:, None], x)
-        A = (self.weight * phase)[..., None] * P
-        B = (self.sign * phase)[..., None] * P1
-        sin2 = np.sin(angles / 2) ** 2
-        if self.zz == 0:
-            return A, B, np.zeros((len(k), len(x))), None
-        f_c = (
-            -eta
-            / (2 * k * sin2)
-            * np.exp(2j * sigma[:, :1] - 2j * eta * np.log(np.sqrt(sin2)))
-        )
-        return A, B, f_c, 10 * eta**2 / (4 * k**2 * sin2**2)
+    def _xs(self, S, tables, energies=slice(None)) -> ElasticXS:
+        weights = amplitudes.integral_weights(self.solver, 0, energies)
+        return _elastic_xs(S, tables, weights, spin_half=self.s == 0.5)
 
 
-@jax.jit
-def _observables(S, A, B, f_c, k, weight):
-    a = f_c + jnp.einsum("eb,ebt->et", S - 1, A)
-    b = jnp.einsum("eb,ebt->et", S, B)
-    dsdo = jnp.abs(a) ** 2 + jnp.abs(b) ** 2
-    denom = jnp.maximum(dsdo, 1e-30)
-    rxn = jnp.pi / k**2 * jnp.sum(weight * (1 - jnp.abs(S) ** 2), axis=1)
-    t = 2 * jnp.pi / k**2 * jnp.sum(weight * (1 - S.real), axis=1)
-    return ElasticXS(
-        dsdo=10 * dsdo,
-        Ay=2 * jnp.imag(jnp.conj(a) * b) / denom,
-        Q=2 * jnp.real(jnp.conj(a) * b) / denom,
-        t=10 * t,
-        rxn=10 * rxn,
-    )
-
-
-def check_angles(angles) -> None:
-    """Validate that the angle grid is one-dimensional and lies on ``[0, π]``."""
-    if angles.ndim != 1:
-        raise ValueError("angles must be a 1D array")
-    if angles[0] < 0 or angles[-1] > np.pi:
-        raise ValueError("angles must a grid in radians on [0,pi)")
+@partial(jax.jit, static_argnames="spin_half")
+def _elastic_xs(S, tables, weights, spin_half) -> ElasticXS:
+    xs = amplitudes.observables(S, tables)
+    t, rxn = amplitudes._integrals(S, *weights)
+    if spin_half:
+        Ay, Q = amplitudes.spin_half_polarization(xs)
+    else:
+        Ay = Q = jnp.zeros_like(xs.dsdo)
+    return ElasticXS(dsdo=xs.dsdo, Ay=Ay, Q=Q, t=t, rxn=rxn, T=xs.T)

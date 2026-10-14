@@ -102,7 +102,7 @@ def test_per_energy_angles_match_full_grid():
 def test_spin_table():
     alpha = Reaction(target=(40, 20), projectile=(4, 2), process="El")
     ws = Workspace(alpha, alpha.kinematics(30.0), 10.0, 10, 30, angles=ANGLES)
-    assert ws.s == 0 and ws.l.size == 11
+    assert ws.s == 0 and ws.blocks.l.shape == (11, 1)
     central = -100 * woods_saxon_safe(ws.r, 4.5, 0.6)
     assert np.all(ws.xs(Potential(central=central)).Ay == 0)
     with pytest.raises(ValueError):
@@ -212,8 +212,8 @@ def test_l_dependent_nonlocal_kernel():
     )
     scaled = stack * np.where(np.arange(L) == 3, 1.2, 1.0)[:, None, None, None]
     S3 = np.asarray(ws.smatrix(Potential(nonlocal_central=scaled)))
-    changed = np.any(np.abs(S3 - np.asarray(S)) > 1e-10, axis=0)
-    np.testing.assert_array_equal(changed, ws.l == 3)
+    changed = np.any(np.abs(S3 - np.asarray(S)) > 1e-10, axis=(0, 2, 3))
+    np.testing.assert_array_equal(changed, ws.blocks.l[:, 0] == 3)
 
 
 def test_gradient_through_nonlocal_kernel():
@@ -240,3 +240,26 @@ def test_gpu_matches_cpu():
     with jax.default_device(jax.devices("cpu")[0]):
         cpu = ws.xs(potential).dsdo
     np.testing.assert_allclose(gpu, cpu, rtol=1e-10)
+
+
+def test_deuteron_is_spin_one():
+    d = Reaction(target=(40, 20), projectile=(2, 1), process="El")
+    ws = Workspace(d, d.kinematics(np.array([20.0, 50.0])), 12.0, 16, 40, angles=ANGLES)
+    assert ws.s == 1.0
+    r = ws.r
+    xs = ws.xs(
+        Potential(
+            central=(-90 - 15j) * woods_saxon_safe(r, 4.3, 0.75),
+            spin_orbit=3.0 * thomas_safe(r, 4.0, 0.6),
+            coulomb=coulomb_charged_sphere(r, 20, 4.4),
+        )
+    )
+    assert xs.T.shape == (2, 5, ANGLES.size)  # iT11 ... T22
+    assert np.abs(np.real(1j * xs.T[:, 1])).max() > 1e-2  # vector analyzing power
+    assert np.all(xs.rxn > 0) and np.all(np.isfinite(xs.dsdo))
+
+
+def test_identical_particles_are_rejected():
+    alpha = Reaction(target=(4, 2), projectile=(4, 2), process="El")
+    with pytest.raises(NotImplementedError, match="identical"):
+        Workspace(alpha, alpha.kinematics(20.0), 10.0, 10, 30)

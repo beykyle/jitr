@@ -21,16 +21,9 @@ boundary conditions, no complex conjugation),
 
 the first-order term of the coupled-channels ``S_np`` (from the outgoing
 Green's function of the neutron channel). Both methods then share the
-amplitudes
-
-.. math::
-    f_{m m'}(θ) = \frac{\sqrt{4π}}{2 i k_p} \sum_b
-        \sqrt{2l+1}\langle l 0 \tfrac12 m | j m \rangle
-        \langle l, m-m'; \tfrac12 m' | j m \rangle
-        e^{i(σ^p_l + σ^n_l)} S^b_{np} Y_l^{m-m'}(θ, 0),
-
-with ``dσ/dΩ = (1/2) Σ |f_mm'|^2`` and the integrated cross section
-``(π/k_p^2) Σ_b (2j+1)/2 |S_np|^2``. When :math:`U_1` is not given, each of
+amplitudes of :mod:`jitr.xs.amplitudes` (entrance proton, exit neutron),
+giving ``dσ/dΩ = (1/2) Σ |f_m'm|^2``, ``A_y``, ``Q`` and the integrated cross
+section ``(π/k_p^2) Σ_b (2j+1)/2 |S_np|^2``. When :math:`U_1` is not given, each of
 its terms defaults to ``-(U_n - U_p) sqrt|N-Z| / (N - Z - 1)``.
 """
 
@@ -41,13 +34,11 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 import numpy as np
-from scipy.special import gamma, sph_harm_y
-from sympy.physics.wigner import clebsch_gordan
 
 from ..reactions import Level, Reaction, spin_orbit
 from ..utils.constants import HBARC
 from ..utils.kinematics import ChannelKinematics
-from . import coupled
+from . import amplitudes, coupled
 from .coupled import Potential, potential_terms, promote
 
 PROTON, NEUTRON = 0, 1
@@ -55,12 +46,14 @@ PROTON, NEUTRON = 0, 1
 
 class QuasielasticPnXS(NamedTuple):
     """(p,n) observables: ``dsdo`` (mb/sr), ``Ay`` and ``Q`` of shape
-    ``(NE, Nθ)`` and the integrated cross section ``rxn_pn`` (mb), ``(NE,)``."""
+    ``(NE, Nθ)``, the integrated cross section ``rxn_pn`` (mb), ``(NE,)``, and
+    the amplitudes ``f[e, m', m, θ]`` (fm) of :mod:`jitr.xs.amplitudes`."""
 
     dsdo: jax.Array
     Ay: jax.Array
     Q: jax.Array
     rxn_pn: jax.Array
+    f: jax.Array
 
 
 def isovector_factor(reaction: Reaction) -> float:
@@ -72,53 +65,6 @@ def isovector_factor(reaction: Reaction) -> float:
             f"{reaction.target}; supply U1 explicitly"
         )
     return float(np.sqrt(abs(N - Z)) / (N - Z - 1))
-
-
-def spin_half_transition_geometry(lmax: int, angles) -> np.ndarray:
-    r"""Angular factors for a spin-1/2 transition on a spin-0 target.
-
-    For a transition that conserves ``l`` and ``j``, the amplitude for
-    projectile spin projection ``m -> m'`` sums partial waves weighted by
-    :math:`\sqrt{2l+1}\langle l 0 \tfrac12 m | j m\rangle
-    \langle l, m-m'; \tfrac12 m' | j m\rangle Y_l^{m-m'}(θ, 0)`.
-
-    Returns:
-        Shape ``(2, 2, lmax + 1, 2, Nθ)`` indexed by ``[m, m', l, j]``, with
-        ``m, m'`` in ``(-1/2, +1/2)`` and ``j`` in ``(l + 1/2, l - 1/2)``.
-    """
-    geometry = np.zeros((2, 2, lmax + 1, 2, len(angles)), dtype=np.complex128)
-    for im, m in enumerate([-0.5, 0.5]):
-        for imp, mp in enumerate([-0.5, 0.5]):
-            for l in range(lmax + 1):
-                if abs(m - mp) > l:
-                    continue
-                ylm = sph_harm_y(l, int(m - mp), angles, 0)
-                for ij, j in enumerate([l + 0.5, l - 0.5] if l > 0 else [0.5]):
-                    cg0 = float(clebsch_gordan(l, 1 / 2, j, m - mp, mp, m))
-                    cg1 = float(clebsch_gordan(l, 1 / 2, j, 0, m, m))
-                    geometry[im, imp, l, ij] = cg1 * cg0 * np.sqrt(2 * l + 1) * ylm
-    return geometry
-
-
-def pn_observables(f, rxn_pn) -> QuasielasticPnXS:
-    r"""Observables from the amplitudes ``f[e, m, m', θ]`` (fm).
-
-    In the scattering plane the amplitude matrix is ``A + B σ·n̂``, with
-    ``A = f[1, 1] = f[0, 0]`` and ``f[1, 0] = iB``, so
-    ``dσ/dΩ = |A|^2 + |B|^2`` (the 1/2 spin average of ``Σ|f|^2``),
-    ``A_y = 2 Im(A^* f[1, 0]) / dσ/dΩ`` and ``Q = 2 Re(A^* f[1, 0]) / dσ/dΩ``,
-    the convention of :mod:`jitr.xs.elastic` and of Eq. (12) of Gosset,
-    Mayer and Escudie, Phys. Rev. C 14, 878 (1976).
-    """
-    dsdo = 0.5 * jnp.sum(jnp.abs(f) ** 2, axis=(1, 2))
-    denom = jnp.maximum(dsdo, 1e-30)
-    A, flip = f[:, 1, 1], f[:, 1, 0]
-    return QuasielasticPnXS(
-        dsdo=10 * dsdo,
-        Ay=2 * jnp.imag(jnp.conj(A) * flip) / denom,
-        Q=2 * jnp.real(jnp.conj(A) * flip) / denom,
-        rxn_pn=rxn_pn,
-    )
 
 
 class Workspace:
@@ -193,17 +139,14 @@ class Workspace:
         self.l, self.j = b.l[:, 0], b.j[:, 0]
         self.ls = spin_orbit(b, [level])  # (NB, 1, 1): l.sigma of each block
         self.k, self.mu, self.eta = k, mu, eta
-        sigma = np.angle(gamma(1 + self.l + 1j * eta[:, :, None]))  # (NE, 2, NB)
-        self.prefactor = (
-            np.sqrt(4 * np.pi) / (2j * k[:, :1]) * np.exp(1j * sigma.sum(axis=1))
-        )
         self.born = (
             -4j * np.sqrt(mu[:, 0] * mu[:, 1]) / (HBARC**2 * np.sqrt(k[:, 0] * k[:, 1]))
         )
-        self.weight = (2 * self.j + 1) / 2
         self.angles = angles
         if angles is not None:
-            self._geometry = self._block_geometry(angles)
+            self._tables = amplitudes.transition_tables(
+                self.lane, PROTON, NEUTRON, angles
+            )
 
     @property
     def r(self):
@@ -296,26 +239,23 @@ class Workspace:
         T, _, _ = self.tmatrix(Up, Un, U1)
         return self.xs_from_smatrix(self.born[:, None] * T)
 
-    def amplitudes(self, S_np, angles=None):
-        """Transition amplitudes ``f[e, m, m', θ]`` (fm) from the (p,n)
-        element of S, ``(NE, NB)``, at the workspace angles or ``angles``."""
+    def xs_from_smatrix(self, S_np, angles=None) -> QuasielasticPnXS:
+        """Observables from the (p,n) element of S, ``(NE, NB)``, at the
+        workspace angles or at ``angles``."""
         if angles is None and self.angles is None:
             raise ValueError("no angles: pass them here or to the workspace")
-        G = self._geometry if angles is None else self._block_geometry(angles)
-        return jnp.einsum("eb,mnbt->emnt", self.prefactor * S_np, G)
-
-    def xs_from_smatrix(self, S_np, angles=None) -> QuasielasticPnXS:
-        """Observables from the (p,n) element of S, ``(NE, NB)``."""
-        k = self.k[:, :1]
-        rxn_pn = (
-            10
-            * jnp.pi
-            / k[:, 0] ** 2
-            * jnp.sum(self.weight * jnp.abs(S_np) ** 2, axis=1)
+        tables = (
+            self._tables
+            if angles is None
+            else amplitudes.transition_tables(self.lane, PROTON, NEUTRON, angles)
         )
-        return pn_observables(self.amplitudes(S_np, angles), rxn_pn)
+        return _pn_xs(S_np, tables)
 
-    def _block_geometry(self, angles):
-        """Transition geometry re-indexed to blocks, ``(2, 2, NB, Nθ)``."""
-        G = spin_half_transition_geometry(self.lmax, angles)
-        return G[:, :, self.l, (self.j < self.l).astype(int)]
+
+@jax.jit
+def _pn_xs(S_np, tables) -> QuasielasticPnXS:
+    # S[exit, entrance]: the neutron row of the proton column
+    S = jnp.zeros((*S_np.shape, 2, 2), complex).at[..., NEUTRON, PROTON].set(S_np)
+    xs = amplitudes.observables(S, tables)
+    Ay, Q = amplitudes.spin_half_polarization(xs)
+    return QuasielasticPnXS(dsdo=xs.dsdo, Ay=Ay, Q=Q, rxn_pn=xs.sigma, f=xs.f)

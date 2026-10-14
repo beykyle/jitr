@@ -39,8 +39,20 @@ class BuiltCase:
 
     def dsdo(self) -> np.ndarray:
         """Return the differential cross section in mb/sr for this case."""
+        return self.observables()["dsdo_mb_per_sr"]
+
+    def observables(self) -> dict[str, np.ndarray]:
+        """dsdo and, for elastic cases, the Madison-frame analyzing powers
+        (``iT11 = Re(i T11)``, ``T2q = Re T2q``) at the reference angles."""
         result = getattr(self.workspace, self.method)(**self.xs_kwargs)
-        return np.asarray(result.dsdo[0])
+        out = {"dsdo_mb_per_sr": np.asarray(result.dsdo[0])}
+        T = getattr(result, "T", None)
+        if T is not None and T.shape[1] == 5:  # spin 1: (1,0),(1,1),(2,0),(2,1),(2,2)
+            T = np.asarray(T[0])
+            out.update(
+                iT11=np.real(1j * T[1]), T20=T[2].real, T21=T[3].real, T22=T[4].real
+            )
+        return out
 
 
 def build_case(ref: ReferenceCase) -> BuiltCase:

@@ -132,11 +132,12 @@ decks that differ only in the projectile spin-orbit term:
   (surface absorption, `r At^{1/3}` radii from `ap=0`, Coulomb) independently
   of the spin-1 observables.
 
-**F11 and F12 are staged, not yet in `manifest.json`.** Their CSVs carry four
-extra columns, which `_readers.load_case` does not accept yet, and jitR has no
-spin-1 elastic observables. Register them once both land; the per-observable
-tolerances (`atol 5e-3` on each `T_kq`, the 5-decimal precision Frescox prints
-being the floor) are already in the metadata.
+The CSVs of F11 and F12 carry four extra columns, which `_readers.load_case`
+reads as further observables and `test_regression` compares with the
+per-observable tolerances in the metadata (`atol 5e-3` on each `T_kq`, the
+5-decimal precision Frescox prints being the floor). jitR's `T_kq` are those
+of `jitr.xs.amplitudes` with ``iT11 = Re(i T11)``; the spin-orbit potential
+multiplies `2 l.s`, as Frescox's does.
 
 Regenerate with (Frescox writes `fort.*` files to the working directory):
 

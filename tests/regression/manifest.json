@@ -60,6 +60,18 @@
     "json": "frescox/reference/F10_p_ca48_pn_ias_35MeV.json"
   },
   {
+    "case_id": "F11_d_ni58_elastic_tensor_22MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F11_d_ni58_elastic_tensor_22MeV.csv",
+    "json": "frescox/reference/F11_d_ni58_elastic_tensor_22MeV.json"
+  },
+  {
+    "case_id": "F12_d_ni58_elastic_tensor_56MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F12_d_ni58_elastic_tensor_56MeV.csv",
+    "json": "frescox/reference/F12_d_ni58_elastic_tensor_56MeV.json"
+  },
+  {
     "case_id": "F13_d_ni58_elastic_noso_22MeV",
     "reference_code": "frescox",
     "csv": "frescox/reference/F13_d_ni58_elastic_noso_22MeV.csv",

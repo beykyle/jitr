@@ -27,6 +27,7 @@ from typing import Any, NamedTuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+from scipy.special import gamma
 
 from .. import lagrange
 from ..reactions.system import Blocks, asymptotics, jpi_blocks
@@ -101,6 +102,10 @@ class Workspace:
         self.blocks: Blocks = jpi_blocks(self.levels, lmax, J, parity)
         b = self.blocks
         self.H, self.Bc, self.open = asymptotics(b, k2, eta, a)
+        self.k2_level, self.eta_level = k2, eta
+        # Coulomb phases arg Γ(1 + l + iη) of the open channels
+        eta_c = eta[:, b.level]
+        self.sigma = np.where(self.open, np.angle(gamma(1 + b.l + 1j * eta_c)), 0.0)
         self.k2 = np.where(b.active, k2[:, b.level], -1.0)
         m = np.sqrt(mu[:, b.level])
         self.M = 2 * m[..., :, None] * m[..., None, :] / HBARC**2
@@ -134,6 +139,9 @@ class Workspace:
         couplings, forms, spec = [], [], []
         for is_nonlocal, terms in ((False, local), (True, nonlocal_)):
             for C, v in terms:
+                assert np.shape(C)[-2:] == (self.nch, self.nch), (
+                    f"couplings must be ({self.nch}, {self.nch}) or per block"
+                )
                 C = np.broadcast_to(C, self.active2.shape) * self.active2
                 v = promote(v, is_nonlocal, NE, lmax)
                 if v.shape[0] > 1:

@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from scipy.special import eval_legendre, lpmv
+from scipy.special import eval_legendre, gamma, lpmv
 
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
@@ -144,23 +144,28 @@ def test_no_spin_orbit_is_j_independent(ws):
     np.testing.assert_allclose(S[1:, 0], S[1:, 1], atol=1e-12)
 
 
-def test_transition_geometry(ws):
-    G = ws._geometry  # (m, m', block, angle)
-    spin_flip = np.abs(G[0, 1]).max(axis=-1)
-    assert np.all(spin_flip[ws.l > 0] > 0)
-    np.testing.assert_array_equal(spin_flip[ws.l == 0], 0)
-    # Clebsch-Gordan orthogonality: j-independent T has no spin flip
-    scale = np.abs(G).max()
-    for l in range(1, LMAX + 1):
-        np.testing.assert_allclose(
-            G[0, 1][ws.l == l].sum(axis=0), 0, atol=1e-12 * scale
-        )
+def amplitudes(ws, S_np):
+    """f[final m', initial m, θ] at the first energy."""
+    return np.asarray(ws.xs_from_smatrix(S_np).f)[0]
+
+
+def test_spin_flip_needs_j_dependence(ws):
+    """Clebsch-Gordan orthogonality: an S_np that does not depend on j has no
+    spin flip; s waves cannot flip; j dependence in one l flips."""
+    l, j = ws.l, ws.j
+    flat = (0.1 * np.exp(0.3j * l))[None].astype(complex)
+    f = amplitudes(ws, flat)
+    np.testing.assert_allclose(f[0, 1], 0, atol=1e-12 * np.abs(f).max())
+    f = amplitudes(ws, np.where(l == 0, 0.1, 0.0)[None].astype(complex))
+    np.testing.assert_allclose(f[0, 1], 0, atol=1e-14)
+    f = amplitudes(ws, np.where((l == 2) & (j > l), 0.1, 0.0)[None].astype(complex))
+    assert np.abs(f[0, 1]).max() > 1e-3
 
 
 def test_amplitude_symmetries(ws):
     """A spin-1/2 transition on a spin-0 target has two amplitudes."""
     Up, Un = potentials(ws)
-    f = np.asarray(ws.amplitudes(ws.smatrix(Up, Un)[:, :, NEUTRON, PROTON]))[0]
+    f = amplitudes(ws, ws.smatrix(Up, Un)[:, :, NEUTRON, PROTON])
     atol = 1e-14 * np.abs(f).max()
     np.testing.assert_allclose(f[0, 0], f[1, 1], rtol=0, atol=atol)
     np.testing.assert_allclose(f[0, 1], -f[1, 0], rtol=0, atol=atol)
@@ -191,8 +196,9 @@ def test_amplitudes_match_legendre_partial_wave_sum(ws):
     ``lpmv`` has the Condon-Shortley phase, as in :mod:`jitr.xs.elastic`."""
     Up, Un = potentials(ws)
     S_np = ws.smatrix(Up, Un)[:, :, NEUTRON, PROTON]
-    f = np.asarray(ws.amplitudes(S_np))[0]
-    c = np.asarray(ws.prefactor)[0] / np.sqrt(4 * np.pi)
+    f = amplitudes(ws, S_np)
+    sigma = np.angle(gamma(1 + ws.l[None] + 1j * ws.eta[0][:, None])).sum(axis=0)
+    c = np.exp(1j * sigma) / (2j * ws.k[0, PROTON])  # sqrt(4π)/(2ik) / sqrt(4π)
     S = np.asarray(S_np)[0]
     x = np.cos(ANGLES)
     weight = np.where(ws.j > ws.l, ws.l + 1, ws.l)
@@ -201,7 +207,8 @@ def test_amplitudes_match_legendre_partial_wave_sum(ws):
     Y = np.sum((c * sign * S)[:, None] * lpmv(1, ws.l[:, None], x), axis=0)
     scale = np.abs(X).max()
     np.testing.assert_allclose(f[1, 1], X, rtol=0, atol=1e-12 * scale)
-    np.testing.assert_allclose(f[1, 0], Y, rtol=0, atol=1e-12 * scale)
+    # the spin flip m = +1/2 -> m' = -1/2
+    np.testing.assert_allclose(f[0, 1], Y, rtol=0, atol=1e-12 * scale)
 
 
 def test_missing_spin_orbit_is_zero(ws):

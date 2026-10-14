@@ -14,9 +14,8 @@ uv run pytest tests/regression/
 Cases against LLNL [Frescox](https://github.com/LLNL/Frescox): eight
 elastic for p/n + `78Ni`, two quasi-elastic `(p,n)` to the isobaric
 analog state of `48Ca`, and four deuteron (spin 1) elastic on `58Ni`. F11
-and F12 add the tensor analyzing powers `iT11, T20, T21, T22`; they are
-staged references, not yet in the manifest, until jitR has spin-1 elastic
-observables (see `tests/regression/frescox/README.md`).
+and F12 also check the Madison-frame tensor analyzing powers
+`iT11, T20, T21, T22` (see `tests/regression/frescox/README.md`).
 
 | Case | Reaction | Projectile | E\_lab (MeV) | Source deck |
 |------|----------|-----------|-------------|-------------|
@@ -30,8 +29,8 @@ observables (see `tests/regression/frescox/README.md`).
 | F8   | elastic | n | 200   | `B1_n-high-el.in` (block 3) |
 | F9   | `48Ca(p,n)48Sc(IAS)` | p | 25 | `Ca48_pn_IAS_25MeV.in` |
 | F10  | `48Ca(p,n)48Sc(IAS)` | p | 35 | `Ca48_pn_IAS_35MeV.in` |
-| F11  | elastic + `T_kq` (staged) | d | 22 | `d_ni58-tensor-el.in` (block 1) |
-| F12  | elastic + `T_kq` (staged) | d | 56 | `d_ni58-tensor-el.in` (block 2) |
+| F11  | elastic + `T_kq` | d | 22 | `d_ni58-tensor-el.in` (block 1) |
+| F12  | elastic + `T_kq` | d | 56 | `d_ni58-tensor-el.in` (block 2) |
 | F13  | elastic, no spin-orbit | d | 22 | `d_ni58-noso-el.in` (block 1) |
 | F14  | elastic, no spin-orbit | d | 56 | `d_ni58-noso-el.in` (block 2) |
 
