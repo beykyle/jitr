@@ -213,3 +213,31 @@ def lab_to_cm_frame(
     theta_cm = np.where(theta_cm < 0.0, theta_cm + 2.0 * np.pi, theta_cm)
 
     return np.rad2deg(theta_cm)
+
+
+def level_kinematics(
+    entrance: ChannelKinematics, Ex: npt.ArrayLike
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    r"""Wavenumbers, reduced masses and Sommerfeld parameters of target levels.
+
+    Each level at excitation energy ``Ex`` shares the entrance channel's
+    reduced mass and has kinetic energy ``E - Ex``, where
+    ``E = hbar^2 k^2 / (2 mu)`` is the entrance channel's (so the level with
+    ``Ex = 0`` reproduces the entrance channel exactly, also for
+    semi-relativistic kinematics). Below threshold ``k^2 < 0`` and the
+    Sommerfeld parameter is computed with ``|k|``.
+
+    Args:
+        entrance: Entrance-channel kinematics, scalar or arrays over energy.
+        Ex: Excitation energy of each level in MeV, shape ``(nlev,)``.
+
+    Returns:
+        ``(k2, mu, eta)``, each of shape ``(NE, nlev)``.
+    """
+    k0 = np.atleast_1d(entrance.k)[:, None]
+    mu = np.broadcast_to(np.reshape(entrance.mu, (-1, 1)), k0.shape) * np.ones(
+        np.size(Ex)
+    )
+    k2 = k0**2 - 2 * mu * np.asarray(Ex, dtype=np.float64) / HBARC**2
+    eta = np.atleast_1d(entrance.eta)[:, None] * k0 / np.sqrt(np.abs(k2))
+    return k2, mu, eta

@@ -51,10 +51,16 @@ uv run python tests/regression/frescox/tools/parse_frescox.py \
    --output tests/regression/frescox/outputs/B1-high-el.out \
    --metadata tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.json \
    --csv-out tests/regression/frescox/reference/F4_p_ni78_elastic_100MeV.csv \
-   --case-index 0 --min-angle-deg 1.0
+   --case-index 1 --min-angle-deg 1.0
 
-# repeat for F5 (--case-index 1), F6/F7/F8 from B1_n-high-el.out
+# repeat for F5 (B1-high-el.out, --case-index 2) and F6/F7/F8
+# (B1_n-high-el.out, --case-index 0/1/2)
 ```
+
+Both decks run `elab = 49.35, 100, 200` MeV, so the cross-section blocks are
+indexed 0, 1, 2 in that order; each case's `reference_run.case_index` records
+its block. Block 0 of `B1-high-el.out` is unused: it repeats F3 (49.35 MeV
+protons) and agrees with the upstream F3 output to 0.2%.
 
 ## Regenerating the (p,n) IAS cases (F9–F10)
 
@@ -111,6 +117,78 @@ reduced matrix element, and the coupling coefficient it multiplies
 plain `U1` and jitR applies no such factor. This was verified two ways: by
 evaluating that coupling coefficient symbolically, and by jitR reproducing
 the Frescox cross section absolutely.
+
+## Spin-1 tensor analyzing powers (F11–F14)
+
+Deuteron elastic scattering on `58Ni` at 22 and 56 MeV, from two repo-local
+decks that differ only in the projectile spin-orbit term:
+
+- `d_ni58-tensor-el.in` (`Vso = 6` MeV): F11 (22 MeV, block 0) and F12
+  (56 MeV, block 1), with `dsdo` and the tensor analyzing powers
+  `iT11, T20, T21, T22`.
+- `d_ni58-noso-el.in` (`Vso = 0`): F13 and F14, `dsdo` only. With no spin
+  dependence `dsdo` is the same for any projectile spin, so these pass against
+  today's spin-0 treatment of the deuteron and pin the deck conventions
+  (surface absorption, `r At^{1/3}` radii from `ap=0`, Coulomb) independently
+  of the spin-1 observables.
+
+The CSVs of F11 and F12 carry four extra columns, which `_readers.load_case`
+reads as further observables and `test_regression` compares with the
+per-observable tolerances in the metadata (`atol 5e-3` on each `T_kq`, the
+5-decimal precision Frescox prints being the floor). jitR's `T_kq` are those
+of `jitr.xs.amplitudes` with ``iT11 = Re(i T11)``; the spin-orbit potential
+multiplies `2 l.s`, as Frescox's does.
+
+Regenerate with (Frescox writes `fort.*` files to the working directory):
+
+```bash
+FRESCOX=/tmp/jitr-frescox/Frescox/source/frescox
+for deck in tensor noso; do
+  $FRESCOX < tests/regression/frescox/inputs/d_ni58-$deck-el.in \
+           > tests/regression/frescox/outputs/d_ni58-$deck-el.out
+done
+
+P=tests/regression/frescox
+uv run python $P/tools/parse_frescox.py --output $P/outputs/d_ni58-tensor-el.out \
+    --metadata $P/reference/F11_d_ni58_elastic_tensor_22MeV.json \
+    --csv-out $P/reference/F11_d_ni58_elastic_tensor_22MeV.csv \
+    --case-index 0 --min-angle-deg 1.0 --polarizations
+# F12: --case-index 1; F13/F14: d_ni58-noso-el.out without --polarizations
+```
+
+The references were made with Frescox `7.2-20-ga7f491` (gfortran).
+
+### What Frescox computes
+
+`kqmax=2` asks for analyzing powers up to rank 2, `pp=0` for the projectile
+(beam polarization), and `koords=0` for the Madison frame (z along the beam,
+y along `k_in × k_out`). Each angle line ends with
+`& pols = T10 iT11 T20 T21 T22`; `T10` is zero for elastic scattering, and
+`--polarizations` checks that as a format guard. With `M_{m' m}(θ)` the
+amplitude from projectile state `m` to `m'` (Coulomb included on the
+diagonal), `frxx4.f` (subroutine `CRISS`) evaluates
+
+```
+T_kq = sqrt(2k+1) Σ_{m,m'} M_{m', m+q} M*_{m', m} <s m k q | s m+q> / Σ_{m,m'} |M_{m' m}|^2
+```
+
+times `i` for odd `k` (so `iT11` is printed as a real number). For spin 1 the
+vector analyzing power is `A_y = (2/√3) iT11`.
+
+### Spin-orbit convention
+
+Frescox `TYPE=3`, shape 0, is `-CONLS P1 E / [(1+E)^2 a r]` with
+`CONLS = 2.000`, multiplied by `j(j+1) - l(l+1) - s(s+1) = 2 l·s` for any
+projectile spin. That is jitR's Thomas form (`omp.spin_orbit`) acting through
+`Potential.spin_orbit`, which also multiplies `2 l·s`, so `Vso` carries over
+unchanged from spin 1/2 to spin 1.
+
+### Step size
+
+The decks use `hcm=0.02`. At `hcm=0.05` Frescox's 56 MeV cross section in
+the deep minimum near 168° (`~5e-3` mb/sr) is 0.8% low, enough to fail F14
+at `rtol 5e-3`; at `hcm=0.02` jitR and Frescox agree to 0.3% at every angle,
+and the `T_kq` move by at most `2e-4` between the two step sizes.
 
 ## Notes
 

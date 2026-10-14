@@ -10,7 +10,6 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 :titlesonly:
 
 /examples/notebooks/quickstart
-/examples/notebooks/alpha_ca_calibration
 /examples/notebooks/alpha_ca48_ambiguity
 /examples/notebooks/reaction
 /examples/notebooks/example_jlm
@@ -26,17 +25,16 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 /examples/notebooks/local_omp_demo
 /examples/notebooks/angular_reaction_xs
 /examples/notebooks/mass_exploration
+/examples/notebooks/total_and_reaction_xs
+/examples/notebooks/rigid_rotor_coupled_channels
 ```
 
 
 ## Start here
 
 - [Quickstart](/examples/notebooks/quickstart)
-  compiles a solver for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
+  builds a workspace for $\alpha$ + $^{44}$Ca, defines a parametric optical potential, and fits it to real elastic scattering data, all in under a minute.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/quickstart.ipynb)
-- [Bayesian calibration](/examples/notebooks/alpha_ca_calibration)
-  extends the quickstart to a full Bayesian calibration which reveals shell effects in $\alpha$ + $^{40,44,48}$Ca. Includes construction of an error model which is jointly inferred with the optical model parameters, and checking the posterior predictive against the data using empirical coverages.
-  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca_calibration.ipynb)
 - [Bayesian calibration with multimodal posteriors](/examples/notebooks/alpha_ca48_ambiguity)
   extends the quickstart to a tempered Bayesian calibration for $\alpha$ + $^{48}$Ca, providing a Bayesian perspective of the famous discrete parameter ambiguity in the binding of the interaction between nuclei and light ions.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/alpha_ca48_ambiguity.ipynb)
@@ -45,6 +43,12 @@ Every notebook also runs in [Google Colab](https://colab.research.google.com/): 
 
 ## Other useful examples
 
+- [Total and reaction cross sections across energies](/examples/notebooks/total_and_reaction_xs)
+  computes neutron total and proton reaction cross sections from 1 to 200 MeV with one vectorized workspace per target, and propagates the KDUQ posterior against EXFOR data.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/total_and_reaction_xs.ipynb)
+- [Rigid-rotor coupled channels](/examples/notebooks/rigid_rotor_coupled_channels)
+  reproduces the rotor benchmarks of Descouvemont (2016), follows inelastic channels as they open, and computes elastic and inelastic angular distributions.
+  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/rigid_rotor_coupled_channels.ipynb)
 - [Reactions and kinematics](/examples/notebooks/reaction)
   introduces the `Reaction` class and shows how to use it to store useful information about the reaction of interest, and how to use it to compute kinematic quantities.
   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/beykyle/jitr/blob/main/examples/notebooks/reaction.ipynb)

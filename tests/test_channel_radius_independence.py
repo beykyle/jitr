@@ -13,8 +13,8 @@ from jitr.optical_potentials.potential_forms import (
     woods_saxon_safe,
 )
 from jitr.reactions.reaction import Reaction
-from jitr.rmatrix import Solver
 from jitr.xs import elastic
+from jitr.xs.coupled import Potential
 
 ANGLES = np.deg2rad(np.arange(10, 180, 2.0))
 
@@ -22,15 +22,10 @@ ANGLES = np.deg2rad(np.arange(10, 180, 2.0))
 def _ratio_to_rutherford(reaction, kinematics, channel_radius_fm, nbasis):
     A3 = reaction.target.A ** (1 / 3)
     Zz = reaction.target.Z * reaction.projectile.Z
-    workspace = elastic.DifferentialWorkspace.build_from_system(
-        reaction=reaction,
-        kinematics=kinematics,
-        channel_radius_fm=channel_radius_fm,
-        solver=Solver(nbasis),
-        lmax=60,
-        angles=ANGLES,
+    workspace = elastic.Workspace(
+        reaction, kinematics, channel_radius_fm, lmax=60, nbasis=nbasis, angles=ANGLES
     )
-    r = workspace.radial_grid()
+    r = workspace.r
     Rv, av, Rw, aw = 1.4 * A3, 0.5, 1.4 * A3, 0.4
     central = (
         -185.0 * woods_saxon_safe(r, Rv, av)
@@ -38,10 +33,9 @@ def _ratio_to_rutherford(reaction, kinematics, channel_radius_fm, nbasis):
         - 1j * 25.0 * (-4 * aw) * woods_saxon_prime_safe(r, Rw, aw)
     )
     xs = workspace.xs(
-        central_potential=central,
-        coulomb_potential=coulomb_charged_sphere(r, Zz, 1.3 * A3),
+        Potential(central=central, coulomb=coulomb_charged_sphere(r, Zz, 1.3 * A3))
     )
-    return xs.dsdo / workspace.rutherford
+    return xs.dsdo[0] / workspace.rutherford[0]
 
 
 def test_alpha_elastic_independent_of_channel_radius():

@@ -18,7 +18,7 @@ from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import WAVENUMBER_PION
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel, _as_potential_array
+from .omp import SingleChannelOpticalModel, _as_potential_array, energy_grid
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -538,6 +538,7 @@ class KDUQ(SingleChannelOpticalModel):
         super().__init__(params=get_param_names(projectile))
         self.projectile = projectile
 
+    @energy_grid
     def evaluate(
         self,
         rgrid: float | np.ndarray,

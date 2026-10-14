@@ -1,6 +1,5 @@
-"""Reaction models, channels, and wavefunction helpers."""
+"""Reactions, levels and the J^pi blocks of coupled-channels systems."""
 
-from .channel_on_grid import SingleChannelData, make_channel_data
 from .reaction import (
     AbsorptionReaction,
     ElasticReaction,
@@ -19,38 +18,28 @@ from .reaction import (
     get_symbol,
     these_things_are_all_nuclei,
 )
-from .system import (
-    Asymptotics,
-    Channels,
-    ProjectileTargetSystem,
-    scalar_couplings,
-    spin_half_orbit_coupling,
-)
-from .wavefunction import Wavefunctions
+from .system import Blocks, Level, jpi_blocks, rotor, spin_orbit
 
 __all__ = [
     "AbsorptionReaction",
-    "Asymptotics",
-    "Channels",
+    "Blocks",
     "ElasticReaction",
     "Electron",
     "Gamma",
     "GammaCaptureReaction",
     "InclusiveReaction",
     "InelasticReaction",
+    "Level",
     "Nucleus",
     "Particle",
     "Positron",
-    "ProjectileTargetSystem",
     "Reaction",
-    "SingleChannelData",
     "TotalReaction",
-    "Wavefunctions",
     "cluster_separation_energy",
     "get_latex",
     "get_symbol",
-    "make_channel_data",
-    "scalar_couplings",
-    "spin_half_orbit_coupling",
+    "jpi_blocks",
+    "rotor",
+    "spin_orbit",
     "these_things_are_all_nuclei",
 ]

@@ -9,6 +9,7 @@ for details. Equation references are with respect to (w.r.t.) this paper.
 import json
 from collections import OrderedDict
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -18,7 +19,7 @@ from ..data import data_dir
 from ..reactions import Reaction
 from ..utils.constants import WAVENUMBER_PION
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel, _as_potential_array
+from .omp import SingleChannelOpticalModel, _as_potential_array, energy_grid
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -345,15 +346,19 @@ def calculate_params(
     rw = rw0 + (rw1 + rw2 * A) / (rw3 + A + rw4 * Elab) + rw5 * Elab**2
     aw = aw0 - (aw1 * Elab) / (-aw2 - Elab) + (aw3 - aw4 * Elab) * asym_factor
 
-    if (projectile == (1, 0) and Elab < 40) or (
-        projectile == (1, 1) and Elab < 20 and A > 100
-    ):
-        # In the paper this is positive, which is probably a typo
-        # as the potential is absorptive (see the canceling minus signs in
-        # the central function above).
-        ud = -(ud0 - ud1 * Elab - (ud3 - ud4 * Elab) * asym_factor)
+    # surface absorption below 40 MeV for neutrons, and below 20 MeV for
+    # protons on A > 100. In the paper this is positive, which is probably a
+    # typo as the potential is absorptive (see the canceling minus signs in
+    # the central function above).
+    if projectile == (1, 0):
+        has_surface = Elab < 40
     else:
-        ud = 0
+        has_surface = (Elab < 20) & (A > 100)
+    ud_grid = np.where(
+        has_surface, -(ud0 - ud1 * Elab - (ud3 - ud4 * Elab) * asym_factor), 0.0
+    )
+    # a float at one energy, an array over an energy grid
+    ud: Any = float(ud_grid) if np.ndim(ud_grid) == 0 else ud_grid
 
     rd = rd0 - rd2 * Elab - rd1 * A ** (-1.0 / 3)
     ad = ad0
@@ -395,6 +400,7 @@ class WLH(SingleChannelOpticalModel):
         )
         self.projectile = projectile
 
+    @energy_grid
     def evaluate(
         self,
         rgrid: float | npt.NDArray[np.float64],

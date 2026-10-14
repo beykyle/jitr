@@ -187,3 +187,16 @@ def test_dom_wrapper_uses_reaction_fermi_energy() -> None:
 
     assert not np.allclose(low_ef_terms[0], high_ef_terms[0])
     assert not np.allclose(low_ef_terms[1], high_ef_terms[1])
+
+
+def test_energy_grid_equals_stacked_single_energies() -> None:
+    model, reaction, params = dom.DOM(), _reaction(), _ordered_params()
+    r = np.linspace(0.1, 10.0, 20)
+    Ecm = np.array([5.0, 18.0, 60.0])
+    grid = ChannelKinematics(Elab=Ecm, Ecm=Ecm, mu=1.0, k=Ecm, eta=0 * Ecm)
+    terms = model(r, reaction, grid, *params)
+    for e, E in enumerate(Ecm):
+        single = ChannelKinematics(Elab=E, Ecm=E, mu=1.0, k=E, eta=0.0)
+        for t, s in zip(terms, model(r, reaction, single, *params), strict=True):
+            assert np.shape(t) == (Ecm.size, r.size)
+            np.testing.assert_allclose(t[e], s)
