@@ -1,4 +1,4 @@
-"""Reaction models, channels, and wavefunction helpers."""
+"""Reactions, levels and the J^pi blocks of coupled-channels systems."""
 
 from .reaction import (
     AbsorptionReaction,

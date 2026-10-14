@@ -297,3 +297,13 @@ def test_angle_list_must_match_energies_and_rutherford_needs_angles():
     with pytest.raises(ValueError, match="one angle array per energy"):
         ws.xs_from_smatrix(S, [ANGLES])
     assert Workspace(P48CA, kin, 12.0, 20, 40).rutherford is None
+
+
+def test_integrated_cross_sections_need_no_angles():
+    kin = P48CA.kinematics(np.array([10.0, 40.0]))
+    with_angles = Workspace(P48CA, kin, 12.0, 20, 40, angles=ANGLES)
+    without = Workspace(P48CA, kin, 12.0, 20, 40)
+    a, b = with_angles.xs(kd03(with_angles, kin)), without.xs(kd03(without, kin))
+    np.testing.assert_allclose(b.rxn, a.rxn, rtol=1e-12)
+    np.testing.assert_allclose(b.t, a.t, rtol=1e-12)
+    assert b.dsdo.shape == (2, 0)

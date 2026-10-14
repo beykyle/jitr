@@ -11,7 +11,9 @@ Give your nuclear reaction UQ workflow a caffeine-kick with jitr!
 
 ## Description
 
-Under the hood, jitr solves the Shrödinger equation using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables corresponding to an ensemble of reactions. Additionally, jitr relies on vectorized operations from [numpy](https://numpy.org/), as well as just-in-time (JIT) compilation from [`numba`](https://numba.pydata.org/) for the small subset of performance-critical code. 
+Under the hood, jitr solves the Shrödinger equation using the calculable $\mathcal{R}$-Matrix method on a Lagrange-Legendre mesh. It is fast because it gives users the tools to precompute everything that they can for a system and reaction of interest, so given a single parameter sample, the minimal amount of compute is required to spit a cross section back out. For this reason, jitr is really suited to calculating an ensemble of observables corresponding to an ensemble of reactions.
+
+The solver is written in [JAX](https://docs.jax.dev/): it is just-in-time compiled, solves every $J^\pi$ block at every energy of a grid in one vectorized call, runs unchanged on GPUs, and is differentiable, so `jax.grad` gives derivatives of cross sections with respect to the potential. Upgrading from jitr 3? See the [migration guide](migration-v4.md).
 
 The theory generally follows:
 - [Baye, D. (2015). The Lagrange-mesh method. Physics reports, 565, 1-107](https://www.sciencedirect.com/science/article/pii/S0370157314004086)
@@ -81,7 +83,7 @@ Then, you can run the notebooks in-browser. See the [Advanced users and develope
 ### Quick start
 
 The [quickstart example](/examples/notebooks/quickstart) gives a fast end-to-end walk-through for:
-- compiling a solver for a given reaction system ($\alpha$ + $^{44}$Ca)
+- building a workspace for a given reaction system ($\alpha$ + $^{44}$Ca)
 - defining a parametric interaction potential and calculating a cross section
 - fitting the potential parameters to real experimental data
 

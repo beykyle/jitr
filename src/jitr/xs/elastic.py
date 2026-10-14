@@ -101,10 +101,11 @@ class Workspace:
         self.angles = angles
         self.rutherford = None
         self._geometry = amplitudes.transition_geometry(self.solver, 0, 0)
+        # without angles, only the integrated cross sections are computed
+        self._tables = amplitudes.transition_tables(
+            self.solver, self._geometry, np.empty(0) if angles is None else angles
+        )
         if angles is not None:
-            self._tables = amplitudes.transition_tables(
-                self.solver, self._geometry, angles
-            )
             sin2 = np.sin(np.asarray(angles) / 2) ** 2
             self.rutherford = (
                 10 * (self.eta[:, None] / (2 * self.k[:, None] * sin2)) ** 2
@@ -135,7 +136,8 @@ class Workspace:
         return self.solver.smatrix(local, nonlocal_)[0]
 
     def xs(self, potential: Potential) -> ElasticXS:
-        """Observables at the workspace angles."""
+        """Observables at the workspace angles (without angles, only the
+        integrated ``t`` and ``rxn``; the angular fields have no angles)."""
         return self.xs_from_smatrix(self.smatrix(potential))
 
     def xs_from_smatrix(self, S, angles=None):
@@ -155,8 +157,6 @@ class Workspace:
                 )
                 for e, a in enumerate(angles)
             ]
-        if angles is None and self.angles is None:
-            raise ValueError("no angles: pass them here or to the workspace")
         if angles is None:
             return self._xs(S, self._tables)
         return self._xs(

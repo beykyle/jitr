@@ -9,7 +9,6 @@ core
 folding
 reactions
 optical-potentials
-quadrature
 rmatrix
 xs
 ```
