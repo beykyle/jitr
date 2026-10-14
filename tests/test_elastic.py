@@ -263,3 +263,37 @@ def test_identical_particles_are_rejected():
     alpha = Reaction(target=(4, 2), projectile=(4, 2), process="El")
     with pytest.raises(NotImplementedError, match="identical"):
         Workspace(alpha, alpha.kinematics(20.0), 10.0, 10, 30)
+
+
+def test_to_lj_rejects_spin_above_half():
+    d = Reaction(target=(40, 20), projectile=(2, 1), process="El")
+    ws = Workspace(d, d.kinematics(20.0), 12.0, 8, 30, angles=ANGLES)
+    S = ws.smatrix(Potential(central=-90 * woods_saxon_safe(ws.r, 4.3, 0.75)))
+    with pytest.raises(ValueError, match="spin"):
+        ws.to_lj(S)
+
+
+def test_per_energy_angles_reuse_the_geometry(monkeypatch):
+    """Ragged angle lists rebuild only the angle-dependent tables."""
+    from jitr.xs import amplitudes
+
+    kin = P48CA.kinematics(np.array([10.0, 40.0]))
+    ws = Workspace(P48CA, kin, 12.0, 20, 40, angles=ANGLES)
+    S = ws.smatrix(kd03(ws, kin))
+    calls = []
+    original = amplitudes.transition_geometry
+    monkeypatch.setattr(
+        amplitudes, "transition_geometry", lambda *a: calls.append(a) or original(*a)
+    )
+    ws.xs_from_smatrix(S, [ANGLES[::2], ANGLES[5:9]])
+    ws.xs_from_smatrix(S, ANGLES[::3])
+    assert calls == []
+
+
+def test_angle_list_must_match_energies_and_rutherford_needs_angles():
+    kin = P48CA.kinematics(np.array([10.0, 40.0]))
+    ws = Workspace(P48CA, kin, 12.0, 20, 40, angles=ANGLES)
+    S = ws.smatrix(kd03(ws, kin))
+    with pytest.raises(ValueError, match="one angle array per energy"):
+        ws.xs_from_smatrix(S, [ANGLES])
+    assert Workspace(P48CA, kin, 12.0, 20, 40).rutherford is None

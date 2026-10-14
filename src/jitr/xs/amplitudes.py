@@ -48,7 +48,7 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 import numpy as np
-from scipy.special import gamma, sph_harm_y
+from scipy.special import loggamma, sph_harm_y
 
 from ..reactions.system import _wigner
 
@@ -104,31 +104,40 @@ def kq_labels(spin) -> list[tuple[int, int]]:
     return [(k, q) for k in range(1, round(2 * spin) + 1) for q in range(k + 1)]
 
 
-def transition_tables(
-    ws, entrance: int, exit: int, angles, energies=slice(None)
-) -> Tables:
-    """Tables for :func:`observables` of a :class:`jitr.xs.coupled.Workspace`.
+class Geometry(NamedTuple):
+    """The angle- and energy-independent part of a transition: channel pairs
+    ``(block, exit channel, entrance channel)``, their Clebsch-Gordan
+    products and weights, and the ``τ_kq`` matrices."""
 
-    Args:
-        ws: The coupled-channels workspace.
-        entrance: Index of the entrance level.
-        exit: Index of the exit level.
-        angles: c.m. angles in radians.
-        energies: Optional selection of the workspace energies.
-    """
+    entrance: int
+    exit: int
+    initial: list  # (m, M) of the entrance level
+    final: list  # (m', M') of the exit level
+    pair: np.ndarray  # (3, P)
+    W: np.ndarray  # (n_final, n_initial, P)
+    tau: np.ndarray  # (n_kq, n_initial, n_initial): <a|τ_kq|b>
+    norm: float  # 1 / ((2s+1)(2I+1))
+
+
+def transition_geometry(ws, entrance: int, exit: int) -> Geometry:
+    """Clebsch-Gordan tables of the ``entrance -> exit`` transition of a
+    :class:`jitr.xs.coupled.Workspace`, built once per workspace."""
     b, lv = ws.blocks, ws.levels
     s0, I0, s1, I1 = lv[entrance].s, lv[entrance].I, lv[exit].s, lv[exit].I
     initial = [(m, M) for m in projections(s0) for M in projections(I0)]
     final = [(m, M) for m in projections(s1) for M in projections(I1)]
-    pairs = np.array(
-        [
-            (bb, c, c0)
-            for bb in range(b.l.shape[0])
-            for c in np.flatnonzero(b.active[bb] & (b.level[bb] == exit))
-            for c0 in np.flatnonzero(b.active[bb] & (b.level[bb] == entrance))
-        ]
-    ).T
-    pb, pc, pc0 = pairs
+    pairs = [
+        (bb, c, c0)
+        for bb in range(b.l.shape[0])
+        for c in np.flatnonzero(b.active[bb] & (b.level[bb] == exit))
+        for c0 in np.flatnonzero(b.active[bb] & (b.level[bb] == entrance))
+    ]
+    if not pairs:
+        raise ValueError(
+            f"no block of the workspace holds channels of both level {entrance} "
+            f"and level {exit} (check the J and parity filters and lmax)"
+        )
+    pb, pc, pc0 = pairs = np.array(pairs).T
     L, J = b.l[pb, pc], b.J[pb]
     L0, j0, j1 = b.l[pb, pc0], b.j[pb, pc0], b.j[pb, pc]
     W = np.zeros((len(final), len(initial), pairs.shape[1]))
@@ -145,13 +154,6 @@ def transition_tables(
                     * clebsch_gordan(j1[p], ML + m1, I1, M1, J[p], m + M)
                     * np.sqrt(2 * L0[p] + 1)
                 )
-    lmax = int(b.l.max())
-    Y = np.zeros((len(final), len(initial), lmax + 1, len(angles)), complex)
-    for f, (m1, M1) in enumerate(final):
-        for i, (m, M) in enumerate(initial):
-            ML = round(m + M - m1 - M1)
-            for Lp in range(abs(ML), lmax + 1):
-                Y[f, i, Lp] = sph_harm_y(Lp, ML, angles, 0)
     tau = np.array(
         [
             [
@@ -164,8 +166,24 @@ def transition_tables(
             for k, q in kq_labels(s0)
         ]
     ).reshape(-1, len(initial), len(initial))
+    norm = 1 / ((2 * s0 + 1) * (2 * I0 + 1))
+    return Geometry(entrance, exit, initial, final, pairs, W, tau, norm)
 
-    k0 = np.sqrt(np.abs(ws.k2_level[energies, entrance]))
+
+def transition_tables(ws, g: Geometry, angles, energies=slice(None)) -> Tables:
+    """Tables for :func:`observables` at ``angles`` (radians) and the selected
+    workspace energies, from the transition's :class:`Geometry`."""
+    b = ws.blocks
+    pb, pc, pc0 = g.pair
+    L = b.l[pb, pc]
+    lmax = int(b.l.max())
+    Y = np.zeros((len(g.final), len(g.initial), lmax + 1, len(angles)), complex)
+    for f, (m1, M1) in enumerate(g.final):
+        for i, (m, M) in enumerate(g.initial):
+            ML = round(m + M - m1 - M1)
+            for Lp in range(abs(ML), lmax + 1):
+                Y[f, i, Lp] = sph_harm_y(Lp, ML, angles, 0)
+    k0 = np.sqrt(np.abs(ws.k2_level[energies, g.entrance]))
     is_open = ws.open[energies][:, pb, pc] & ws.open[energies][:, pb, pc0]
     sigma = ws.sigma[energies]
     phase = (
@@ -175,30 +193,33 @@ def transition_tables(
         * 0.5j
         / k0[:, None]
     )
-    coulomb = np.zeros((len(k0), len(final), len(initial), len(angles)), complex)
-    eta0 = ws.eta_level[energies, entrance]
-    if exit == entrance and np.any(eta0 != 0):
+    n = len(g.initial)
+    coulomb = np.zeros((len(k0), len(g.final), n, len(angles)), complex)
+    eta0 = ws.eta_level[energies, g.entrance]
+    elastic = g.exit == g.entrance
+    if elastic and np.any(eta0 != 0):
         sin2 = np.sin(np.asarray(angles) / 2) ** 2
-        sigma0 = np.angle(gamma(1 + 1j * eta0))[:, None]
+        sigma0 = loggamma(1 + 1j * eta0).imag[:, None]
         Fc = (
             -eta0[:, None]
             / (2 * k0[:, None] * sin2)
             * np.exp(2j * sigma0 - 2j * eta0[:, None] * np.log(np.sqrt(sin2)))
         )
-        coulomb = np.eye(len(initial))[None, :, :, None] * Fc[:, None, None, :]
+        is_open0 = (ws.k2_level[energies, g.entrance] > 0)[:, None]  # closed: no Fc
+        coulomb = np.eye(n)[None, :, :, None] * (is_open0 * Fc)[:, None, None, :]
     return Tables(
-        W=jnp.asarray(W),
+        W=jnp.asarray(g.W),
         Y=jnp.asarray(Y),
         onehot=jnp.asarray(L[:, None] == np.arange(lmax + 1)),
-        pair=jnp.asarray(pairs),
-        delta=jnp.asarray(pc == pc0) * (exit == entrance),
-        weight=jnp.asarray((2 * J + 1) / ((2 * s0 + 1) * (2 * I0 + 1))),
+        pair=jnp.asarray(g.pair),
+        delta=jnp.asarray(pc == pc0) * elastic,
+        weight=jnp.asarray((2 * b.J[pb] + 1) * g.norm),
         phase=jnp.asarray(phase),
         is_open=jnp.asarray(is_open),
         coulomb=jnp.asarray(coulomb),
-        tau=jnp.asarray(tau),
+        tau=jnp.asarray(g.tau),
         k0=jnp.asarray(k0),
-        norm=1 / ((2 * s0 + 1) * (2 * I0 + 1)),
+        norm=g.norm,
     )
 
 
@@ -235,6 +256,8 @@ def spin_half_polarization(xs: XS):
     ``A_y = 2 Im(A^* f_{-+}) / Σ``, ``Q = 2 Re(A^* f_{-+}) / Σ`` with
     ``Σ = |A|^2 + |B|^2``; ``A_y = \\sqrt 2\\, iT_{11}``.
     """
+    if xs.f.shape[1:3] != (2, 2):
+        raise ValueError("A_y and Q need a spin-1/2 projectile on spin-0 states")
     A, flip = xs.f[:, 1, 1], xs.f[:, 0, 1]
     denom = jnp.maximum(0.5 * jnp.sum(jnp.abs(xs.f) ** 2, axis=(1, 2)), 1e-30)
     return 2 * jnp.imag(jnp.conj(A) * flip) / denom, 2 * jnp.real(

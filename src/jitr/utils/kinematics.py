@@ -235,7 +235,9 @@ def level_kinematics(
         ``(k2, mu, eta)``, each of shape ``(NE, nlev)``.
     """
     k0 = np.atleast_1d(entrance.k)[:, None]
-    mu = np.broadcast_to(np.reshape(entrance.mu, (-1, 1)), k0.shape) * np.ones(np.size(Ex))
+    mu = np.broadcast_to(np.reshape(entrance.mu, (-1, 1)), k0.shape) * np.ones(
+        np.size(Ex)
+    )
     k2 = k0**2 - 2 * mu * np.asarray(Ex, dtype=np.float64) / HBARC**2
     eta = np.atleast_1d(entrance.eta)[:, None] * k0 / np.sqrt(np.abs(k2))
     return k2, mu, eta

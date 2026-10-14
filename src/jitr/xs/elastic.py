@@ -99,8 +99,12 @@ class Workspace:
         self.spin_orbit = spin_orbit(self.solver.blocks, self.solver.levels)
         self.k, self.eta = np.sqrt(k2[:, 0]), eta[:, 0]
         self.angles = angles
+        self.rutherford = None
+        self._geometry = amplitudes.transition_geometry(self.solver, 0, 0)
         if angles is not None:
-            self._tables = amplitudes.transition_tables(self.solver, 0, 0, angles)
+            self._tables = amplitudes.transition_tables(
+                self.solver, self._geometry, angles
+            )
             sin2 = np.sin(np.asarray(angles) / 2) ** 2
             self.rutherford = (
                 10 * (self.eta[:, None] / (2 * self.k[:, None] * sin2)) ** 2
@@ -139,10 +143,14 @@ class Workspace:
         array) or, for a list of one angle array per energy, a list of
         :class:`ElasticXS` (one per energy, each with ``NE = 1``)."""
         if isinstance(angles, list):
+            if len(angles) != S.shape[0]:
+                raise ValueError("pass one angle array per energy")
             return [
                 self._xs(
                     S[e : e + 1],
-                    amplitudes.transition_tables(self.solver, 0, 0, a, slice(e, e + 1)),
+                    amplitudes.transition_tables(
+                        self.solver, self._geometry, a, slice(e, e + 1)
+                    ),
                     slice(e, e + 1),
                 )
                 for e, a in enumerate(angles)
@@ -151,13 +159,18 @@ class Workspace:
             raise ValueError("no angles: pass them here or to the workspace")
         if angles is None:
             return self._xs(S, self._tables)
-        return self._xs(S, amplitudes.transition_tables(self.solver, 0, 0, angles))
+        return self._xs(
+            S, amplitudes.transition_tables(self.solver, self._geometry, angles)
+        )
 
     def to_lj(self, S):
         """``S`` (spin 0 or 1/2) indexed by ``[energy, l, j]`` with
         ``j = l + 1/2, l - 1/2`` (the undefined ``l = 0, j = -1/2`` entry is
         1), or by ``[energy, l]`` for spin 0. Transmission coefficients are
-        ``1 - |to_lj(S)|^2``."""
+        ``1 - |to_lj(S)|^2``. Larger spins have several channels per block
+        and are not supported."""
+        if self.s > 0.5:
+            raise ValueError("to_lj supports projectile spin 0 and 1/2 only")
         l, j = self.blocks.l[:, 0], self.blocks.j[:, 0]
         S = S[:, :, 0, 0]
         if self.s == 0:

@@ -330,3 +330,11 @@ def test_explicit_U1_for_n_minus_z_equal_one():
     )
     with pytest.raises(ValueError, match="N - Z = 1"):
         ws.dwba(Up, Un)
+
+
+def test_U1_shape_is_validated(ws):
+    Up, Un = potentials(ws)
+    with pytest.raises(ValueError, match="mesh"):
+        ws.dwba(Up, Un, Potential(central=np.zeros(3), spin_orbit=0 * ws.r))
+    with pytest.raises(ValueError, match="mesh"):
+        ws.cc(Up, Un, Potential(central=np.zeros(3), spin_orbit=0 * ws.r))

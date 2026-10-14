@@ -35,6 +35,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from .. import lagrange
 from ..reactions import Level, Reaction, spin_orbit
 from ..utils.constants import HBARC
 from ..utils.kinematics import ChannelKinematics
@@ -110,32 +111,19 @@ class Workspace:
             ).reshape(-1, 2)
             for q in ("k", "mu", "eta")
         )
-        args = (channel_radius_fm, nbasis)
-        # DWBA distorted waves: one-channel blocks per particle; CC: both
-        self.p = coupled.Workspace(
-            *args,
-            [level],
-            lmax,
-            k[:, :1] ** 2,
-            mu[:, :1],
-            eta[:, :1],
-            batch_size=batch_size,
-        )
-        self.n = coupled.Workspace(
-            *args,
-            [level],
-            lmax,
-            k[:, 1:] ** 2,
-            mu[:, 1:],
-            eta[:, 1:],
-            batch_size=batch_size,
-        )
+        # CC: one two-channel (p, n) block per J^pi; DWBA: its one-channel slices
         self.lane = coupled.Workspace(
-            *args, [level, level], lmax, k**2, mu, eta, batch_size=batch_size
+            channel_radius_fm,
+            nbasis,
+            [level, level],
+            lmax,
+            k**2,
+            mu,
+            eta,
+            batch_size=batch_size,
         )
+        self.p, self.n = self.lane.channel(PROTON), self.lane.channel(NEUTRON)
         b = self.p.blocks
-        assert np.array_equal(b.l[:, 0], self.lane.blocks.l[:, 0])
-        assert np.array_equal(b.j[:, 0], self.lane.blocks.j[:, 1])
         self.l, self.j = b.l[:, 0], b.j[:, 0]
         self.ls = spin_orbit(b, [level])  # (NB, 1, 1): l.sigma of each block
         self.k, self.mu, self.eta = k, mu, eta
@@ -143,9 +131,10 @@ class Workspace:
             -4j * np.sqrt(mu[:, 0] * mu[:, 1]) / (HBARC**2 * np.sqrt(k[:, 0] * k[:, 1]))
         )
         self.angles = angles
+        self._geometry = amplitudes.transition_geometry(self.lane, PROTON, NEUTRON)
         if angles is not None:
             self._tables = amplitudes.transition_tables(
-                self.lane, PROTON, NEUTRON, angles
+                self.lane, self._geometry, angles
             )
 
     @property
@@ -204,9 +193,12 @@ class Workspace:
         Sn, un, _ = self.n.wavefunctions(
             *potential_terms(Un._replace(coulomb=None), one, self.ls), weights=one
         )
-        up, un = up[:, :, 0, 0], un[:, :, 0, 0]  # (NE, NB, N), flux-normalized
-        m, NE = self.p.mesh, up.shape[0]
-        lmax = int(self.l.max())
+        m = self.p.mesh
+        # expansion coefficients c = u~ sqrt(a w), so T = c_p^T V1 c_n with V1
+        # the same Lagrange matrix the solver uses (∫ u_p U1 u_n dr)
+        scale = jnp.sqrt(m.a * m.w)
+        cp, cn = up[:, :, 0, 0] * scale, un[:, :, 0, 0] * scale  # (NE, NB, N)
+        NE, lmax = cp.shape[0], int(self.l.max())
         T = 0
         for v, C, is_nonlocal in (
             (U1.central, 1.0, False),
@@ -216,16 +208,10 @@ class Workspace:
         ):
             if v is None:
                 continue
-            v = promote(v, is_nonlocal, NE, lmax)  # (L, NE or 1, N[, N])
+            v = promote(v, is_nonlocal, NE, lmax, m.x.size)  # (L, NE or 1, N[, N])
             v = jnp.swapaxes(v[self.l] if v.shape[0] > 1 else v, 0, 1)
-            if is_nonlocal:
-                ww = jnp.outer(m.w, m.w)
-                integral = m.a**2 * jnp.sum(
-                    up[..., :, None] * ww * v * un[..., None, :], (-2, -1)
-                )
-            else:
-                integral = m.a * jnp.sum(m.w * up * v * un, axis=-1)
-            T = T + C * integral
+            V = lagrange.interaction(m, **{"nonlocal_" if is_nonlocal else "local": v})
+            T = T + C * jnp.einsum("ebn,ebnm,ebm->eb", cp, V, cn)
         # flux-normalized waves are k^{-1/2} times unit-amplitude ones
         T = jnp.sqrt(self.k[:, :1] * self.k[:, 1:]) * T
         return T, Sp[:, :, 0, 0], Sn[:, :, 0, 0]
@@ -247,7 +233,7 @@ class Workspace:
         tables = (
             self._tables
             if angles is None
-            else amplitudes.transition_tables(self.lane, PROTON, NEUTRON, angles)
+            else amplitudes.transition_tables(self.lane, self._geometry, angles)
         )
         return _pn_xs(S_np, tables)
 

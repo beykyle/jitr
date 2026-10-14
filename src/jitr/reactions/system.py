@@ -352,6 +352,8 @@ def jpi_blocks(levels, lmax, J=None, parity=None) -> Blocks:
             ]
             if channels:
                 blocks.append((J2 / 2, pi, sorted(channels)))
+    if not blocks:
+        raise ValueError("no J^pi block has a channel: check the J and parity filters")
     nch = max(len(ch) for _, _, ch in blocks)
     NB = len(blocks)
     l = np.zeros((NB, nch), int)
@@ -471,9 +473,18 @@ def asymptotics(blocks: Blocks, k2, eta, a: float):
         for e in range(NE):
             k = np.sqrt(abs(k2[e, alpha]))
             if k2[e, alpha] > 0:
+                problem = (
+                    f"level {alpha} at energy index {e} (Sommerfeld parameter "
+                    f"{eta[e, alpha]:.3g}) is too close to its threshold for Coulomb "
+                    "functions at the channel radius"
+                )
+                if eta[e, alpha] > 250:
+                    raise ValueError(problem)
                 table = np.array(
                     coulomb_hankel_table(k * a, eta[e, alpha], ls.max())[:]
                 )
+                if not np.all(np.isfinite(table)):
+                    raise ValueError(problem)
                 H[e, bs, :, cs] = table[:, ls].T
             else:
                 Bc[e, bs, cs] = [

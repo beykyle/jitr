@@ -41,7 +41,12 @@ def test_plane_wave_born_limit_of_rotor_excitation():
     ws = neutral_workspace(levels, E, [0.0, Ex])
     F = np.exp(-((ws.r / 2.0) ** 2))
     S, _ = ws.smatrix(local=[(rotor(ws.blocks, levels, 2), eps * F)])
-    xs = amplitudes.observables(S, amplitudes.transition_tables(ws, 0, 1, ANGLES))
+    xs = amplitudes.observables(
+        S,
+        amplitudes.transition_tables(
+            ws, amplitudes.transition_geometry(ws, 0, 1), ANGLES
+        ),
+    )
     k, kp = np.sqrt(E / MF), np.sqrt((E - Ex) / MF)
     q = np.sqrt(k**2 + kp**2 - 2 * k * kp * np.cos(ANGLES))
     integral = [
@@ -88,7 +93,12 @@ def elastic_observables(s, central, so_strength=0.0, E=12.0, angles=ANGLES):
     S, _ = ws.smatrix(
         *potential_terms(pot, np.eye(ws.nch), spin_orbit(ws.blocks, levels))
     )
-    xs = amplitudes.observables(S, amplitudes.transition_tables(ws, 0, 0, angles))
+    xs = amplitudes.observables(
+        S,
+        amplitudes.transition_tables(
+            ws, amplitudes.transition_geometry(ws, 0, 0), angles
+        ),
+    )
     return ws, S, xs, amplitudes.integrated_cross_sections(ws, S)
 
 
@@ -163,7 +173,10 @@ def test_flux_conservation_and_integrated_cross_sections():
     inelastic = 0
     for exit in (1, 2):
         xs = amplitudes.observables(
-            S, amplitudes.transition_tables(ws, 0, exit, angles)
+            S,
+            amplitudes.transition_tables(
+                ws, amplitudes.transition_geometry(ws, 0, exit), angles
+            ),
         )
         integral = 2 * np.pi * np.trapezoid(xs.dsdo[0] * np.sin(angles), angles)
         np.testing.assert_allclose(integral, xs.sigma[0], rtol=1e-4)
@@ -174,7 +187,12 @@ def test_flux_conservation_and_integrated_cross_sections():
 def test_closed_exit_level():
     """A closed exit level has zero cross section and finite T_kq."""
     ws, S = rotor_case(3.0, s=1.0)  # the 4+ level at 4 MeV is closed
-    xs = amplitudes.observables(S, amplitudes.transition_tables(ws, 0, 2, ANGLES))
+    xs = amplitudes.observables(
+        S,
+        amplitudes.transition_tables(
+            ws, amplitudes.transition_geometry(ws, 0, 2), ANGLES
+        ),
+    )
     np.testing.assert_array_equal(xs.dsdo, 0)
     assert np.all(np.isfinite(xs.T))
 
@@ -190,7 +208,12 @@ def test_padded_and_closed_slots_do_not_contribute():
     S2, _ = ws.smatrix(
         *potential_terms(pot, np.eye(ws.nch), spin_orbit(ws.blocks, levels))
     )
-    xs2 = amplitudes.observables(S2, amplitudes.transition_tables(ws, 0, 0, ANGLES))
+    xs2 = amplitudes.observables(
+        S2,
+        amplitudes.transition_tables(
+            ws, amplitudes.transition_geometry(ws, 0, 0), ANGLES
+        ),
+    )
     t2, r2 = amplitudes.integrated_cross_sections(ws, S2)
     np.testing.assert_allclose(xs2.dsdo, xs.dsdo, rtol=1e-10)
     np.testing.assert_allclose(xs2.T, xs.T, atol=1e-12)
@@ -261,3 +284,33 @@ def test_rotor_matches_thompson(s):
         np.testing.assert_allclose(
             C[b][:n, :n], phase * thompson_rotor(blocks, levels, 2, b), atol=1e-12
         )
+
+
+def test_transition_without_channel_pairs_is_rejected():
+    """Keeping only J^pi = 0+, the 4- level would need l = 4 and so parity
+    -1: no block holds channels of both levels."""
+    levels = [Level(0), Level(4, -1)]
+    ws = neutral_workspace(levels, 12.0, [0.0, 4.0], J=[0], parity=1)
+    with pytest.raises(ValueError, match="no block"):
+        amplitudes.transition_geometry(ws, 0, 1)
+
+
+def test_closed_charged_entrance_has_no_coulomb_amplitude():
+    """Elastic scattering in a level that is closed at this energy is zero,
+    including the Coulomb amplitude."""
+    levels = [Level(0), Level(2)]
+    k2 = np.array([[12.0 / MF, (12.0 - 20.0) / MF]])
+    mu = np.full_like(k2, HBARC**2 / (2 * MF))
+    eta = np.array([[2.0, 3.0]])
+    ws = coupled.Workspace(12.0, 40, levels, 6, k2, mu, eta)
+    S, _ = ws.smatrix(local=[(np.eye(ws.nch), -50 * woods_saxon_safe(ws.r, 4.0, 0.6))])
+    g = amplitudes.transition_geometry(ws, 1, 1)
+    xs = amplitudes.observables(S, amplitudes.transition_tables(ws, g, ANGLES))
+    np.testing.assert_array_equal(xs.dsdo, 0)
+
+
+def test_spin_half_polarization_checks_its_assumptions():
+    """Ay and Q from two amplitudes need spin 1/2 on spin 0 at both ends."""
+    _, _, xs, _ = elastic_observables(1.0, central)
+    with pytest.raises(ValueError, match="spin-1/2"):
+        amplitudes.spin_half_polarization(xs)

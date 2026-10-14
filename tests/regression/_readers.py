@@ -97,6 +97,11 @@ def load_case(case: ManifestEntry) -> ReferenceCase:
 
     tolerance = metadata["tolerances"]["dsdo_mb_per_sr"]
     extra = columns[2:]
+    missing = set(metadata["tolerances"]) - {"dsdo_mb_per_sr", *extra}
+    if missing:
+        raise ValueError(
+            f"{case['case_id']} has tolerances for {sorted(missing)} but no CSV column"
+        )
     return ReferenceCase(
         case_id=metadata["case_id"],
         reference_code=metadata["reference_code"],

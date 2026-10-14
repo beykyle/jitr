@@ -125,7 +125,8 @@ def coulomb_charged_sphere(r: ArrayOrScalar, zz: float, r_c: float) -> ArrayOrSc
 def regular_inverse_r(r: ArrayOrScalar, r_c: float) -> ArrayOrScalar:
     """Return ``1/r`` regularized inside a sphere of radius ``r_c``."""
     xp = _xp(r, r_c)
-    return _real(xp.where(r <= r_c, (3 - (r / r_c) ** 2) / (2 * r_c), 1 / r))
+    inside = (3 - (r / r_c) ** 2) / (2 * r_c)
+    return _real(xp.where(r <= r_c, inside, 1 / xp.maximum(r, r_c)))
 
 
 def yamaguchi_potential(r: float, rp: float, *params: float) -> float:

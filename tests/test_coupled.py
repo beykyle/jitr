@@ -228,7 +228,7 @@ def test_l_dependent_form():
     stacked = np.broadcast_to(t[0][1], (9, 1, ws.r.size))
     S = ws.smatrix(local=[(np.eye(1), stacked), t[1]])[0]
     np.testing.assert_allclose(S, ws.smatrix(local=t)[0], atol=1e-14)
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="L > lmax"):
         ws.smatrix(local=[(np.eye(1), stacked[:5]), t[1]])
 
 
@@ -291,3 +291,99 @@ def test_level_kinematics_with_energy_dependent_mass():
     assert k2.shape == mu.shape == eta.shape == (3, 2)
     np.testing.assert_allclose(mu[:, 1], kin.mu)
     np.testing.assert_allclose(k2[:, 0], kin.k**2)
+
+
+def test_coulomb_phases_at_high_l():
+    """σ_l = arg Γ(1 + l + iη) must not overflow (Γ does for l >= 171)."""
+    from scipy.special import loggamma
+
+    eta = 5.0
+    ws = coupled.Workspace(
+        30.0,
+        20,
+        [Level(0)],
+        180,
+        np.array([[1.0]]),
+        np.array([[900.0]]),
+        np.array([[eta]]),
+        J=[171],
+        parity=-1,
+    )
+    np.testing.assert_allclose(ws.sigma[0, 0, 0], loggamma(172 + 1j * eta).imag)
+    assert not np.isclose(ws.sigma[0, 0, 0], np.pi / 4)
+
+
+@pytest.mark.parametrize("bad", [np.ones(1), np.ones(39)])
+def test_forms_must_match_the_mesh(bad):
+    ws = proton_workspace(20.0)
+    with pytest.raises(ValueError, match="mesh"):
+        ws.smatrix(local=[(np.eye(1), bad)])
+    with pytest.raises(ValueError, match="mesh"):
+        ws.smatrix(nonlocal_=[(np.eye(1), np.ones((40, 39)))])
+
+
+def test_energy_at_threshold_is_rejected():
+    kin = classical_kinematics(44657.3, 938.27, np.array([10.0]), 20)
+    E = (HBARC * kin.k) ** 2 / (2 * kin.mu)
+    k2, mu, eta = level_kinematics(kin, [0.0, float(E[0])])
+    with pytest.raises(ValueError, match="threshold"):
+        coupled.Workspace(12.0, 30, [Level(0), Level(2)], 4, k2, mu, eta)
+
+
+def test_channel_slice_equals_single_level_workspace():
+    """Slicing one channel out of a two-level workspace reuses its
+    asymptotics and gives the same S as a freshly built one-level workspace."""
+    lv = Level(0, 1, 0.5)
+    k2 = np.array([[1.6, 1.3]])
+    mu = np.array([[920.0, 921.0]])
+    eta = np.array([[0.5, 0.0]])
+    two = coupled.Workspace(12.0, 40, [lv, lv], 6, k2, mu, eta)
+    f = 1 / (1 + np.exp((two.r - 4.4) / 0.65))
+    for c in (0, 1):
+        sliced = two.channel(c)
+        fresh = coupled.Workspace(
+            12.0, 40, [lv], 6, k2[:, c : c + 1], mu[:, c : c + 1], eta[:, c : c + 1]
+        )
+        terms = [
+            (np.eye(1), (-50 - 8j) * f),
+            (spin_orbit(fresh.blocks, [lv]), -0.5 * f),
+        ]
+        np.testing.assert_allclose(
+            sliced.smatrix(local=terms)[0], fresh.smatrix(local=terms)[0], atol=1e-14
+        )
+        np.testing.assert_array_equal(sliced.sigma, fresh.sigma)
+
+
+def test_charged_level_just_above_threshold_is_rejected():
+    """A charged open channel with an enormous Sommerfeld parameter has no
+    usable Coulomb functions at the channel radius: a clear error, not NaN."""
+    with pytest.raises(ValueError, match="Sommerfeld"):
+        coupled.Workspace(
+            12.0,
+            20,
+            [Level(0), Level(2)],
+            2,
+            np.array([[1.0, 1e-6]]),
+            np.array([[900.0, 900.0]]),
+            np.array([[0.5, 400.0]]),
+        )
+
+
+def test_channel_slice_keeps_explicit_batch_size():
+    lv = Level(0, 1, 0.5)
+    two = coupled.Workspace(
+        12.0,
+        20,
+        [lv, lv],
+        4,
+        np.array([[1.6, 1.3]]),
+        np.array([[920.0, 921.0]]),
+        np.array([[0.5, 0.0]]),
+        batch_size=3,
+    )
+    assert two.channel(0).batch_size == 3
+
+
+def test_filters_leaving_no_block_are_rejected():
+    with pytest.raises(ValueError, match="no J"):
+        jpi_blocks([Level(0)], 5, J=[0.5])
