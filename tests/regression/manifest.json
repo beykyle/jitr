@@ -48,6 +48,18 @@
     "json": "frescox/reference/F8_n_ni78_elastic_200MeV.json"
   },
   {
+    "case_id": "F9_p_ca48_pn_ias_25MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F9_p_ca48_pn_ias_25MeV.csv",
+    "json": "frescox/reference/F9_p_ca48_pn_ias_25MeV.json"
+  },
+  {
+    "case_id": "F10_p_ca48_pn_ias_35MeV",
+    "reference_code": "frescox",
+    "csv": "frescox/reference/F10_p_ca48_pn_ias_35MeV.csv",
+    "json": "frescox/reference/F10_p_ca48_pn_ias_35MeV.json"
+  },
+  {
     "case_id": "T1_jlm_elastic",
     "reference_code": "talys",
     "csv": "talys/reference/T1_jlm_elastic.csv",

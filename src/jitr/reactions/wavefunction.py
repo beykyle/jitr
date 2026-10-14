@@ -36,30 +36,40 @@ class Wavefunctions:
         self.incoming_weights = incoming_weights
 
     def uext(self) -> list[Callable[[npt.ArrayLike], ComplexArray]]:
-        """Return external-channel wavefunctions valid beyond the boundary."""
+        """Return external-channel wavefunctions valid beyond the boundary.
+
+        The returned callables take the channel-0 coordinate ``s = k_0 r``;
+        channel ``i`` is evaluated at its own ``rho_i = k_i r``. ``S`` is taken
+        to be the flux-normalized matrix returned by :meth:`Solver.solve`.
+        """
+        # amplitude of the outgoing wave in each channel, in the raw (not
+        # flux-normalized) convention that the asymptotic forms use
+        velocity = self.channels.k / self.channels.mu
+        outgoing = (
+            self.S * np.sqrt(velocity[np.newaxis, :] / velocity[:, np.newaxis])
+        ) @ self.incoming_weights.astype(np.complex128)
+        k_ratio = self.channels.k / self.channels.k[0]
 
         def uext_channel(i: int) -> Callable[[npt.ArrayLike], ComplexArray]:
-            l = self.channels.l[i]
-            eta = self.channels.eta[i]
+            l = int(self.channels.l[i])
+            eta = float(self.channels.eta[i])
 
-            def asym_func_in(s: float) -> complex:
-                return self.incoming_weights[i] * H_minus(s, l, eta)
-
-            def asym_func_out(s: float) -> complex:
-                return np.sum(
-                    [
-                        self.incoming_weights[j] * self.S[i, j] * H_plus(s, l, eta)
-                        for j in range(len(self.channels))
-                    ],
-                    axis=0,
+            def u(s: float) -> complex:
+                rho = s * k_ratio[i]
+                return (
+                    1j
+                    / 2
+                    * (
+                        self.incoming_weights[i] * H_minus(rho, l, eta)
+                        - outgoing[i] * H_plus(rho, l, eta)
+                    )
                 )
 
             return lambda s_mesh: np.array(
-                [1j / 2 * (asym_func_in(s) - asym_func_out(s)) for s in s_mesh],
-                dtype=np.complex128,
+                [u(s) for s in np.atleast_1d(s_mesh)], dtype=np.complex128
             )
 
-        return [uext_channel(i) for i in range(len(self.channels))]
+        return [uext_channel(i) for i in range(self.channels.size)]
 
     def uint(self) -> list[Callable[[float], complex]]:
         """Return internal wavefunctions expanded in the Lagrange basis."""

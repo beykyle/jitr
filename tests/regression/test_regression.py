@@ -10,9 +10,8 @@ def test_regression(case: ManifestEntry) -> None:
     """Compare one committed external reference against the current API."""
     ref = load_case(case)
     built = build_case(ref)
-    result = built.workspace.xs(**built.xs_kwargs)
     np.testing.assert_allclose(
-        result.dsdo,
+        built.dsdo(),
         ref.dsdo,
         rtol=ref.tolerance["rtol"],
         atol=ref.tolerance["atol"],

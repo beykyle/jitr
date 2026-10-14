@@ -1,0 +1,21 @@
+48Ca(p,n)48Sc(IAS) DWBA
+NAMELIST
+ &FRESCO hcm=0.02 rmatch=20.0 jtmin=0 jtmax=40 absend=-1 thmin=0 thmax=180 thinc=1
+     chans=1 smats=2 xstabl=3 kqmax=1 pp=0 koords=0 elab(1)=35.0  iter=1 /
+ &PARTITION namep='p' massp=1.0 zp=1 namet='48Ca' masst=48.0 zt=20 qval=0 nex=1 /
+ &STATES jp=0.5 bandp=1 ep=0 cpot=1 jt=0 bandt=1 et=0 /
+ &PARTITION namep='n' massp=1.0 zp=0 namet='48Sc' masst=48.0 zt=21 qval=-0.5 nex=1 /
+ &STATES jp=0.5 bandp=1 ep=0 cpot=2 jt=0 bandt=1 et=6.677 /
+ &partition /
+ &POT kp=1 type=0 p1=48 p2=0 p3=1.27126845 /
+ &POT kp=1 type=1 p1=47.13547773 p2=1.19234989 p3=0.67066240 p4=3.53838802 p5=1.19234989 p6=0.67066240 /
+ &POT kp=1 type=2 p4=6.85454469 p5=1.28479728 p6=0.54368400 /
+ &POT kp=1 type=3 p1=5.11263624 p2=1.00737109 p3=0.59000000 p4=-0.20652470 p5=1.00737109 p6=0.59000000 /
+ &POT kp=2 type=0 p1=48 p2=0 p3=1.00000000 /
+ &POT kp=2 type=1 p1=42.02375462 p2=1.19234989 p3=0.67066240 p4=2.49229500 p5=1.19234989 p6=0.67066240 /
+ &POT kp=2 type=2 p4=5.63171244 p5=1.28479728 p6=0.53665120 /
+ &POT kp=2 type=3 p1=5.21719662 p2=1.00737109 p3=0.59000000 p4=-0.16293202 p5=1.00737109 p6=0.59000000 /
+ &pot /
+ &overlap /
+ &COUPLING icto=2 icfrom=1 kind=1 ip1=0 ip2=2 ip3=0 p1=1.0 p2=1.0 /
+ &coupling /

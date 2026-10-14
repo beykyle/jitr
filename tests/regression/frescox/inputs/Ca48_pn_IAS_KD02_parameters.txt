@@ -1,0 +1,25 @@
+Configuration of the two FRESCO decks in this bundle.
+Constants are FRESCO's own (frxx0.f): hbar*c = 197.32705 MeV fm, amu = 931.49432 MeV,
+1/alpha = 137.03599; nonrelativistic kinematics; masses taken as exactly 1 and 48 amu.
+KD02 = Koning and Delaroche, Nucl. Phys. A713 (2003) 231, local form, 13 parameters,
+Thomas spin-orbit with (hbar/m_pi c)^2 = 2.0 fm^2.
+
+=== Elab(p) = 25.0 MeV ===
+  Ecm(in) = 24.48979592 MeV   Q = -0.5 MeV   E_IAS = 6.677 MeV
+  Ecm(out) = 17.31279592 MeV   Elab(n) = 17.67347917 MeV
+  k_p = 1.07135559 fm^-1  eta_p = 0.62994184   k_n = 0.90079230 fm^-1  eta_n = 0
+  KD02 p + (A=48,Z=20) at 25.0 MeV, rc = 1.27126845 fm:
+    V=50.96318785  rv=1.19234989  av=0.67066240  W=2.29860499  rw=1.19234989  aw=0.67066240  Wd=8.13772168  rvd=1.28479728  avd=0.54368400  Vso=5.32128688  Wso=-0.12462904  rvso=1.00737109  avso=0.59000000
+  KD02 n + (A=48,Z=21) at 17.673479 MeV:
+    V=45.32118466  rv=1.19234989  av=0.67066240  W=1.47531087  rw=1.19234989  aw=0.67066240  Wd=6.52925801  rvd=1.28479728  avd=0.53665120  Vso=5.43011446  Wso=-0.09011411  rvso=1.00737109  avso=0.59000000
+  nangles = 181  theta_cm 0 to 180 step 1 deg
+
+=== Elab(p) = 35.0 MeV ===
+  Ecm(in) = 34.28571429 MeV   Q = -0.5 MeV   E_IAS = 6.677 MeV
+  Ecm(out) = 27.10871429 MeV   Elab(n) = 27.67347917 MeV
+  k_p = 1.26764503 fm^-1  eta_p = 0.53239803   k_n = 1.12718583 fm^-1  eta_n = 0
+  KD02 p + (A=48,Z=20) at 35.0 MeV, rc = 1.27126845 fm:
+    V=47.13547773  rv=1.19234989  av=0.67066240  W=3.53838802  rw=1.19234989  aw=0.67066240  Wd=6.85454469  rvd=1.28479728  avd=0.54368400  Vso=5.11263624  Wso=-0.20652470  rvso=1.00737109  avso=0.59000000
+  KD02 n + (A=48,Z=21) at 27.673479 MeV:
+    V=42.02375462  rv=1.19234989  av=0.67066240  W=2.49229500  rw=1.19234989  aw=0.67066240  Wd=5.63171244  rvd=1.28479728  avd=0.53665120  Vso=5.21719662  Wso=-0.16293202  rvso=1.00737109  avso=0.59000000
+  nangles = 181  theta_cm 0 to 180 step 1 deg

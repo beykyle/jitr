@@ -41,7 +41,7 @@ docs = [
 
 examples = [
     "matplotlib>=3.10.3",
-    "exfor_tools",
+    "exfor_tools>=1.3",
     "nbmake",
     "nbval",
     "ipykernel",

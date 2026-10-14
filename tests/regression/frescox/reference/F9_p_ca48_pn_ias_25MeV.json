@@ -1,0 +1,109 @@
+{
+  "case_id": "F9_p_ca48_pn_ias_25MeV",
+  "reference_code": "frescox",
+  "observable_type": "quasielastic_pn",
+  "description": "Frescox-derived quasi-elastic 48Ca(p,n)48Sc(IAS) DWBA angular distribution at Elab(p) = 25.0 MeV. Deck contributed by Jin Lei (Tongji University); re-run locally. Independent of jitR and CHEX, so it checks the spin-flip Clebsch-Gordan terms.",
+  "source_example": "Ca48_pn_IAS_25MeV.in",
+  "reaction": {
+    "target": {
+      "A": 48,
+      "Z": 20,
+      "name": "48Ca"
+    },
+    "projectile": {
+      "A": 1,
+      "Z": 1,
+      "name": "p"
+    },
+    "product": {
+      "A": 1,
+      "Z": 0,
+      "name": "n"
+    },
+    "residual": {
+      "A": 48,
+      "Z": 21,
+      "name": "48Sc"
+    }
+  },
+  "mass_kwargs": {
+    "model": "BMA"
+  },
+  "mass_model": "integer_amu",
+  "kinematics": {
+    "energy_MeV": 25.0,
+    "exit_energy_MeV": 17.67347917,
+    "frame": "lab",
+    "relativistic": false,
+    "Ecm_entrance_MeV": 24.48979592,
+    "Ecm_exit_MeV": 17.31279592,
+    "Q_MeV": -0.5,
+    "E_IAS_MeV": 6.677,
+    "comment": "Exit lab energy is taken from the deck rather than jitR's mass tables, so both codes see identical kinematics."
+  },
+  "optical_potential": {
+    "kind": "woods_saxon_local_pn",
+    "scale_radii_by_At_and_Ap": false,
+    "proton": {
+      "V": 50.96318785,
+      "rv": 1.19234989,
+      "av": 0.6706624,
+      "W": 2.29860499,
+      "rw": 1.19234989,
+      "aw": 0.6706624,
+      "Wd": 8.13772168,
+      "rvd": 1.28479728,
+      "avd": 0.543684,
+      "Vso": 5.32128688,
+      "Wso": -0.12462904,
+      "rvso": 1.00737109,
+      "avso": 0.59
+    },
+    "neutron": {
+      "V": 45.32118466,
+      "rv": 1.19234989,
+      "av": 0.6706624,
+      "W": 1.47531087,
+      "rw": 1.19234989,
+      "aw": 0.6706624,
+      "Wd": 6.52925801,
+      "rvd": 1.28479728,
+      "avd": 0.5366512,
+      "Vso": 5.43011446,
+      "Wso": -0.09011411,
+      "rvso": 1.00737109,
+      "avso": 0.59
+    },
+    "coulomb": {
+      "rC": 1.27126845
+    },
+    "comment": "KD02 (Koning-Delaroche 2003) local 13-parameter form, frozen at the entrance energy for p + (48,20) and the exit lab energy for n + (48,21), Thomas spin-orbit with (hbar/m_pi c)^2 = 2 fm^2."
+  },
+  "transition_potential": {
+    "central": "default_isovector_difference",
+    "spin_orbit": "zero",
+    "comment": "U1_central is left to jitR's default, -(U_n - U_p) * sqrt|N-Z|/(N-Z-1), which equals the tabulated form factor the deck reads. A KIND=1 form factor cannot carry an l.s term, so U1_spin_orbit is zero on both sides.",
+    "form_factor_input": "tests/regression/frescox/inputs/Ca48_pn_IAS_25MeV.formfactor"
+  },
+  "matching": {
+    "channel_radius_fm": 20.0,
+    "lmax": 40,
+    "nbasis": 60
+  },
+  "tolerances": {
+    "dsdo_mb_per_sr": {
+      "rtol": 0.001,
+      "atol": 1e-06
+    }
+  },
+  "reference_run": {
+    "code": "frescox",
+    "version": "7.2-20-ga7f491 (local build)",
+    "source_output": "tests/regression/frescox/outputs/Ca48_pn_IAS_25MeV.out",
+    "parser": "tests/regression/frescox/tools/parse_frescox.py",
+    "case_index": 1,
+    "min_angle_deg": 1.0,
+    "contributor": "Jin Lei, Tongji University",
+    "comment": "case_index 1 is the outgoing-neutron partition; block 0 is proton elastic. FSCALE = sqrt(2)*sqrt(4 pi) in the form-factor header is a Frescox convention that cancels against its KIND=1 coupling coefficient; see tools/make_pn_formfactor.py."
+  }
+}

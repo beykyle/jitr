@@ -55,7 +55,13 @@ def solve_smatrix_with_inverse(
     # Eqn 16 in Descouvemont, 2016
     S = np.linalg.solve(Zp, Zm)
 
-    uext_prime_boundary = 1j / 2 * (Hmp * incoming_weights - S @ np.copy(Hpp))
+    # derivative of u_i(s) = i/2 [ w_i H^-_i(s) - H^+_i(s) sum_j S_ij w_j ]; the
+    # outgoing wave carries the channel index i, and S contracts with the weights
+    uext_prime_boundary = (
+        1j
+        / 2
+        * (Hmp * incoming_weights - Hpp * (S @ incoming_weights.astype(np.complex128)))
+    )
 
     return R, S, Ainv, uext_prime_boundary
 

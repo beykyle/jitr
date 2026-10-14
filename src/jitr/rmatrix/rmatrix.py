@@ -168,7 +168,44 @@ class Solver:
         weights: FloatArray | None = None,
         wavefunction: bool = False,
     ) -> tuple[np.ndarray, ...]:
-        """Solve the scattering problem for one coupled set of channels."""
+        """Solve the scattering problem for one coupled set of channels.
+
+        Channels may differ in wavenumber ``k_i``, reduced mass ``mu_i`` and
+        Sommerfeld parameter; they share one physical channel radius, and the
+        interior problem is solved on the grid ``s = k_0 r`` of channel 0. The
+        asymptotics must be evaluated at each channel's own ``rho_i = k_i a``
+        (as :meth:`ProjectileTargetSystem.get_partial_wave_channels` does), with
+        derivatives with respect to ``rho_i``.
+
+        Args:
+            channels: Channel data for one partial wave.
+            asymptotics: Coulomb-Hankel functions at each channel's radius.
+            local_potential: Local potential in MeV on the quadrature grid,
+                shape ``(nbasis,)`` or ``(nch, nch, nbasis)``.
+            nonlocal_potential: Nonlocal potential in MeV fm^-1 on the
+                quadrature grid.
+            interaction_matrix: Precomputed interaction matrix; overrides the
+                potentials.
+            free_matrix: Precomputed free matrix.
+            basis_boundary: Precomputed basis functions at the channel radius.
+            weights: Amplitude of the incoming wave in each channel; defaults
+                to channel 0 only.
+            wavefunction: If True, also return the interior expansion
+                coefficients.
+
+        Returns:
+            ``(R, S, uext_prime_boundary)``, or
+            ``(R, S, coeffs, uext_prime_boundary)`` if ``wavefunction``.
+            ``S`` is the flux-normalized (unitary for real potentials)
+            S-matrix, ``S[i, j]`` the amplitude for outgoing channel ``i``
+            given incoming channel ``j``. ``R`` satisfies
+            ``u_i(a) = sum_j R[i, j] rho_j du_j/drho_j`` at the channel
+            radius. ``uext_prime_boundary`` is the Bloch-surface source in the
+            solver's units. For a single channel, or channels with equal
+            ``k`` and ``mu``, these reduce to the usual single-grid
+            quantities. The ``coeffs`` correspond to raw (not flux-normalized)
+            incoming amplitudes ``weights``.
+        """
         if free_matrix is None:
             free_matrix = self.free_matrix(
                 channels.a,
@@ -198,21 +235,30 @@ class Solver:
         assert basis_boundary.shape == (self.kernel.quadrature.nbasis,)
 
         system_matrix = free_matrix + interaction_matrix
+
+        # The interior is solved in s = k_0 r with kinetic terms scaled by
+        # mu_0 / mu_i, so channel i's surface derivative is
+        # (mu_0 / mu_i) d/ds = (k_i mu_0) / (k_0 mu_i) d/drho_i = (v_i / v_0) d/drho_i.
+        v_ratio = (channels.k * channels.mu[0]) / (channels.k[0] * channels.mu)
         R, S, inverse, uext_prime_boundary = solve_smatrix_with_inverse(
             system_matrix,
             basis_boundary,
             asymptotics.Hp,
             asymptotics.Hm,
-            asymptotics.Hpp,
-            asymptotics.Hmp,
+            asymptotics.Hpp * v_ratio,
+            asymptotics.Hmp * v_ratio,
             weights,
             channels.a,
             channels.size,
             self.kernel.quadrature.nbasis,
         )
 
+        # R in the rho-derivative convention, and the flux-normalized S
+        R_rho = R * (channels.mu[0] / channels.mu)[np.newaxis, :]
+        S_flux = S * np.sqrt(v_ratio[:, np.newaxis] / v_ratio[np.newaxis, :])
+
         if not wavefunction:
-            return R, S, uext_prime_boundary
+            return R_rho, S_flux, uext_prime_boundary
 
         coeffs = solution_coeffs_with_inverse(
             inverse,
@@ -222,4 +268,4 @@ class Solver:
             channels.size,
             self.kernel.quadrature.nbasis,
         )
-        return R, S, coeffs, uext_prime_boundary
+        return R_rho, S_flux, coeffs, uext_prime_boundary
