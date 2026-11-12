@@ -13,12 +13,40 @@ from ..utils.constants import ALPHA, HBARC
 MAX_ARG = np.log(1 / 1e-16)
 
 
-def perey_buck_nonlocal(r: float, rp: float, *params: float) -> PotentialArray:
-    """Return the Perey-Buck nonlocal kernel factor."""
+def perey_buck_nonlocal(
+    r: ArrayOrScalar, rp: ArrayOrScalar, *params: float
+) -> ArrayOrScalar:
+    r"""Return the partial-wave Perey-Buck nonlocality kernel :math:`h_l(r, r')`.
+
+    The partial-wave projection of
+    :math:`H(s) = \pi^{-3/2}\beta^{-3} e^{-s^2/\beta^2}`, acting on the reduced
+    radial wavefunction :math:`u_l(r)`:
+
+    .. math::
+        h_l(r, r') = \frac{e^{-(r^2 + r'^2)/\beta^2}}{\beta\sqrt{\pi}}
+        \, 2 z\, i_l(z), \qquad z = \frac{2 r r'}{\beta^2},
+
+    with :math:`i_l` the modified spherical Bessel function. It tends to
+    :math:`\delta(r - r')` as :math:`\beta \to 0`; multiply by
+    :math:`U((r + r')/2)` for the full nonlocal potential. Evaluated with the
+    exponentially scaled Bessel function, :math:`2 z i_l(z) e^{-z} =
+    \sqrt{2\pi z}\, I_{l+1/2}(z) e^{-z}`, so it stays finite at large radii.
+
+    Parameters
+    ----------
+    r, rp : float or array
+        Radial coordinates [fm]; broadcast against each other.
+    beta : float
+        Nonlocality range [fm].
+    ell : int
+        Orbital angular momentum.
+    """
     beta, ell = params
-    z = 2 * np.pi * r * rp / beta**2
-    Kl = 2 * 1j**ell * z * sc.spherical_jn(int(ell), -1j * z)
-    return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
+    r, rp = np.asarray(r, dtype=float), np.asarray(rp, dtype=float)
+    z = 2 * r * rp / beta**2
+    zs = np.where(z > 0, z, 1.0)
+    kl = np.where(z > 0, np.sqrt(2 * np.pi * zs) * sc.ive(ell + 0.5, zs), 0.0)
+    return _real(np.exp(-(((r - rp) / beta) ** 2)) * kl / (beta * np.sqrt(np.pi)))
 
 
 def _xp(*args):
