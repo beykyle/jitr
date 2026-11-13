@@ -7,14 +7,16 @@ from dataclasses import astuple, dataclass
 import numpy as np
 import numpy.typing as npt
 
+from .._types import ArrayOrScalar, FloatArray
 from .constants import ALPHA, HBARC
-
-FloatArray = npt.NDArray[np.float64]
 
 
 @dataclass
 class ChannelKinematics:
     """Kinematic quantities for a single reaction channel.
+
+    Each field is a scalar, or an array of the shape of the energies the
+    kinematics were computed for.
 
     Attributes:
         Elab: Laboratory-frame kinetic energy in MeV.
@@ -24,11 +26,11 @@ class ChannelKinematics:
         eta: Sommerfeld parameter.
     """
 
-    Elab: float
-    Ecm: float
-    mu: float
-    k: float
-    eta: float
+    Elab: ArrayOrScalar
+    Ecm: ArrayOrScalar
+    mu: ArrayOrScalar
+    k: ArrayOrScalar
+    eta: ArrayOrScalar
 
     def __iter__(self):
         """Iterate over the stored kinematic values in field order."""
@@ -38,7 +40,7 @@ class ChannelKinematics:
 def semi_relativistic_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute semi-relativistic entrance-channel kinematics.
@@ -76,7 +78,7 @@ def semi_relativistic_kinematics(
 def classical_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a laboratory energy.
@@ -100,7 +102,7 @@ def classical_kinematics(
 def classical_kinematics_cm(
     mass_target: float,
     mass_projectile: float,
-    Ecm: float,
+    Ecm: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a center-of-mass energy.

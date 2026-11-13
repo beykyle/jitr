@@ -11,6 +11,7 @@ for details. Equation references are with respect to the former paper.
 import json
 from collections import OrderedDict
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -140,7 +141,7 @@ def spin_orbit(
 def calculate_params(
     projectile: tuple,
     target: tuple,
-    Elab: float,
+    Elab: ArrayOrScalar,
     V0: float = 52.9,
     Ve: float = -0.299,
     Vt: float = 13.1,
@@ -163,7 +164,7 @@ def calculate_params(
     aso: float = 0.63,
     rc: float = 1.24,
     rc_0: float = 0.12,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the CHUQ potential

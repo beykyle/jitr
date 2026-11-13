@@ -12,6 +12,8 @@ point consistent with the other built-in OMP modules.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from scipy.special import exp1, expi
 
@@ -287,7 +289,7 @@ def Delta_Vs_depth(
 def calculate_params(
     projectile: tuple[int, int],
     target: tuple[int, int],
-    Ecm: float,
+    Ecm: ArrayOrScalar,
     Ef: float,
     v0: float,
     v1: float,
@@ -308,7 +310,7 @@ def calculate_params(
     rso: float,
     aso: float,
     rC: float,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
     """Assemble central, Coulomb, and spin-orbit DOM parameters.
 
     Args:

@@ -252,7 +252,7 @@ class Global:
 def calculate_params(
     projectile: tuple,
     target: tuple,
-    Elab: float,
+    Elab: ArrayOrScalar,
     uv0: float,
     uv1: float,
     uv2: float,
@@ -299,7 +299,7 @@ def calculate_params(
     rso1: float,
     aso0: float,
     aso1: float,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the WLH potential

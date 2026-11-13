@@ -10,6 +10,7 @@ details. Equation references are with respect to (w.r.t.) this paper.
 import json
 from collections import OrderedDict
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -97,36 +98,44 @@ def get_samples(projectile: tuple[int, int], posterior: str = "federal") -> np.n
     )
 
 
-def Vv(E: float, v1: float, v2: float, v3: float, v4: float, Ef: float) -> float:
+def Vv(
+    E: ArrayOrScalar, v1: float, v2: float, v3: float, v4: float, Ef: float
+) -> ArrayOrScalar:
     r"""energy-dependent, volume-central strength - real term, Eq. (7)"""
     return v1 * (1 - v2 * (E - Ef) + v3 * (E - Ef) ** 2 - v4 * (E - Ef) ** 3)
 
 
-def Wv(E: float, w1: float, w2: float, Ef: float) -> float:
+def Wv(E: ArrayOrScalar, w1: float, w2: float, Ef: float) -> ArrayOrScalar:
     """energy-dependent, volume-central strength - imaginary term, Eq. (7)"""
     return w1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + w2**2)
 
 
-def Wd(E: float, d1: float, d2: float, d3: float, Ef: float) -> float:
+def Wd(E: ArrayOrScalar, d1: float, d2: float, d3: float, Ef: float) -> ArrayOrScalar:
     """energy-dependent, surface-central strength - imaginary term (no real
     term), Eq. (7)
     """
     return d1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + d3**2) * np.exp(-d2 * (E - Ef))
 
 
-def Vso(E: float, vso1: float, vso2: float, Ef: float) -> float:
+def Vso(E: ArrayOrScalar, vso1: float, vso2: float, Ef: float) -> ArrayOrScalar:
     """energy-dependent, spin-orbit strength --- real term, Eq. (7)"""
     return vso1 * np.exp(-vso2 * (E - Ef))
 
 
-def Wso(E: float, wso1: float, wso2: float, Ef: float) -> float:
+def Wso(E: ArrayOrScalar, wso1: float, wso2: float, Ef: float) -> ArrayOrScalar:
     """energy-dependent, spin-orbit strength --- imaginary term, Eq. (7)"""
     return wso1 * (E - Ef) ** 2 / ((E - Ef) ** 2 + wso2**2)
 
 
 def delta_VC(
-    E: float, Vcbar: float, v1: float, v2: float, v3: float, v4: float, Ef: float
-) -> float:
+    E: ArrayOrScalar,
+    Vcbar: float,
+    v1: float,
+    v2: float,
+    v3: float,
+    v4: float,
+    Ef: float,
+) -> ArrayOrScalar:
     """energy dependent Coulomb correction term, Eq. 23"""
     return v1 * Vcbar * (v2 - 2 * v3 * (E - Ef) + 3 * v4 * (E - Ef) ** 2)
 
@@ -370,7 +379,7 @@ class Global:
 def calculate_params(
     projectile: tuple,
     target: tuple,
-    Elab: float,
+    Elab: ArrayOrScalar,
     Ef_0: float,
     Ef_A: float,
     v1_0: float,
@@ -411,7 +420,7 @@ def calculate_params(
     rc_0: float = 0.0,
     rc_A: float = 0.0,
     rc_A2: float = 0.0,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the KDUQ potential
