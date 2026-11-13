@@ -24,7 +24,7 @@
   "optical_potential": {
     "kind": "jlm",
     "variant": "jlmb",
-    "parameterization": "talys",
+    "parameterization": "bauge1998",
     "density_model": "d1m",
     "radialmodel": 2,
     "jlmmode": 2,
@@ -40,8 +40,8 @@
   },
   "tolerances": {
     "dsdo_mb_per_sr": {
-      "rtol": 0.10,
-      "atol": 50.0
+      "rtol": 0.05,
+      "atol": 1.0
     }
   },
   "reference_run": {

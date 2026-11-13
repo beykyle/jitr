@@ -18,6 +18,7 @@ If you are new to the project, start with
 :caption: Documentation
 
 getting-started
+migration-v4
 tests
 advanced-users
 api/index

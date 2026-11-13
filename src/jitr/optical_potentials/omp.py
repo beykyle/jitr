@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import functools
+
 import numpy as np
 
 from .._types import ArrayOrScalar, PotentialArray
@@ -9,6 +12,8 @@ from ..reactions import reaction
 from ..utils import kinematics
 from ..utils.constants import WAVENUMBER_PION
 from .potential_forms import (
+    _complex,
+    _xp,
     coulomb_charged_sphere,
     thomas_safe,
     woods_saxon_prime_safe,
@@ -16,8 +21,49 @@ from .potential_forms import (
 )
 
 
+def energy_grid(evaluate):
+    """Let ``evaluate`` take kinematics over an energy grid.
+
+    With scalar kinematics, ``evaluate`` is called as is. With kinematics
+    over ``NE`` energies (``Reaction.kinematics(np.array([...]))``), it is
+    called with each kinematic field as a column ``(NE, 1)``, so energy-
+    dependent depths and geometries broadcast against the radial grid, and
+    every returned term is broadcast to ``(NE, *rgrid.shape)``: ready for
+    :class:`jitr.xs.coupled.Potential` on a workspace over the same energies.
+    """
+
+    @functools.wraps(evaluate)
+    def wrapper(self, rgrid, reaction, kinematics, *params):
+        if np.ndim(kinematics.Elab) != 1:
+            return evaluate(self, rgrid, reaction, kinematics, *params)
+        columns = {
+            f.name: np.asarray(v)[:, None]
+            for f in dataclasses.fields(kinematics)
+            if np.ndim(v := getattr(kinematics, f.name)) == 1
+        }
+        terms = evaluate(
+            self, rgrid, reaction, dataclasses.replace(kinematics, **columns), *params
+        )
+        shape = (np.size(kinematics.Elab), *np.shape(rgrid))
+        return tuple(_on_grid(t, shape) for t in terms)
+
+    return wrapper
+
+
+def _on_grid(term, shape):
+    """``term`` broadcast to ``shape``: a writable numpy array, or a jax array."""
+    if _xp(term) is not np:
+        return _xp(term).broadcast_to(term, shape)
+    return term * np.ones(shape)
+
+
 class SingleChannelOpticalModel:
-    """Base class for local single-channel optical potentials."""
+    """Base class for local single-channel optical potentials.
+
+    Subclasses implement :meth:`evaluate`; decorated with :func:`energy_grid`,
+    it accepts kinematics at one energy (terms shaped like ``rgrid``) or over
+    an energy grid (terms ``(NE, *rgrid.shape)``).
+    """
 
     def __init__(self, params: list[str]) -> None:
         self.params = params
@@ -30,7 +76,8 @@ class SingleChannelOpticalModel:
         kinematics: kinematics.ChannelKinematics,
         *params: float,
     ) -> tuple[PotentialArray, PotentialArray, PotentialArray | ArrayOrScalar]:
-        """Evaluate central, spin-orbit, and Coulomb terms on ``rgrid``."""
+        """Evaluate central, spin-orbit, and Coulomb terms on ``rgrid``, at one
+        energy or, with :func:`energy_grid`, over an energy grid."""
         raise NotImplementedError("Subclasses must implement the evaluate method.")
 
     def __call__(
@@ -44,11 +91,9 @@ class SingleChannelOpticalModel:
 
 
 def _as_potential_array(result: complex | np.ndarray) -> PotentialArray:
-    """Return a potential result with repository-standard complex dtypes."""
-
-    if isinstance(result, np.ndarray):
-        return np.asarray(result, dtype=np.complex128)
-    return complex(result)
+    """Return a potential result with repository-standard complex dtypes:
+    ``complex`` for scalars, complex arrays (numpy or jax) otherwise."""
+    return _complex(result)
 
 
 def central(
@@ -113,6 +158,7 @@ class LocalOpticalPotential(SingleChannelOpticalModel):
             return target_mass ** (1 / 3) + projectile_mass ** (1 / 3)
         return target_mass ** (1 / 3)
 
+    @energy_grid
     def evaluate(  # type: ignore[override]
         self,
         rgrid: ArrayOrScalar,

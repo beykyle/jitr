@@ -5,7 +5,7 @@ parameterizations. The reusable analytic/tabulated density helpers live in
 `jitr.utils.density` and are documented on the core API page.
 
 
-## Quadrature and folding helpers
+## Folding helpers
 
 ```{eval-rst}
 .. automodule:: jitr.folding.folding

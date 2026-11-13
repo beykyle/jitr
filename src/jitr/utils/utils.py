@@ -2,104 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Any
+from collections.abc import Callable
 
 import numpy as np
-import numpy.typing as npt
-from numba import njit
 
-from .free_solutions import coulomb_hankel_table
-
-ComplexArray = npt.NDArray[np.complex128]
-FloatArray = npt.NDArray[np.float64]
+from .constants import HBARC
 
 
-@njit
-def complex_det(matrix: np.ndarray) -> np.complex128:
-    """Return ``sqrt(det(A A^\u2020))`` for a complex matrix."""
-    determinant = np.linalg.det(matrix @ np.conj(matrix).T)
-    return np.sqrt(determinant)
-
-
-@njit
-def block(
-    matrix: np.ndarray,
-    block_index: tuple[int, int],
-    block_size: tuple[int, int],
-) -> np.ndarray:
-    """Extract a sub-block from a block-structured matrix.
-
-    Args:
-        matrix: Input matrix containing equally sized blocks.
-        block_index: ``(row, column)`` index of the desired block.
-        block_size: Shape of each block as ``(rows, columns)``.
-
-    Returns:
-        The requested submatrix view.
-    """
-    i, j = block_index
-    n, m = block_size
-    return matrix[i * n : i * n + n, j * m : j * m + m]
-
-
-def second_derivative_op(
-    s: float,
-    channel: Any,
-    interaction: Callable[..., complex],
-    args: tuple[Any, ...] = (),
-) -> complex:
-    """Evaluate the scaled radial Schrödinger operator."""
-    return (
-        eval_scaled_interaction(s, interaction, channel, args)
-        + channel.l * (channel.l + 1) / s**2
-        - 1.0
-    )
-
-
-def schrodinger_eqn_ivp_order1(
-    s: float,
-    y: Sequence[complex] | FloatArray | ComplexArray,
-    channel: Any,
-    interaction: Callable[..., complex],
-    args: tuple[Any, ...] = (),
-) -> list[complex]:
-    """Convert the radial Schrödinger equation to a first-order system."""
-    u, uprime = y
-    return [uprime, second_derivative_op(s, channel, interaction, args) * u]
-
-
-def smatrix(Rl: complex, a: float, l: int, eta: float) -> complex:
-    """Compute an S-matrix element from a channel R-matrix value."""
-    Hp, Hm, Hpp, Hmp = (v[l] for v in coulomb_hankel_table(a, eta, l))
-    return complex((Hm - a * Rl * Hmp) / (Hp - a * Rl * Hpp))
+def radial_equation(r: float, y, l: int, k: float, mu: float, potential: Callable):
+    r"""Right-hand side of ``u'' = [l(l+1)/r^2 + 2μ V(r)/(ħc)^2 - k^2] u`` as a
+    first-order system ``y = (u, u')``, for integrators like
+    :func:`scipy.integrate.solve_ivp` (``k`` in fm^-1, ``μ`` in MeV, ``V``
+    in MeV)."""
+    u, du = y
+    return [du, (l * (l + 1) / r**2 + 2 * mu * potential(r) / HBARC**2 - k**2) * u]
 
 
 def delta(Sl: complex) -> tuple[np.float64, np.float64]:
     """Return the phase shift and attenuation in degrees."""
     phase = np.log(Sl) / 2.0j
     return np.rad2deg(np.real(phase)), np.rad2deg(np.imag(phase))
-
-
-def eval_scaled_interaction(
-    s: float,
-    interaction: Callable[..., complex],
-    ch: Any,
-    args: tuple[Any, ...],
-) -> complex:
-    """Evaluate a local interaction in dimensionless coordinates."""
-    return interaction(s / ch.k, *args) / ch.E
-
-
-def eval_scaled_nonlocal_interaction(
-    s: float,
-    sp: float,
-    interaction: Callable[..., complex],
-    ch: Any,
-    args: tuple[Any, ...],
-) -> complex:
-    """Evaluate a nonlocal interaction in dimensionless coordinates."""
-    return interaction(s / ch.k, sp / ch.k, *args) / ch.E
 
 
 def interaction_range(A: int, rA: float = 1.2, r0: float = 0.0) -> float:
@@ -119,3 +41,13 @@ def suggested_dimensionless_channel_radius(interaction_range: float, k: float) -
 def suggested_basis_size(a: float, zeros_per_node: int = 5) -> int:
     """Suggest an R-matrix basis size for a dimensionless channel radius."""
     return zeros_per_node * int(np.ceil(a / np.pi))
+
+
+def suggest_lmax(k, channel_radius_fm: float, margin: int = 5) -> int:
+    """Suggest the maximum partial wave for wavenumbers ``k`` (fm^-1).
+
+    Partial waves with ``l`` well beyond ``k a`` do not reach the interaction
+    region inside the channel radius ``a``; ``margin`` adds a few more. Use
+    the largest ``k`` of an energy grid (the default takes ``max(k)``).
+    """
+    return int(np.ceil(np.max(k) * channel_radius_fm)) + margin

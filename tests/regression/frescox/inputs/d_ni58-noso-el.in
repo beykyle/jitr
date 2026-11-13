@@ -1,0 +1,20 @@
+d+Ni58 elastic; no spin-orbit companion
+NAMELIST
+ &FRESCO hcm=0.02 rmatch=40
+     jtmin=0.0 jtmax=60 absend=-1
+     thmin=1.00 thmax=180.00 thinc=1.00
+     kqmax=2 pp=0 koords=0
+     chans=1 smats=2 xstabl=1
+     elab(1:2)=22.0 56.0  nlab(1:2)=1 1 /
+
+ &PARTITION namep='d' massp=2.00 zp=1
+           namet='Ni58' masst=58.0000 zt=28 qval=-0.000 nex=1 /
+ &STATES jp=1.0 bandp=1 ep=0.0000 cpot=1 jt=0.0 bandt=1 et=0.0000 /
+ &partition /
+
+ &POT kp=1 ap=0.000 at=58.000 rc=1.30 /
+ &POT kp=1 type=1 p1=90.00 p2=1.17 p3=0.75 p4=2.00 p5=1.32 p6=0.70 /
+ &POT kp=1 type=2 p1=0.00 p2=1.32 p3=0.70 p4=10.00 p5=1.32 p6=0.70 /
+ &pot /
+ &overlap /
+ &coupling /

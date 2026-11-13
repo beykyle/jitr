@@ -56,6 +56,26 @@ class TestFoldingDensities:
 
 
 class TestJLMHelpers:
+    def test_parameterization_aliases(self):
+        for name in ("jlm1977", "original", "JLM1977"):
+            assert jlm.resolve_parameterization(name) is jlm.JLM1977
+        for name in ("bauge1998", "jlmb1998", "talys"):
+            assert jlm.resolve_parameterization(name) is jlm.BAUGE1998
+        assert jlm.resolve_parameterization(None) is None
+        with pytest.raises(ValueError):
+            jlm.resolve_parameterization("paper")
+
+    def test_jlmb_defaults_to_bauge1998(self):
+        import inspect
+
+        for f in (
+            jlm.potential_JLMB,
+            jlm.isovector_JLMB,
+            jlm.pn_transition_bauge2001,
+        ):
+            default = inspect.signature(f).parameters["parameterization"].default
+            assert jlm.resolve_parameterization(default) is jlm.BAUGE1998
+
     def test_fermi_energy_matches_notebook_reference_value(self):
         assert jlm.fermi_energy_MeV(0.16) == pytest.approx(-24.8448)
 
@@ -277,7 +297,7 @@ class TestJLMPotentials:
             target,
             energy,
             V_C=v_c,
-            parameterization="talys",
+            parameterization="bauge1998",
         )
 
         np.testing.assert_allclose(actual_v, expected_v, rtol=1e-12, atol=1e-12)
@@ -356,6 +376,7 @@ class TestJLMPotentials:
             (1, 0),
             (48, 20),
             energy,
+            parameterization=None,
             r_out=folder.r_q,
         )
 
@@ -427,7 +448,7 @@ class TestJLMPotentials:
             (208, 82),
             energy,
             V_C=v_c_q,
-            parameterization="talys",
+            parameterization="bauge1998",
             r_out=folder.r_q,
         )
 
@@ -460,3 +481,138 @@ class TestJLMPotentials:
                 (40, 20),
                 30.0,
             )
+
+
+class TestJLMBIsovector:
+    """The folded isovector term is the part of U_n - U_p that is linear in
+    the asymmetry: U_n = U_0 + F and U_p = U_0 - F at a common energy."""
+
+    @staticmethod
+    def setup(Ncount=126, Zcount=82):
+        from jitr.folding import ILDAFolder
+
+        folder = ILDAFolder(r_max=14.0, n_quad=250)
+        rho_n_q = TwoParameterFermiDensity(R=6.8, a=0.55, N=Ncount)(folder.r_q)
+        rho_p_q = TwoParameterFermiDensity(R=6.7, a=0.55, N=Zcount)(folder.r_q)
+        kwargs = dict(
+            parameterization="bauge1998",
+            lambda_V=0.95,
+            lambda_W=1.1,
+            lambda_V1=1.3,
+            lambda_W1=0.8,
+            r_out=folder.r_q,
+        )
+        return folder, rho_n_q, rho_p_q, kwargs
+
+    def test_is_half_the_neutron_proton_difference_without_coulomb(self):
+        folder, rho_n, rho_p, kw = self.setup()
+        E, target = 20.0, (208, 82)
+        Fv, Fw = jlm.isovector_JLMB(folder, rho_n, rho_p, target, E, **kw)
+        Vn, Wn = jlm.potential_JLMB(folder, rho_n, rho_p, (1, 0), target, E, **kw)
+        Vp, Wp = jlm.potential_JLMB(
+            folder, rho_n, rho_p, (1, 1), target, E, V_C=0 * folder.r_q, **kw
+        )
+        np.testing.assert_allclose(Vn - Vp, 2 * Fv, rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(Wn - Wp, 2 * Fw, rtol=1e-10, atol=1e-12)
+        assert np.max(np.abs(Fv)) > 0.5  # a few MeV for 208Pb
+
+    def test_with_coulomb_is_the_asymmetry_term_of_the_proton_potential(self):
+        folder, rho_n, rho_p, kw = self.setup()
+        E, target = 20.0, (208, 82)
+        V_C = folder.V_coulomb(rho_p)
+        Fv, Fw = jlm.isovector_JLMB(folder, rho_n, rho_p, target, E, V_C=V_C, **kw)
+
+        def proton(lambda_1):
+            k = dict(kw, lambda_V1=lambda_1 * kw["lambda_V1"])
+            k["lambda_W1"] = lambda_1 * kw["lambda_W1"]
+            return np.array(
+                jlm.potential_JLMB(
+                    folder, rho_n, rho_p, (1, 1), target, E, V_C=V_C, **k
+                )
+            )
+
+        # the potential is linear in the isovector normalizations
+        np.testing.assert_allclose(
+            proton(0.0) - proton(1.0), [Fv, Fw], rtol=1e-10, atol=1e-12
+        )
+
+    def test_spin_orbit_isovector_part(self):
+        folder, rho_n, rho_p, _ = self.setup()
+        r = folder.r_q
+        F1 = jlm.isovector_spin_orbit_jlmb(r, rho_n, rho_p)
+        Fn = jlm.spin_orbit_jlmb(r, rho_n, rho_p, (1, 0))
+        Fp = jlm.spin_orbit_jlmb(r, rho_n, rho_p, (1, 1))
+        np.testing.assert_allclose(Fn - Fp, 2 * F1, rtol=1e-12, atol=1e-14)
+        # closed form (1/r) d/dr [(rho_p - rho_n)/6]
+        from scipy.interpolate import CubicSpline
+
+        closed = CubicSpline(r, (rho_p - rho_n) / 6)(r, 1) / r
+        np.testing.assert_allclose(F1, closed, rtol=1e-8, atol=1e-10)
+        # N > Z: excess neutrons at the surface make F1 positive there
+        surface = np.argmin(np.abs(r - 6.8))
+        assert F1[surface] > 0
+
+
+class TestBauge2001Transition:
+    def test_equals_direct_isovector_form_for_constant_asymmetry(self):
+        from jitr.folding import ILDAFolder
+
+        folder = ILDAFolder(r_max=14.0, n_quad=250)
+        rho_p = TwoParameterFermiDensity(R=6.7, a=0.55, N=82)(folder.r_q)
+        rho_n = rho_p * 126 / 82  # same shape: alpha = (N - Z)/A everywhere
+        target, E = (208, 82), 25.0
+        kw = dict(parameterization="bauge1998", lambda_V=0.95, lambda_V1=1.3)
+        kw.update(lambda_W=1.1, lambda_W1=0.8, r_out=folder.r_q)
+        for asymmetry in ("local", "average"):
+            V, W = jlm.pn_transition_bauge2001(
+                folder, rho_n, rho_p, target, E, asymmetry=asymmetry, **kw
+            )
+            Fv, Fw = jlm.isovector_JLMB(folder, rho_n, rho_p, target, E, **kw)
+            scale = 2 / np.sqrt(126 - 82)
+            np.testing.assert_allclose(V, scale * Fv, rtol=1e-8, atol=1e-10)
+            np.testing.assert_allclose(W, scale * Fw, rtol=1e-8, atol=1e-10)
+
+    def test_local_asymmetry_falls_back_to_average_where_protons_dominate(self):
+        from jitr.folding import ILDAFolder
+
+        folder = ILDAFolder(r_max=14.0, n_quad=250)
+        rho_n = TwoParameterFermiDensity(R=6.6, a=0.45, N=126)(folder.r_q)
+        rho_p = TwoParameterFermiDensity(R=6.7, a=0.60, N=82)(folder.r_q)
+        assert np.any(rho_p > rho_n)  # proton tail beyond the neutrons
+        args = (folder, rho_n, rho_p, (208, 82), 25.0)
+        local = jlm.pn_transition_bauge2001(*args, asymmetry="local")
+        average = jlm.pn_transition_bauge2001(*args, asymmetry="average")
+        protons_win = rho_p >= rho_n
+        np.testing.assert_allclose(local[0][protons_win], average[0][protons_win])
+        assert np.all(np.isfinite(local[0]))
+        with pytest.raises(ValueError, match="asymmetry"):
+            jlm.pn_transition_bauge2001(*args, asymmetry="mean")
+
+    def test_energy_prescriptions_and_k_mass(self):
+        from jitr.folding import ILDAFolder
+
+        folder = ILDAFolder(r_max=14.0, n_quad=250)
+        rho_n = TwoParameterFermiDensity(R=6.8, a=0.55, N=126)(folder.r_q)
+        rho_p = TwoParameterFermiDensity(R=6.7, a=0.55, N=82)(folder.r_q)
+        args = (folder, rho_n, rho_p, (208, 82), 25.0)
+        paper = jlm.pn_transition_bauge2001(*args)
+        zero = np.zeros_like(folder.r_q)
+        same = jlm.pn_transition_bauge2001(
+            *args, energy_prescription="local_midpoint", V_C=zero
+        )
+        np.testing.assert_allclose(same, paper, rtol=1e-12, atol=1e-14)
+        V_C = folder.V_coulomb(rho_p)
+        local = jlm.pn_transition_bauge2001(
+            *args, energy_prescription="local_midpoint", V_C=V_C
+        )
+        assert not np.allclose(local[0], paper[0], rtol=1e-3)
+        with pytest.raises(ValueError, match="requires V_C"):
+            jlm.pn_transition_bauge2001(*args, energy_prescription="local_midpoint")
+        with pytest.raises(ValueError, match="energy_prescription"):
+            jlm.pn_transition_bauge2001(*args, energy_prescription="lab")
+
+        bare = jlm.pn_transition_bauge2001(*args, k_mass=False)
+        np.testing.assert_allclose(bare[0], paper[0], rtol=1e-12)  # real part unchanged
+        # with k-mass the imaginary strength is reduced (m~/m < 1 in the interior)
+        interior = folder.r_q < 5.0
+        assert np.all(np.abs(bare[1][interior]) > np.abs(paper[1][interior]))

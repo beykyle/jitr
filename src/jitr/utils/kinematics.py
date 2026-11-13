@@ -7,14 +7,16 @@ from dataclasses import astuple, dataclass
 import numpy as np
 import numpy.typing as npt
 
+from .._types import ArrayOrScalar, FloatArray
 from .constants import ALPHA, HBARC
-
-FloatArray = npt.NDArray[np.float64]
 
 
 @dataclass
 class ChannelKinematics:
     """Kinematic quantities for a single reaction channel.
+
+    Each field is a scalar, or an array of the shape of the energies the
+    kinematics were computed for.
 
     Attributes:
         Elab: Laboratory-frame kinetic energy in MeV.
@@ -24,11 +26,11 @@ class ChannelKinematics:
         eta: Sommerfeld parameter.
     """
 
-    Elab: float
-    Ecm: float
-    mu: float
-    k: float
-    eta: float
+    Elab: ArrayOrScalar
+    Ecm: ArrayOrScalar
+    mu: ArrayOrScalar
+    k: ArrayOrScalar
+    eta: ArrayOrScalar
 
     def __iter__(self):
         """Iterate over the stored kinematic values in field order."""
@@ -38,7 +40,7 @@ class ChannelKinematics:
 def semi_relativistic_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute semi-relativistic entrance-channel kinematics.
@@ -76,7 +78,7 @@ def semi_relativistic_kinematics(
 def classical_kinematics(
     mass_target: float,
     mass_projectile: float,
-    Elab: float,
+    Elab: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a laboratory energy.
@@ -100,7 +102,7 @@ def classical_kinematics(
 def classical_kinematics_cm(
     mass_target: float,
     mass_projectile: float,
-    Ecm: float,
+    Ecm: ArrayOrScalar,
     Zz: int = 0,
 ) -> ChannelKinematics:
     """Compute non-relativistic kinematics from a center-of-mass energy.
@@ -213,3 +215,31 @@ def lab_to_cm_frame(
     theta_cm = np.where(theta_cm < 0.0, theta_cm + 2.0 * np.pi, theta_cm)
 
     return np.rad2deg(theta_cm)
+
+
+def level_kinematics(
+    entrance: ChannelKinematics, Ex: npt.ArrayLike
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    r"""Wavenumbers, reduced masses and Sommerfeld parameters of target levels.
+
+    Each level at excitation energy ``Ex`` shares the entrance channel's
+    reduced mass and has kinetic energy ``E - Ex``, where
+    ``E = hbar^2 k^2 / (2 mu)`` is the entrance channel's (so the level with
+    ``Ex = 0`` reproduces the entrance channel exactly, also for
+    semi-relativistic kinematics). Below threshold ``k^2 < 0`` and the
+    Sommerfeld parameter is computed with ``|k|``.
+
+    Args:
+        entrance: Entrance-channel kinematics, scalar or arrays over energy.
+        Ex: Excitation energy of each level in MeV, shape ``(nlev,)``.
+
+    Returns:
+        ``(k2, mu, eta)``, each of shape ``(NE, nlev)``.
+    """
+    k0 = np.atleast_1d(entrance.k)[:, None]
+    mu = np.broadcast_to(np.reshape(entrance.mu, (-1, 1)), k0.shape) * np.ones(
+        np.size(Ex)
+    )
+    k2 = k0**2 - 2 * mu * np.asarray(Ex, dtype=np.float64) / HBARC**2
+    eta = np.atleast_1d(entrance.eta)[:, None] * k0 / np.sqrt(np.abs(k2))
+    return k2, mu, eta

@@ -12,7 +12,3 @@
    :members:
 ```
 
-```{eval-rst}
-.. automodule:: jitr.reactions.wavefunction
-   :members:
-```

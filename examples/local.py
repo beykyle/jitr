@@ -1,306 +1,112 @@
+"""Single-channel scattering on a local potential: the Lagrange-mesh R-matrix
+solution against a direct (Runge-Kutta) integration of the radial equation.
+
+p + 48Ca with a Woods-Saxon plus Coulomb potential: the s-wave S-matrix and
+wavefunction, the (in)dependence on the channel radius, and the relative error
+over a grid of 200 energies solved by one vectorized workspace.
+"""
+
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 
-from jitr import rmatrix
 from jitr.optical_potentials.potential_forms import (
     coulomb_charged_sphere,
     woods_saxon_potential,
 )
-from jitr.reactions import ProjectileTargetSystem, make_channel_data, wavefunction
-from jitr.utils import delta, kinematics, schrodinger_eqn_ivp_order1, smatrix
+from jitr.reactions import Level
+from jitr.utils import delta, radial_equation
+from jitr.utils.free_solutions import coulomb_hankel_table
+from jitr.utils.kinematics import classical_kinematics, level_kinematics
+from jitr.xs import coupled
 
-# target (A,Z)
-Ca48 = (48, 20)
-mass_Ca48 = 44657.26581995028  # MeV/c^2
-
-# projectile (A,z)
-proton = (1, 1)
-mass_proton = 938.271653086152  # MeV/c^2
+MASS_CA48, MASS_P, ZZ = 44657.26581995028, 938.271653086152, 20
 
 
-def interaction(r, *params):
-    V0, W0, R0, a0, zz, RC = params
-    return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, zz, RC)
+def potential(r, V0=60.0, W0=20.0, R0=4.0, a0=0.5):
+    return -woods_saxon_potential(r, V0, W0, R0, a0) + coulomb_charged_sphere(r, ZZ, R0)
 
 
-def local_potential_array(solver, channel, params):
-    rgrid = solver.radial_grid(channel.a, channel.k[0])
-    return interaction(rgrid, *params)
+def workspace(Elab, radius=3 * 2 * np.pi / 0.8, nbasis=100, lmax=0):
+    """One level, spin 0: every J^pi block is the single partial wave l = J."""
+    kin = classical_kinematics(MASS_CA48, MASS_P, np.atleast_1d(Elab), ZZ)
+    k2, mu, eta = level_kinematics(kin, [0.0])
+    return kin, coupled.Workspace(radius, nbasis, [Level(0)], lmax, k2, mu, eta)
+
+
+def runge_kutta(l, k, mu, eta, a, r0=1e-3):
+    """S from integrating outward to a and matching to Coulomb functions."""
+    sol = solve_ivp(
+        radial_equation,
+        (r0, a),
+        np.array([r0 ** (l + 1), (l + 1) * r0**l], complex),
+        args=(l, k, mu, potential),
+        dense_output=True,
+        rtol=1e-11,
+        atol=1e-14,
+    ).sol
+    u, du = sol(a)
+    Hp, Hm, Hpp, Hmp = (h[l] for h in coulomb_hankel_table(k * a, eta, l))
+    return (du * Hm - k * u * Hmp) / (du * Hp - k * u * Hpp), sol
 
 
 def local_interaction_example():
-    r"""
-    example of single-channel s-wave S-matrix calculation for p+Ca48
-    """
-    Elab = 14.1
-    nodes_within_radius = 3
+    kin, ws = workspace(14.1)
+    S, u, _ = ws.wavefunctions(local=[(np.eye(1), potential(ws.r))])
+    S_lm, u_lm = complex(S[0, 0, 0, 0]), np.asarray(u[0, 0, 0, 0])
+    S_rk, sol = runge_kutta(0, kin.k[0], kin.mu, kin.eta[0], ws.mesh.a)
+    u_rk = sol(ws.r)[0]
+    u_rk *= u_lm[20] / u_rk[20]  # the integration has arbitrary normalization
 
-    sys = ProjectileTargetSystem(
-        channel_radius=2 * np.pi * nodes_within_radius,
-        lmax=0,
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=Ca48[1],
-        Zproj=proton[1],
-    )
+    for name, S_ in (("Runge-Kutta", S_rk), ("Lagrange mesh", S_lm)):
+        d, att = delta(S_)
+        print(
+            f"{name:14s} S = {S_:.6f}, phase shift {d:.4f}, attenuation {att:.4f} deg"
+        )
 
-    Elab, Ecm, mu, k, eta = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-    channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
-
-    l = 0
-    channel_data_rk = make_channel_data(channels[l])
-    ch = channel_data_rk[0]
-
-    # Lagrange-Mesh
-    solver_lm = rmatrix.Solver(100)
-
-    # Woods-Saxon potential parameters
-    V0 = 60  # real potential strength
-    W0 = 20  # imag potential strength
-    R0 = 4  # Woods-Saxon potential radius
-    a0 = 0.5  # Woods-Saxon potential diffuseness
-    params = (V0, W0, R0, a0, sys.Zproj * sys.Ztarget, R0)
-
-    s_values = np.linspace(0.01, sys.channel_radius, 200)
-    domain, init_con = ch.initial_conditions()
-
-    # Runge-Kutta
-    sol_rk = solve_ivp(
-        lambda s, y: schrodinger_eqn_ivp_order1(s, y, ch, interaction, params),
-        domain,
-        init_con,
-        dense_output=True,
-        atol=1.0e-12,
-        rtol=1.0e-12,
-    ).sol
-    a = domain[1]
-    u_rk = sol_rk(s_values)[0]
-    R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-    S_rk = smatrix(R_rk, a, ch.l, ch.eta)
-
-    # Lagrange mesh
-    local_potential = local_potential_array(solver_lm, channels[l], params)
-    R_lm, S_lm, x, uext_prime_boundary = solver_lm.solve(
-        channels[l],
-        asymptotics[l],
-        local_potential=local_potential,
-        wavefunction=True,
-    )
-    # R_lmp = u_lm(se.a) / (se.a * derivative(u_lm, se.a, dx=1.0e-6))
-    u_lm = wavefunction.Wavefunctions(
-        solver_lm, x, S_lm, uext_prime_boundary, channels[l]
-    ).uint()[0]
-    u_lm = u_lm(s_values)
-
-    R_lm = R_lm[0, 0]
-    S_lm = S_lm[0, 0]
-
-    delta_lm, atten_lm = delta(S_lm)
-    delta_rk, atten_rk = delta(S_rk)
-
-    # normalization and phase matching
-    u_rk = u_rk * u_lm[20] / u_rk[20]
-
-    print(f"k: {ch.k}")
-    print(f"R-Matrix RK: {R_rk:.3e}")
-    print(f"R-Matrix LM: {R_lm:.3e}")
-    # print(f"R-Matrix LMp: {R_lmp:.3e}")
-    print(f"S-Matrix RK: {S_rk:.3e}")
-    print(f"S-Matrix LM: {S_lm:.3e}")
-    print(f"real phase shift RK: {delta_rk:.3e} degrees")
-    print(f"real phase shift LM: {delta_lm:.3e} degrees")
-    print(f"complex phase shift RK: {atten_rk:.3e} degrees")
-    print(f"complex phase shift LM: {atten_lm:.3e} degrees")
-
-    plt.plot(s_values, np.real(u_rk), "k", alpha=0.5, label="Runge-Kutta")
-    plt.plot(
-        s_values,
-        np.imag(u_rk),
-        ":k",
-        alpha=0.5,
-    )
-
-    plt.plot(s_values, np.real(u_lm), "r", alpha=0.5, label="Lagrange-Legendre")
-    plt.plot(
-        s_values,
-        np.imag(u_lm),
-        ":r",
-        alpha=0.5,
-    )
-
+    plt.plot(ws.r, u_rk.real, "k", alpha=0.5, label="Runge-Kutta")
+    plt.plot(ws.r, u_rk.imag, ":k", alpha=0.5)
+    plt.plot(ws.r, u_lm.real, "r.", alpha=0.5, label="Lagrange-Legendre")
+    plt.plot(ws.r, u_lm.imag, "r.", alpha=0.3)
     plt.legend()
     plt.xlabel(r"$r$ [fm]")
-    plt.ylabel(rf"$u_{{{ch.l}}} (r) $ [a.u.]")
+    plt.ylabel(r"$u_0(r)$ [a.u.]")
     plt.tight_layout()
     plt.show()
 
 
-def channel_radius_dependence_test():
-    r"""
-    Channel radius dependence of single-channel s-wave S-matrix calculation for p+Ca48
-    """
-
-    Elab = 14.1
-    sys = ProjectileTargetSystem(
-        channel_radius=0,
-        lmax=3,
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=0,
-        Zproj=0,
-    )
-    Elab, Ecm, mu, k, eta = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-
-    # Potential parameters
-    V0 = 60  # real potential strength
-    W0 = 20  # imag potential strength
-    R0 = 4  # Woods-Saxon potential radius
-    a0 = 0.5  # Woods-Saxon potential diffuseness
-    params = (
-        V0,
-        W0,
-        R0,
-        a0,
-    )
-
-    a_grid = np.linspace(5, 50, 50, dtype=np.float64)
-    delta_grid = np.zeros_like(a_grid, dtype=complex)
-
-    solver = rmatrix.Solver(60)
-
-    # choose a partial wave
-    l = 0
-    for i, a in enumerate(a_grid):
-        sys.channel_radius = a
-        channels, asymptotics = sys.get_partial_wave_channels(Elab, Ecm, mu, k, eta)
-        local_potential = solver.radial_grid(channels[l].a, channels[l].k[0])
-        R, S, _ = solver.solve(
-            channels[l],
-            asymptotics[l],
-            local_potential=woods_saxon_potential(local_potential, *params),
-        )
-        deltaa, attena = delta(S[0, 0])
-        delta_grid[i] = deltaa + 1.0j * attena
-
-    plt.plot(a_grid, np.real(delta_grid), label=r"$\mathfrak{Re}\,\delta_l$")
-    plt.plot(a_grid, np.imag(delta_grid), label=r"$\mathfrak{Im}\,\delta_l$")
+def channel_radius_dependence():
+    """Beyond the range of the nuclear potential, S does not depend on a."""
+    radii = np.linspace(8, 30, 23)
+    deltas = []
+    for a in radii:
+        _, ws = workspace(14.1, radius=a, nbasis=int(5 * a), lmax=3)
+        S, _ = ws.smatrix(local=[(np.eye(1), potential(ws.r))])
+        deltas.append([complex(*delta(S[0, b, 0, 0])) for b in range(4)])
+    deltas = np.array(deltas)
+    for l in range(4):
+        plt.plot(radii, deltas[:, l].real, label=rf"$l={l}$")
     plt.legend()
     plt.xlabel("channel radius [fm]")
-    plt.ylabel(r"$\delta_l$ [degrees]")
+    plt.ylabel(r"$\mathfrak{Re}\,\delta_l$ [degrees]")
     plt.show()
 
 
-def rmse_RK_LM():
-    r"""Test with simple Woods-Saxon plus coulomb without spin-orbit coupling"""
-
-    n_partial_waves = 3
-    egrid = np.linspace(0.1, 120, 200)
-    nodes_within_radius = 5
-
-    # target (A,Z)
-    Ca48 = (28, 20)
-    mass_Ca48 = 44657.26581995028  # MeV/c^2
-
-    # projectile (A,z)
-    proton = (1, 1)
-    mass_proton = 938.271653086152  # MeV/c^2
-
-    sys = ProjectileTargetSystem(
-        channel_radius=2 * np.pi * nodes_within_radius,
-        lmax=n_partial_waves - 1,
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=Ca48[1],
-        Zproj=proton[1],
-    )
-
-    # initialize solver
-    solver = rmatrix.Solver(50)
-
-    # precompute sub matrices for kinetic energy operator in
-    # each partial wave channel
-    free_matrices = solver.free_matrix(sys.channel_radius, sys.l, coupled=False)
-
-    # precompute values of Lagrange basis functions at channel radius
-    # radius is the same for each partial wave channel so just do it once
-    basis_boundary = solver.precompute_boundaries(sys.channel_radius)
-
-    # Woods-Saxon potential parameters
-    V0 = 60  # real potential strength
-    W0 = 18  # imag potential strength
-    R0 = 4  # Woods-Saxon potential radius
-    a0 = 0.5  # Woods-Saxon potential diffuseness
-    RC = R0  # Coulomb cutoff
-
-    params = (V0, W0, R0, a0, proton[1] * Ca48[1], RC)
-
-    # use same interaction for all channels (no spin-orbit coupling)
-    error_matrix = np.zeros((n_partial_waves, len(egrid)))
-
-    for i, Elab in enumerate(egrid):
-        # calculate channel kinematics at this energy
-        channels, asymptotics = sys.get_partial_wave_channels(
-            *kinematics.classical_kinematics(
-                sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-            )
-        )
-
-        # since our interaction is l-independent and we're using the same
-        # set of parameters for each partial wave, we can actually pre-compute
-        # the interaction part of the Lagrange-matrix
-        local_potential = local_potential_array(solver, channels[0], params)
-        im = solver.interaction_matrix(
-            channels[0].k[0],
-            channels[0].E[0],
-            channels[0].a,
-            channels[0].size,
-            local_potential=local_potential,
-        )
-
-        for l in sys.l:
-            # Lagrange-Legendre R-Matrix solve for this partial wave
-            R_lm, S_lm, uext_boundary = solver.solve(
-                channels[l],
-                asymptotics[l],
-                basis_boundary=basis_boundary,
-                free_matrix=free_matrices[l],
-                interaction_matrix=im,
-            )
-
-            # Runge-Kutta solve for this partial wave
-            rk_solver_info = make_channel_data(channels[l])[0]
-            domain, init_con = rk_solver_info.initial_conditions()
-            sol_rk = solve_ivp(
-                lambda s, y, channel=rk_solver_info: schrodinger_eqn_ivp_order1(
-                    s, y, channel, interaction, params
-                ),
-                domain,
-                init_con,
-                dense_output=True,
-                atol=1.0e-12,
-                rtol=1.0e-9,
-            ).sol
-
-            a = domain[1]
-            R_rk = sol_rk(a)[0] / (a * sol_rk(a)[1])
-            S_rk = smatrix(R_rk, a, l, rk_solver_info.eta)
-
-            error_matrix[l, i] = np.absolute(S_rk - S_lm[0, 0]) / np.absolute(S_rk)
-
-    for l in sys.l:
-        plt.plot(egrid, 100 * error_matrix[l, :], label=rf"$l = {l}$")
-
-    plt.ylabel(
-        r"$ | \mathcal{S}_{l}^{\rm RK} - \mathcal{S}_{l}^{\rm LM} |"
-        r" / | \mathcal{S}_{l}^{\rm RK}|$ [%]"
-    )
-    plt.xlabel(r"$E$ [MeV]")
-
+def relative_error_over_energy():
+    """All energies in one workspace call, against Runge-Kutta energy by energy."""
+    energies = np.linspace(0.5, 120, 200)
+    kin, ws = workspace(energies, radius=5 * 2 * np.pi / 0.8, nbasis=60, lmax=2)
+    S, _ = ws.smatrix(local=[(np.eye(1), potential(ws.r))])
+    S = np.asarray(S[:, :, 0, 0])
+    error = np.zeros((3, energies.size))
+    for e in range(energies.size):
+        for l in range(3):
+            S_rk, _ = runge_kutta(l, kin.k[e], kin.mu, kin.eta[e], ws.mesh.a)
+            error[l, e] = abs(S_rk - S[e, l]) / abs(S_rk)
+    for l in range(3):
+        plt.plot(energies, 100 * error[l], label=rf"$l = {l}$")
+    plt.ylabel(r"$|S^{\rm RK}_l - S^{\rm LM}_l| / |S^{\rm RK}_l|$ [%]")
+    plt.xlabel(r"$E_{\rm lab}$ [MeV]")
     plt.legend()
     plt.yscale("log")
     plt.tight_layout()
@@ -308,6 +114,6 @@ def rmse_RK_LM():
 
 
 if __name__ == "__main__":
-    channel_radius_dependence_test()
     local_interaction_example()
-    rmse_RK_LM()
+    channel_radius_dependence()
+    relative_error_over_energy()

@@ -7,6 +7,7 @@ from collections.abc import Iterator
 import numpy as np
 import periodictable
 
+from .._types import ArrayOrScalar
 from ..utils import constants, mass
 from ..utils.kinematics import (
     ChannelKinematics,
@@ -539,13 +540,16 @@ class Reaction:
             )
             self.Ef = -0.5 * (self.threshold + self.compound_system_threshold)
 
-    def kinematics(self, Elab: float, relativistic: bool = True) -> ChannelKinematics:
+    def kinematics(
+        self, Elab: ArrayOrScalar, relativistic: bool = True
+    ) -> ChannelKinematics:
         """
         Entrance channel kinematics given projectile incident on target with
         lab energy Elab in MeV.
 
         Args:
-            Elab: The laboratory energy of the projectile.
+            Elab: The laboratory energy of the projectile in MeV, a scalar
+                or an array.
             relativistic: If True (default), use the semi-relativistic
                 (Ingemarsson) prescription; otherwise use non-relativistic
                 kinematics.
@@ -563,13 +567,16 @@ class Reaction:
             Zz=self.target.Z * self.projectile.Z,
         )
 
-    def kinematics_cm(self, Ecm: float, relativistic: bool = True) -> ChannelKinematics:
+    def kinematics_cm(
+        self, Ecm: ArrayOrScalar, relativistic: bool = True
+    ) -> ChannelKinematics:
         """
         Entrance channel kinematics given a kinetic energy of Ecm in the
         projectile-target center-of-mass frame.
 
         Args:
-            Ecm: The kinetic energy in the center-of-mass frame.
+            Ecm: The kinetic energy in the center-of-mass frame in MeV, a
+                scalar or an array.
             relativistic: If True (default), use the semi-relativistic
                 (Ingemarsson) prescription; otherwise use non-relativistic
                 kinematics.
@@ -587,7 +594,7 @@ class Reaction:
             result = classical_kinematics_cm(
                 self.target.m0, self.projectile.m0, Ecm, Zz=Zz
             )
-        assert np.isclose(Ecm, result.Ecm)
+        assert np.allclose(Ecm, result.Ecm)
 
         return result
 

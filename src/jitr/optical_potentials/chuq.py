@@ -11,6 +11,7 @@ for details. Equation references are with respect to the former paper.
 import json
 from collections import OrderedDict
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -19,7 +20,7 @@ from ..data import data_dir
 from ..reactions.reaction import Reaction
 from ..utils.constants import ALPHA, HBARC
 from ..utils.kinematics import ChannelKinematics
-from .omp import SingleChannelOpticalModel, _as_potential_array
+from .omp import SingleChannelOpticalModel, _as_potential_array, energy_grid
 from .potential_forms import (
     coulomb_charged_sphere,
     thomas_safe,
@@ -140,7 +141,7 @@ def spin_orbit(
 def calculate_params(
     projectile: tuple,
     target: tuple,
-    Elab: float,
+    Elab: ArrayOrScalar,
     V0: float = 52.9,
     Ve: float = -0.299,
     Vt: float = 13.1,
@@ -163,7 +164,7 @@ def calculate_params(
     aso: float = 0.63,
     rc: float = 1.24,
     rc_0: float = 0.12,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
     """
     Calculate the arguments for the central, spin_orbit, and
     coulomb_charged_sphere functions corresponding to the CHUQ potential
@@ -322,6 +323,7 @@ class CHUQ(SingleChannelOpticalModel):
     def __init__(self):
         super().__init__(params=get_param_names())
 
+    @energy_grid
     def evaluate(
         self,
         rgrid: float | np.ndarray,

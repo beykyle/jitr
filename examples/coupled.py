@@ -1,134 +1,58 @@
+"""A three-level coupled-channels system.
+
+A neutron on a target with three 0+ states at 0, 2.3 and 3.1 MeV, coupled by a
+surface-peaked transition potential. With all levels of spin 0 every J^pi
+block holds one channel per level, all with l = J. The potentials are real, so
+in each block the S-matrix of the open channels is unitary and symmetric.
+"""
+
 import numpy as np
 from matplotlib import pyplot as plt
 
-from jitr import rmatrix
-from jitr.optical_potentials.potential_forms import coulomb_charged_sphere as coul
 from jitr.optical_potentials.potential_forms import (
     surface_peaked_gaussian_potential as spg,
 )
 from jitr.optical_potentials.potential_forms import woods_saxon_potential as ws
-from jitr.reactions import ProjectileTargetSystem, wavefunction
-from jitr.utils import complex_det, constants, kinematics, mass
-
-
-def interaction_3level(r, V, R0, a0, Zz, coupling_matrix):
-    r"""A real potential. Symmetric IFF coupling_matrix is symmetric"""
-    coulomb = coul(r, Zz, R0)
-    nuclear = ws(r, V, 0, R0, a0)
-    zero = np.zeros_like(r)
-    diagonal = np.array(
-        [
-            [nuclear + coulomb, zero, zero],
-            [zero, nuclear + coulomb, zero],
-            [zero, zero, nuclear + coulomb],
-        ]
-    )
-    off_diag = coupling_matrix[..., np.newaxis] * spg(r, V, 0, R0, a0)
-    return diagonal + off_diag
-
-
-def local_potential_array(solver, channel, params):
-    rgrid = solver.radial_grid(channel.a, channel.k[0])
-    return interaction_3level(rgrid, *params)
+from jitr.reactions import Level
+from jitr.utils import constants, mass
+from jitr.utils.kinematics import classical_kinematics, level_kinematics
+from jitr.xs import coupled
 
 
 def coupled_channels_example():
-    """
-    3 level system example with local diagonal and transition potentials and neutral
-    particles. Potentials are real, so S-matrix is unitary and symmetric
-    """
-
-    Elab = 5  # MeV
-    nchannels = 3
-    nodes_within_radius = 3
-    levels = np.array([0, 2.3, 3.1])
-
-    # target (A,Z)
-    Ca48 = (48, 20)
-    mass_Ca48 = mass.mass(*Ca48)[0]
-
-    # projectile (A,Z)
-    proton = (1, 1)
-    mass_proton = constants.MASS_P
-
-    # the coupling is meant to be the purely geometric channel coupling and
-    # sets the size of the coupled channel matrix in a partial wave
-    coupling_matrix = np.array(
-        [
-            [0, 0.8, 0.1],
-            [0, 0, 0.1],
-            [0, 0, 0.0],
-        ]
-    )
-    coupling_matrix += coupling_matrix.T
-
-    sys = ProjectileTargetSystem(
-        channel_radius=2 * np.pi * nodes_within_radius,
-        lmax=10,
-        mass_target=mass_Ca48,
-        mass_projectile=mass_proton,
-        Ztarget=Ca48[1],
-        Zproj=proton[1],
-        channel_levels=levels,
-        coupling=lambda l: coupling_matrix,
+    levels = [Level(0), Level(0), Level(0)]
+    Ex = [0.0, 2.3, 3.1]
+    kin = classical_kinematics(mass.mass(48, 20)[0], constants.MASS_N, 5.0, 0)
+    k2, mu, eta = level_kinematics(kin, Ex)
+    workspace = coupled.Workspace(
+        3 * 2 * np.pi / np.sqrt(k2[0, 0]), 40, levels, 10, k2, mu, eta
     )
 
-    kinem = kinematics.classical_kinematics(
-        sys.mass_target, sys.mass_projectile, Elab, sys.Zproj * sys.Ztarget
-    )
-    # TODO allow for multi-channel kinematics with Q-values
-    kinem.Ecm -= sys.channel_levels
-    channels, asymptotics = sys.get_partial_wave_channels(*kinem)
+    coupling = np.array([[0, 0.8, 0.1], [0.8, 0, 0.1], [0.1, 0.1, 0.0]])
+    r = workspace.r
+    terms = [
+        (np.eye(3), ws(r, -42.0, 0, 4.0, 0.8)),
+        (coupling, spg(r, -42.0, 0, 4.0, 0.8)),
+    ]
+    S, u, _ = workspace.wavefunctions(local=terms)
+    S, is_open = np.asarray(S[0]), np.asarray(workspace.open[0])
 
-    # initialize solver
-    solver = rmatrix.Solver(40)
+    for b in range(3):  # J = 0, 1, 2
+        n = int(is_open[b].sum())
+        Sb = S[b, :n, :n]
+        print(
+            f"J = {workspace.blocks.J[b]:.0f}: {n} open channels, "
+            f"unitary {np.allclose(Sb @ Sb.conj().T, np.eye(n))}, "
+            f"symmetric {np.allclose(Sb, Sb.T)}"
+        )
 
-    # choose a partial wave
-    l = 0
-
-    # get R and S-matrix, and both internal and external soln
-    local_potential = local_potential_array(
-        solver,
-        channels[l],
-        (-42, 4, 0.8, sys.Zproj * sys.Zproj, coupling_matrix),
-    )
-    R, S, x, uext_prime_boundary = solver.solve(
-        channels[l],
-        asymptotics[l],
-        local_potential=local_potential,
-        wavefunction=True,
-    )
-
-    # calculate wavefunctions in s = k_i r space
-    u = wavefunction.Wavefunctions(
-        solver,
-        x,
-        S,
-        uext_prime_boundary,
-        channels[l],
-    ).uint()
-
-    # S must be unitary
-    assert np.isclose(complex_det(S), 1.0)
-
-    # plot in s-space
-    s_values = np.linspace(0.05, sys.channel_radius, 500)
-
-    lines = []
-    for i in range(nchannels):
-        u_values = u[i](s_values)
-        (p1,) = plt.plot(s_values, np.real(u_values), label=rf"$n={i}$")
-        (p2,) = plt.plot(s_values, np.imag(u_values), ":", color=p1.get_color())
-        lines.append([p1, p2])
-
-    legend1 = plt.legend(
-        lines[0], [r"$\mathfrak{Re}\, u_n(s) $", r"$\mathfrak{Im}\, u_n(s)$"], loc=3
-    )
-    plt.legend([l[0] for l in lines], [l[0].get_label() for l in lines], loc=1)
-    plt.gca().add_artist(legend1)
-
-    plt.xlabel(r"$s = k_0 r$")
-    plt.ylabel(r"$u (s) $ [a.u.]")
+    # the J = 0 wavefunctions for an incoming wave in the ground state
+    for c in range(3):
+        (line,) = plt.plot(r, np.real(u[0, 0, 0, c]), label=rf"level {c}")
+        plt.plot(r, np.imag(u[0, 0, 0, c]), ":", color=line.get_color())
+    plt.xlabel(r"$r$ [fm]")
+    plt.ylabel(r"$\tilde u_c(r)$ [a.u.]")
+    plt.legend()
     plt.tight_layout()
     plt.show()
 

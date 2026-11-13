@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from scipy import special as sc
 
@@ -11,81 +13,93 @@ from ..utils.constants import ALPHA, HBARC
 MAX_ARG = np.log(1 / 1e-16)
 
 
-def perey_buck_nonlocal(r: float, rp: float, *params: float) -> PotentialArray:
-    """Return the Perey-Buck nonlocal kernel factor."""
+def perey_buck_nonlocal(
+    r: ArrayOrScalar, rp: ArrayOrScalar, *params: float
+) -> ArrayOrScalar:
+    r"""Return the partial-wave Perey-Buck nonlocality kernel :math:`h_l(r, r')`.
+
+    The partial-wave projection of
+    :math:`H(s) = \pi^{-3/2}\beta^{-3} e^{-s^2/\beta^2}`, acting on the reduced
+    radial wavefunction :math:`u_l(r)`:
+
+    .. math::
+        h_l(r, r') = \frac{e^{-(r^2 + r'^2)/\beta^2}}{\beta\sqrt{\pi}}
+        \, 2 z\, i_l(z), \qquad z = \frac{2 r r'}{\beta^2},
+
+    with :math:`i_l` the modified spherical Bessel function. It tends to
+    :math:`\delta(r - r')` as :math:`\beta \to 0`; multiply by
+    :math:`U((r + r')/2)` for the full nonlocal potential. Evaluated with the
+    exponentially scaled Bessel function, :math:`2 z i_l(z) e^{-z} =
+    \sqrt{2\pi z}\, I_{l+1/2}(z) e^{-z}`, so it stays finite at large radii.
+
+    Parameters
+    ----------
+    r, rp : float or array
+        Radial coordinates [fm]; broadcast against each other.
+    beta : float
+        Nonlocality range [fm].
+    ell : int
+        Orbital angular momentum.
+    """
     beta, ell = params
-    z = 2 * np.pi * r * rp / beta**2
-    Kl = 2 * 1j**ell * z * sc.spherical_jn(int(ell), -1j * z)
-    return np.exp(-(r**2 + rp**2) / beta**2) * Kl / (beta * np.sqrt(np.pi))
+    r, rp = np.asarray(r, dtype=float), np.asarray(rp, dtype=float)
+    z = 2 * r * rp / beta**2
+    zs = np.where(z > 0, z, 1.0)
+    kl = np.where(z > 0, np.sqrt(2 * np.pi * zs) * sc.ive(ell + 0.5, zs), 0.0)
+    return _real(np.exp(-(((r - rp) / beta) ** 2)) * kl / (beta * np.sqrt(np.pi)))
+
+
+def _xp(*args):
+    """``jax.numpy`` if any argument is a jax array (or tracer), else ``numpy``.
+
+    The shapes below then work on numpy inputs exactly as before and are
+    differentiable with :mod:`jax` when any argument (e.g. a radius) is traced.
+    """
+    return jnp if any(isinstance(a, jax.Array) for a in args) else np
+
+
+def _real(f):
+    """Python float for a scalar numpy result; arrays (numpy or jax) as is."""
+    return f if isinstance(f, jax.Array) or np.ndim(f) else float(f)
+
+
+def _complex(f):
+    """Complex counterpart of :func:`_real`."""
+    if isinstance(f, jax.Array):
+        return f.astype(jnp.complex128)
+    return np.asarray(f, dtype=np.complex128) if np.ndim(f) else complex(f)
 
 
 def woods_saxon_potential(r: ArrayOrScalar, *params: float) -> PotentialArray:
     """Return a Woods-Saxon potential with complex depth ``V + iW``."""
     V, W, R, a = params
-    potential = (V + 1j * W) * woods_saxon_safe(r, R, a)
-    if isinstance(potential, np.ndarray):
-        return np.asarray(potential, dtype=np.complex128)
-    return complex(potential)
+    return _complex((V + 1j * W) * woods_saxon_safe(r, R, a))
 
 
 def woods_saxon_prime(r: ArrayOrScalar, *params: float) -> PotentialArray:
     """Return the radial derivative of a Woods-Saxon potential."""
     V, W, R, a = params
-    potential = (V + 1j * W) * woods_saxon_prime_safe(r, R, a)
-    if isinstance(potential, np.ndarray):
-        return np.asarray(potential, dtype=np.complex128)
-    return complex(potential)
+    return _complex((V + 1j * W) * woods_saxon_prime_safe(r, R, a))
 
 
 def woods_saxon_safe(r: ArrayOrScalar, R: float, a: float) -> ArrayOrScalar:
     """Evaluate a Woods-Saxon shape while avoiding overflow in ``exp``."""
-    if not isinstance(r, np.ndarray):
-        x_scalar = (r - R) / a
-        return 1.0 / (1.0 + np.exp(x_scalar)) if x_scalar < MAX_ARG else 0.0
-
-    x_array = (r - R) / a
-    mask = x_array <= MAX_ARG
-    potential = np.zeros_like(r, dtype=np.float64)
-    potential[mask] = 1.0 / (1.0 + np.exp(x_array[mask]))
-    return potential
+    xp = _xp(r, R, a)
+    x = (r - R) / a
+    return _real(xp.where(x <= MAX_ARG, 1 / (1 + xp.exp(xp.minimum(x, MAX_ARG))), 0.0))
 
 
 def woods_saxon_prime_safe(r: ArrayOrScalar, R: float, a: float) -> ArrayOrScalar:
     """Evaluate the radial derivative of the Woods-Saxon shape safely."""
-    if not isinstance(r, np.ndarray):
-        x_scalar = (r - R) / a
-        return (
-            -np.exp(x_scalar) / (a * (1 + np.exp(x_scalar)) ** 2)
-            if x_scalar < MAX_ARG
-            else 0.0
-        )
-
-    x_array = (r - R) / a
-    mask = x_array <= MAX_ARG
-    potential = np.zeros_like(r, dtype=np.float64)
-    potential[mask] = -np.exp(x_array[mask]) / (a * (1 + np.exp(x_array[mask])) ** 2)
-    return potential
+    xp = _xp(r, R, a)
+    x = (r - R) / a
+    e = xp.exp(xp.minimum(x, MAX_ARG))
+    return _real(xp.where(x <= MAX_ARG, -e / (a * (1 + e) ** 2), 0.0))
 
 
 def thomas_safe(r: ArrayOrScalar, R: float, a: float) -> ArrayOrScalar:
     """Evaluate the Thomas spin-orbit shape without overflow issues."""
-    if not isinstance(r, np.ndarray):
-        x_scalar = (r - R) / a
-        y_scalar = 1.0 / r
-        return (
-            y_scalar * (-np.exp(x_scalar) / (a * (1 + np.exp(x_scalar)) ** 2))
-            if x_scalar < MAX_ARG
-            else 0.0
-        )
-
-    x_array = (r - R) / a
-    y_array = 1.0 / r
-    mask = x_array <= MAX_ARG
-    potential = np.zeros_like(r, dtype=np.float64)
-    potential[mask] = y_array[mask] * (
-        -np.exp(x_array[mask]) / (a * (1 + np.exp(x_array[mask])) ** 2)
-    )
-    return potential
+    return _real(woods_saxon_prime_safe(r, R, a) / r)
 
 
 def surface_peaked_gaussian_potential(
@@ -93,10 +107,8 @@ def surface_peaked_gaussian_potential(
 ) -> PotentialArray:
     """Return a simple surface-peaked Gaussian potential."""
     V, W, R, a = params
-    potential = (V + 1j * W) * np.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2)
-    if isinstance(potential, np.ndarray):
-        return np.asarray(potential, dtype=np.complex128)
-    return complex(potential)
+    xp = _xp(r, R, a)
+    return _complex((V + 1j * W) * xp.exp(-((r - R) ** 2) / (2 * np.pi * a) ** 2))
 
 
 def woods_saxon_volume_integral(V: float, R: float, a: float) -> float:
@@ -134,23 +146,15 @@ def thomas_mean_square_radius(R: float, a: float) -> float:
 def coulomb_charged_sphere(r: ArrayOrScalar, zz: float, r_c: float) -> ArrayOrScalar:
     """Return the Coulomb potential of a uniformly charged sphere."""
     if zz == 0:
-        if isinstance(r, np.ndarray):
-            return np.zeros_like(r, dtype=np.float64)
-        return 0.0
-    return zz * ALPHA * HBARC * regular_inverse_r(r, r_c)
+        return _real(0.0 * r)
+    return _real(zz * ALPHA * HBARC * regular_inverse_r(r, r_c))
 
 
 def regular_inverse_r(r: ArrayOrScalar, r_c: float) -> ArrayOrScalar:
     """Return ``1/r`` regularized inside a sphere of radius ``r_c``."""
-    if not isinstance(r, np.ndarray):
-        return 1 / (2 * r_c) * (3 - (r / r_c) ** 2) if r < r_c else 1 / r
-
-    mask = r <= r_c
-    not_mask = np.logical_not(mask)
-    potential = np.zeros_like(r, dtype=np.float64)
-    potential[mask] = 1.0 / (2.0 * r_c) * (3.0 - (r[mask] / r_c) ** 2)
-    potential[not_mask] = 1.0 / r[not_mask]
-    return potential
+    xp = _xp(r, r_c)
+    inside = (3 - (r / r_c) ** 2) / (2 * r_c)
+    return _real(xp.where(r <= r_c, inside, 1 / xp.maximum(r, r_c)))
 
 
 def yamaguchi_potential(r: float, rp: float, *params: float) -> float:
@@ -160,12 +164,15 @@ def yamaguchi_potential(r: float, rp: float, *params: float) -> float:
 
 
 def yamaguchi_swave_delta(k: float, *params: float) -> np.float64:
-    """Return the analytic s-wave phase shift for the Yamaguchi potential."""
+    """Return the analytic s-wave phase shift (degrees, modulo 180) for the
+    Yamaguchi potential whose bound state has wavenumber ``alpha``:
+    ``k cot δ = -1/a_s + ...`` with a positive scattering length
+    ``a_s = 2(α+β)^2 / (αβ(α+2β))``."""
     _, b, a = params
     denominator = 2 * (a + b) ** 2
 
     kcotdelta = (
-        a * b * (a + 2 * b) / denominator
+        -a * b * (a + 2 * b) / denominator
         + (a**2 + 2 * a * b + 3 * b**2) * k**2 / (b * denominator)
         + k**4 / (b * denominator)
     )

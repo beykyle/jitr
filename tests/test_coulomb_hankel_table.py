@@ -5,7 +5,7 @@ import mpmath
 import numpy as np
 import pytest
 
-from jitr.reactions.system import ProjectileTargetSystem
+from jitr.reactions.system import Level, asymptotics, jpi_blocks
 from jitr.utils.free_solutions import (
     H_minus,
     H_minus_prime,
@@ -58,14 +58,15 @@ def test_wronskian_is_unity(eta, rho):
     np.testing.assert_allclose(Fp * G - F * Gp, 1.0, rtol=1e-8, atol=1e-10)
 
 
-def test_partial_wave_channels_use_the_table():
-    system = ProjectileTargetSystem(channel_radius=25.0, lmax=30, Ztarget=20, Zproj=1)
-    _, asym = system.get_partial_wave_channels(
-        Elab=20.0, Ecm=19.5, mu=930.0, k=0.95, eta=0.7
-    )
-    assert len(asym) == 31
+def test_block_asymptotics_use_the_table():
+    """The workspace boundary values are the table entries at rho = k a for
+    each block's l."""
+    blocks = jpi_blocks([Level(0)], 30)
+    a, k = 25.0 / 0.95, 0.95
+    H, _, is_open = asymptotics(blocks, np.array([[k**2]]), np.array([[0.7]]), a)
+    assert is_open.all()
     for l in (0, 5, 17, 30):
         Hp, _, _, Hmp = _mpmath_reference(25.0, 0.7, l)
-        assert asym[l].Hp.shape == (1,)
-        assert np.isclose(asym[l].Hp[0], Hp, rtol=1e-9)
-        assert np.isclose(asym[l].Hmp[0], Hmp, rtol=1e-9)
+        b = int(np.flatnonzero(blocks.l[:, 0] == l)[0])
+        assert np.isclose(H[0, b, 0, 0], Hp, rtol=1e-9)
+        assert np.isclose(H[0, b, 3, 0], Hmp, rtol=1e-9)

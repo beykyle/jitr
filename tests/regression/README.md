@@ -1,7 +1,7 @@
 # Regression harness
 
 End-to-end tests comparing `jitr` against committed reference outputs from
-Frescox (F1–F10) and TALYS (T1–T4). See the
+Frescox (F1–F10, F13–F14) and TALYS (T1–T4). See the
 [regression-tests documentation](../../docs/regression-tests.md) for a case
 overview.
 
