@@ -24,7 +24,8 @@ Green's function of the neutron channel). Both methods then share the
 amplitudes of :mod:`jitr.xs.amplitudes` (entrance proton, exit neutron),
 giving ``dσ/dΩ = (1/2) Σ |f_m'm|^2``, ``A_y``, ``Q`` and the integrated cross
 section ``(π/k_p^2) Σ_b (2j+1)/2 |S_np|^2``. When :math:`U_1` is not given, each of
-its terms defaults to ``-(U_n - U_p) sqrt|N-Z| / (N - Z - 1)``.
+its terms defaults to ``-(U_n - U_p) sqrt|N-Z| / (N - Z - 1)``, see
+:meth:`Workspace.transition`.
 """
 
 from __future__ import annotations
@@ -144,9 +145,36 @@ class Workspace:
 
     def transition(self, Up: Potential, Un: Potential, U1: Potential | None = None):
         """The Lane coupling ``U1``: given terms as is, missing ones from the
-        isovector difference of the neutron and proton potentials."""
-        if Un.central is None:
-            raise TypeError("the neutron central potential Un.central is required")
+        isovector difference of the neutron and proton potentials,
+        ``-(U_n - U_p) sqrt|N-Z| / (N - Z - 1)``.
+
+        That difference uses ``U_n`` and ``U_p`` as passed, each evaluated at
+        its own channel energy (``E_n`` and ``E_p``). For a term with a strong
+        energy dependence, the difference then holds ``U(E_n) - U(E_p)`` as
+        well as the isovector part. JLMB spin-orbit is one example: there the
+        difference is dominated by ``λ_so(E_n) - λ_so(E_p)``. For such terms,
+        evaluate the isovector part at a common energy, such as
+        ``Ē = (E_p + E_n) / 2``, and pass it explicitly::
+
+            U1 = Potential(spin_orbit=(U_so_n(Ē) - U_so_p(Ē)) * -factor)
+            ws.cc(Up, Un, U1)  # U1.central still defaults
+
+        with ``factor = isovector_factor(reaction)``. Any term of ``U1`` that
+        is given is used as is.
+
+        A folding potential with an explicit isovector term needs no
+        differencing. JLMB is one: its Lane coupling is the folded asymmetry
+        term of the target, see :func:`jitr.folding.jlm.isovector_JLMB` and
+        :func:`jitr.folding.jlm.isovector_spin_orbit_jlmb`.
+
+        ``Un`` needs at least one term other than ``coulomb``, which the
+        neutron channel ignores. Every term is otherwise optional.
+        """
+        fields = ("central", "spin_orbit", "nonlocal_central", "nonlocal_spin_orbit")
+        if all(getattr(Un, name) is None for name in fields):
+            raise TypeError(
+                "the neutron potential Un needs at least one of " + ", ".join(fields)
+            )
         U1 = U1 or Potential()
         terms = {}
         for name in (

@@ -225,7 +225,7 @@ def test_missing_spin_orbit_is_zero(ws):
 
 def test_U1_defaults(ws):
     """Explicit default U1 equals the default; each term defaults on its own;
-    the neutron central potential is required."""
+    Un without a central term is accepted."""
     Up, Un = potentials(ws)
     U1 = default_U1(Up, Un)
     np.testing.assert_allclose(
@@ -236,8 +236,8 @@ def test_U1_defaults(ws):
     np.testing.assert_allclose(only_central.dsdo, ws.dwba(Up, Un).dsdo, rtol=1e-12)
     no_so = ws.dwba(Up, Un, U1._replace(spin_orbit=0 * ws.r))
     assert not np.allclose(no_so.dsdo, ws.dwba(Up, Un).dsdo, rtol=1e-3)
-    with pytest.raises(TypeError, match="central"):
-        ws.dwba(Up, Un._replace(central=None))
+    so_only = ws.dwba(Up, Un._replace(central=None))
+    assert np.all(np.isfinite(so_only.dsdo))
 
 
 def test_U1_sets_transition_strength(ws):
@@ -338,3 +338,26 @@ def test_U1_shape_is_validated(ws):
         ws.dwba(Up, Un, Potential(central=np.zeros(3), spin_orbit=0 * ws.r))
     with pytest.raises(ValueError, match="mesh"):
         ws.cc(Up, Un, Potential(central=np.zeros(3), spin_orbit=0 * ws.r))
+
+
+def test_neutron_potential_may_be_purely_nonlocal(ws):
+    """Un needs no local central term: a nonlocal-only Un gives the same
+    observables as the same Un padded with central=0."""
+    Up, Un = potentials(ws)
+    r = np.asarray(ws.r)
+    beta = 0.85
+    gauss = np.exp(-(((r[:, None] - r[None, :]) / beta) ** 2)) / (np.sqrt(np.pi) * beta)
+    depth = np.asarray(Un.central)
+    kernel = np.sqrt(depth[:, None] * depth[None, :]) * gauss
+    nonlocal_only = Potential(nonlocal_central=kernel, spin_orbit=Un.spin_orbit)
+    padded = nonlocal_only._replace(central=np.zeros_like(depth))
+    for method in (ws.cc, ws.dwba):
+        a, b = method(Up, nonlocal_only), method(Up, padded)
+        np.testing.assert_allclose(a.dsdo, b.dsdo, rtol=1e-10)
+        np.testing.assert_allclose(a.Ay, b.Ay, rtol=1e-8, atol=1e-12)
+
+
+def test_empty_neutron_potential_raises(ws):
+    Up, _ = potentials(ws)
+    with pytest.raises(TypeError, match="at least one"):
+        ws.cc(Up, Potential(coulomb=Up.coulomb))
