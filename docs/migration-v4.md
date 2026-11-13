@@ -68,7 +68,10 @@ fast; see `jitr.xs.coupled` for the trade-off with compile time.
 `spin_orbit`, `coulomb`, `nonlocal_central` and `nonlocal_spin_orbit`, each
 optional. The projectile spin follows from the reaction: 1/2 for n, p, t and
 ³He, 1 for d (with tensor analyzing powers), 0 otherwise (no spin-orbit). The
-spin-orbit potential multiplies `2 l·s` (`l·σ` for nucleons). `ws.at_angles(angles)`
+spin-orbit potential multiplies `2 l·s` (`l·σ` for nucleons). To match,
+`jitr.folding.jlm.spin_orbit_jlmb` now returns `(1/r) dρ_SO/dr`, which is `−2×`
+its v3 value: pass `(lambda_vso(E) + 1j * lambda_wso(E)) * F` as `spin_orbit`
+as is. `ws.at_angles(angles)`
 gives the same workspace at other angles, sharing the solver. For experimental
 data at different angles at each energy,
 `ws.xs_from_smatrix(S, [angles_0, angles_1, ...])` returns one result per

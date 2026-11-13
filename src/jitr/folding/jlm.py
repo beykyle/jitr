@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -733,7 +733,7 @@ def spin_orbit_jlmb(
     projectile: Projectile,
     r_out: FloatArray | None = None,
 ) -> FloatArray:
-    """Return the JLMB spin-orbit form factor F(r) = -½ (1/r) dρ_SO/dr.
+    """Return the JLMB spin-orbit form factor F(r) = (1/r) dρ_SO/dr.
 
     Uses the Scheerbaum prescription (Nucl. Phys. A257, 77, 1976): the
     effective spin-orbit density up-weights the minority species:
@@ -742,19 +742,22 @@ def spin_orbit_jlmb(
     - proton  projectile: ``ρ_SO = (2ρ_n + ρ_p) / 3``
 
     The derivative dρ_SO/dr is evaluated via :class:`~scipy.interpolate.CubicSpline`
-    fitted to the density values at ``r_q``.  The leading factor of −½ matches
-    the TALYS/ECIS type-5 spin-orbit convention (Scheerbaum form stored with
-    opposite sign and halved, confirmed numerically against ECIS output for
-    n + ¹²⁰Sn at 10 MeV).
+    fitted to the density values at ``r_q``.
 
-    The full complex spin-orbit potential is assembled by the caller as:
+    The form is ready for :class:`jitr.xs.coupled.Potential`, whose
+    spin-orbit term multiplies ``l·σ = 2 l·s``:
 
     .. code-block:: python
 
-        V_SO(r) = (lambda_vso(E) + 1j * lambda_wso(E)) * spin_orbit_jlmb(...)
+        F = spin_orbit_jlmb(...)
+        Potential(..., spin_orbit=(lambda_vso(E) + 1j * lambda_wso(E)) * F)
 
-    and passed to ``workspace.xs(spin_orbit_potential=...)``.  jitr applies
-    the L·S eigenvalue (l/2 for j=l+½, −(l+1)/2 for j=l−½) internally.
+    F is negative at the nuclear surface, the same sign as the Thomas term
+    ``V_so λ_π² (1/r) df/dr`` of Koning-Delaroche type potentials, so the
+    analyzing powers have the same sign. ECIS (as driven by TALYS) instead
+    stores ``-½ F``: its potentials carry the opposite sign and its spin-orbit
+    term multiplies ``l·s``. With that convention this function reproduces the
+    TALYS JLMB elastic cross sections for n + ¹²⁰Sn at 10 MeV.
 
     Args:
         r_q: Radial grid in fm on which ``rho_n_q`` and ``rho_p_q`` are
@@ -783,74 +786,61 @@ def spin_orbit_jlmb(
     # Thomas form (1/r) dρ_SO/dr; use the L'Hôpital limit dρ/dr at r→0.
     form = np.where(r_arr > 1e-10, drho_dr / r_arr, drho_dr)
 
-    result = -0.5 * form
     r_eval = r_arr if r_out is None else np.asarray(r_out, dtype=float)
-    return np.interp(r_eval, r_arr, result)
+    return np.interp(r_eval, r_arr, form)
 
 
-def potential_JLMB(
+def isovector_spin_orbit_jlmb(
+    r_q: FloatArray,
+    rho_n_q: FloatArray,
+    rho_p_q: FloatArray,
+    r_out: FloatArray | None = None,
+) -> FloatArray:
+    r"""Return the isovector part of the Scheerbaum spin-orbit form factor,
+    ``F_1 = (F_n - F_p)/2 = (1/r) d/dr [(ρ_p - ρ_n)/6]``, with ``F_n`` and
+    ``F_p`` from :func:`spin_orbit_jlmb`.
+
+    The neutron and proton forms are ``F_0 ± F_1``, so the (p,n) spin-orbit
+    coupling to the isobaric analog state, in the convention of
+    :mod:`jitr.xs.quasielastic_pn`, is
+
+    .. math::
+        U_1^{so} = -\frac{2\,(λ_{vso}(E) + i λ_{wso}(E))\, F_1}{\sqrt{N - Z}},
+
+    with ``F_1`` from the target densities.
+
+    Args:
+        r_q, rho_n_q, rho_p_q, r_out: As in :func:`spin_orbit_jlmb`.
+
+    Returns:
+        Form factor ``F_1`` sampled on ``r_out``, in fm⁻⁴.
+    """
+    neutron = spin_orbit_jlmb(r_q, rho_n_q, rho_p_q, (1, 0), r_out=r_out)
+    proton = spin_orbit_jlmb(r_q, rho_n_q, rho_p_q, (1, 1), r_out=r_out)
+    return 0.5 * (neutron - proton)
+
+
+def _jlmb_nuclear_matter(
     folder,
     rho_n_q: FloatArray,
     rho_p_q: FloatArray,
     projectile: Projectile,
-    target: Target,
     E: float,
-    V_C: FloatArray | None = None,
-    parameterization: str | JLMParameterization | None = None,
-    coeffs_A: FloatArray = A_V0,
-    coeffs_B: FloatArray = B_N_RE,
-    coeffs_C: FloatArray = C_KMASS,
-    coeffs_D: FloatArray = D_W0,
-    coeffs_F: FloatArray = F_N_IM,
-    coeffs_E_F: FloatArray = EPS_F_coeffs,
-    D_damping: float = D_DAMPING,
-    F_damping: float = F_DAMPING,
-    lambda_V: float = 1,
-    lambda_W: float = 1,
-    lambda_V1: float = 1,
-    lambda_W1: float = 1,
-    t_r: float = 1.25,
-    t_i: float = 1.35,
-    r_out: FloatArray | None = None,
-) -> tuple[FloatArray, FloatArray]:
-    """Evaluate the finite-range JLMB optical potential.
-
-    Args:
-        folder: :class:`~jitr.folding.folding.ILDAFolder` providing the folding grid.
-        rho_n_q: Neutron density sampled on ``folder.r_q``.
-        rho_p_q: Proton density sampled on ``folder.r_q``.
-        projectile: Projectile identifier, ``(1, 0)`` for neutrons or
-            ``(1, 1)`` for protons.
-        target: Target ``(A, Z)`` tuple.
-        E: Projectile energy in MeV.
-        V_C: Coulomb potential sampled on ``folder.r_q``. Required for proton
-            projectiles and ignored for neutrons.
-        parameterization: Named kernel bundle. ``'original'`` preserves the
-            existing behavior, while ``'talys'`` enables the revised
-            TALYS-compatible coefficients and low-energy Fermi-energy blend.
-        coeffs_A: Real isoscalar coefficient table.
-        coeffs_B: Real isovector coefficient table.
-        coeffs_C: Momentum-dependent mass coefficient table.
-        coeffs_D: Imaginary isoscalar coefficient table.
-        coeffs_F: Imaginary isovector coefficient table.
-        coeffs_E_F: Fermi-energy coefficient vector.
-        D_damping: Imaginary isoscalar damping parameter in MeV².
-        F_damping: Imaginary isovector damping parameter in MeV.
-        lambda_V: Real isoscalar normalization.
-        lambda_W: Imaginary isoscalar normalization.
-        lambda_V1: Real isovector normalization.
-        lambda_W1: Imaginary isovector normalization.
-        t_r: Real-part Gaussian folding width in fm.
-        t_i: Imaginary-part Gaussian folding width in fm.
-        r_out: Optional output grid in fm.
-
-    Returns:
-        Tuple of folded real and imaginary optical-potential arrays in MeV.
-
-    Raises:
-        ValueError: If ``projectile`` is not neutron or proton, or if ``V_C`` is
-            missing or malformed for proton calls.
-    """
+    V_C: FloatArray | None,
+    parameterization: str | JLMParameterization | None,
+    coeffs_A: FloatArray,
+    coeffs_B: FloatArray,
+    coeffs_C: FloatArray,
+    coeffs_D: FloatArray,
+    coeffs_F: FloatArray,
+    coeffs_E_F: FloatArray,
+    D_damping: float,
+    F_damping: float,
+) -> tuple[Any, ...]:
+    """The JLMB nuclear-matter terms on ``folder.r_q``, before normalization
+    and folding: ``(sign, alpha, V0, W0, V1, W1, m_tilde_over_m)``, with
+    ``sign`` +1 for neutrons and -1 for protons. Arguments as in
+    :func:`potential_JLMB`."""
 
     params = resolve_parameterization(parameterization)
     if params is not None:
@@ -918,9 +908,319 @@ def potential_JLMB(
     # The imaginary NM terms are scaled by m̃/m before folding, which produces
     # the surface-peaked imaginary potential characteristic of the JLMB prescription.
     m_tilde_q = m_tilde_over_m(rho_q, E_eff_q, coeffs=coeffs_C)
+    return sign, alpha_q, V0_q, W0_q, V1_q, W1_q, m_tilde_q
+
+
+def potential_JLMB(
+    folder,
+    rho_n_q: FloatArray,
+    rho_p_q: FloatArray,
+    projectile: Projectile,
+    target: Target,
+    E: float,
+    V_C: FloatArray | None = None,
+    parameterization: str | JLMParameterization | None = None,
+    coeffs_A: FloatArray = A_V0,
+    coeffs_B: FloatArray = B_N_RE,
+    coeffs_C: FloatArray = C_KMASS,
+    coeffs_D: FloatArray = D_W0,
+    coeffs_F: FloatArray = F_N_IM,
+    coeffs_E_F: FloatArray = EPS_F_coeffs,
+    D_damping: float = D_DAMPING,
+    F_damping: float = F_DAMPING,
+    lambda_V: float = 1,
+    lambda_W: float = 1,
+    lambda_V1: float = 1,
+    lambda_W1: float = 1,
+    t_r: float = 1.25,
+    t_i: float = 1.35,
+    r_out: FloatArray | None = None,
+) -> tuple[FloatArray, FloatArray]:
+    """Evaluate the finite-range JLMB optical potential.
+
+    Args:
+        folder: :class:`~jitr.folding.folding.ILDAFolder` providing the folding grid.
+        rho_n_q: Neutron density sampled on ``folder.r_q``.
+        rho_p_q: Proton density sampled on ``folder.r_q``.
+        projectile: Projectile identifier, ``(1, 0)`` for neutrons or
+            ``(1, 1)`` for protons.
+        target: Target ``(A, Z)`` tuple.
+        E: Projectile energy in MeV.
+        V_C: Coulomb potential sampled on ``folder.r_q``. Required for proton
+            projectiles and ignored for neutrons.
+        parameterization: Named kernel bundle. ``'original'`` preserves the
+            existing behavior, while ``'talys'`` enables the revised
+            TALYS-compatible coefficients and low-energy Fermi-energy blend.
+        coeffs_A: Real isoscalar coefficient table.
+        coeffs_B: Real isovector coefficient table.
+        coeffs_C: Momentum-dependent mass coefficient table.
+        coeffs_D: Imaginary isoscalar coefficient table.
+        coeffs_F: Imaginary isovector coefficient table.
+        coeffs_E_F: Fermi-energy coefficient vector.
+        D_damping: Imaginary isoscalar damping parameter in MeV².
+        F_damping: Imaginary isovector damping parameter in MeV.
+        lambda_V: Real isoscalar normalization.
+        lambda_W: Imaginary isoscalar normalization.
+        lambda_V1: Real isovector normalization.
+        lambda_W1: Imaginary isovector normalization.
+        t_r: Real-part Gaussian folding width in fm.
+        t_i: Imaginary-part Gaussian folding width in fm.
+        r_out: Optional output grid in fm.
+
+    Returns:
+        Tuple of folded real and imaginary optical-potential arrays in MeV.
+
+    Raises:
+        ValueError: If ``projectile`` is not neutron or proton, or if ``V_C`` is
+            missing or malformed for proton calls.
+    """
+
+    sign, alpha_q, V0_q, W0_q, V1_q, W1_q, m_tilde_q = _jlmb_nuclear_matter(
+        folder,
+        rho_n_q,
+        rho_p_q,
+        projectile,
+        E,
+        V_C,
+        parameterization,
+        coeffs_A,
+        coeffs_B,
+        coeffs_C,
+        coeffs_D,
+        coeffs_F,
+        coeffs_E_F,
+        D_damping,
+        F_damping,
+    )
     V_NM_q = lambda_V * (V0_q + sign * lambda_V1 * alpha_q * V1_q)
     W_NM_q = lambda_W * m_tilde_q * (W0_q + sign * lambda_W1 * alpha_q * W1_q)
 
     V_r = folder.gaussian_fold(V_NM_q, t=t_r, r_out=r_out)
     W_r = folder.gaussian_fold(W_NM_q, t=t_i, r_out=r_out)
     return np.asarray(V_r, dtype=float), np.asarray(W_r, dtype=float)
+
+
+def isovector_JLMB(
+    folder,
+    rho_n_q: FloatArray,
+    rho_p_q: FloatArray,
+    target: Target,
+    E: float,
+    V_C: FloatArray | None = None,
+    parameterization: str | JLMParameterization | None = None,
+    coeffs_A: FloatArray = A_V0,
+    coeffs_B: FloatArray = B_N_RE,
+    coeffs_C: FloatArray = C_KMASS,
+    coeffs_D: FloatArray = D_W0,
+    coeffs_F: FloatArray = F_N_IM,
+    coeffs_E_F: FloatArray = EPS_F_coeffs,
+    D_damping: float = D_DAMPING,
+    F_damping: float = F_DAMPING,
+    lambda_V: float = 1,
+    lambda_W: float = 1,
+    lambda_V1: float = 1,
+    lambda_W1: float = 1,
+    t_r: float = 1.25,
+    t_i: float = 1.35,
+    r_out: FloatArray | None = None,
+) -> tuple[FloatArray, FloatArray]:
+    r"""Evaluate the folded isovector part of the JLMB potential.
+
+    In JLMB the isovector part of the nuclear-matter potential is the term
+    in the local asymmetry ``α = (ρ_n - ρ_p)/ρ``, entering the neutron
+    potential with ``+`` and the proton potential with ``-``. This function
+    folds it alone:
+
+    .. math::
+        F(r) = g \ast \left[λ_V λ_{V_1}\, α V_1
+               + i\, λ_W λ_{W_1}\, (\tilde m/m)\, α W_1\right],
+
+    so that at a common effective energy ``U_n = U_0 + F`` and
+    ``U_p = U_0 - F``. This is the Lane potential of the target: in the
+    convention of :mod:`jitr.xs.quasielastic_pn`, the (p,n) coupling to the
+    isobaric analog state is
+
+    .. math::
+        U_1 = -\frac{2 F}{\sqrt{N - Z}},
+
+    with ``F`` from the target densities. Differencing the full neutron and
+    proton potentials instead also picks up the Coulomb shift of the proton
+    energy in the isoscalar terms and the density change between target and
+    residual. See :func:`isovector_spin_orbit_jlmb` for the spin-orbit part.
+
+    Args:
+        folder: :class:`~jitr.folding.folding.ILDAFolder` providing the folding grid.
+        rho_n_q: Neutron density sampled on ``folder.r_q``.
+        rho_p_q: Proton density sampled on ``folder.r_q``.
+        target: Target ``(A, Z)`` tuple.
+        E: Projectile energy in MeV.
+        V_C: Optional Coulomb potential sampled on ``folder.r_q``. If given,
+            the nuclear-matter terms are evaluated at the proton effective
+            energy ``E - V_C``; otherwise at ``E``.
+        parameterization, coeffs_A, coeffs_B, coeffs_C, coeffs_D, coeffs_F,
+            coeffs_E_F, D_damping, F_damping, lambda_V, lambda_W, lambda_V1,
+            lambda_W1, t_r, t_i, r_out: As in :func:`potential_JLMB`.
+
+    Returns:
+        Tuple of folded real and imaginary isovector arrays ``F`` in MeV.
+    """
+    sign, alpha_q, V0_q, W0_q, V1_q, W1_q, m_tilde_q = _jlmb_nuclear_matter(
+        folder,
+        rho_n_q,
+        rho_p_q,
+        (1, 1) if V_C is not None else (1, 0),
+        E,
+        V_C,
+        parameterization,
+        coeffs_A,
+        coeffs_B,
+        coeffs_C,
+        coeffs_D,
+        coeffs_F,
+        coeffs_E_F,
+        D_damping,
+        F_damping,
+    )
+    V_NM_q = lambda_V * lambda_V1 * alpha_q * V1_q
+    W_NM_q = lambda_W * m_tilde_q * lambda_W1 * alpha_q * W1_q
+
+    V_r = folder.gaussian_fold(V_NM_q, t=t_r, r_out=r_out)
+    W_r = folder.gaussian_fold(W_NM_q, t=t_i, r_out=r_out)
+    return np.asarray(V_r, dtype=float), np.asarray(W_r, dtype=float)
+
+
+def pn_transition_bauge2001(
+    folder,
+    rho_n_q: FloatArray,
+    rho_p_q: FloatArray,
+    target: Target,
+    E: float,
+    asymmetry: Literal["local", "average"] = "local",
+    energy_prescription: Literal["paper", "local_midpoint"] = "paper",
+    V_C: FloatArray | None = None,
+    k_mass: bool = True,
+    parameterization: str | JLMParameterization | None = None,
+    coeffs_A: FloatArray = A_V0,
+    coeffs_B: FloatArray = B_N_RE,
+    coeffs_C: FloatArray = C_KMASS,
+    coeffs_D: FloatArray = D_W0,
+    coeffs_F: FloatArray = F_N_IM,
+    coeffs_E_F: FloatArray = EPS_F_coeffs,
+    D_damping: float = D_DAMPING,
+    F_damping: float = F_DAMPING,
+    lambda_V: float = 1,
+    lambda_W: float = 1,
+    lambda_V1: float = 1,
+    lambda_W1: float = 1,
+    t_r: float = 1.25,
+    t_i: float = 1.35,
+    r_out: FloatArray | None = None,
+) -> tuple[FloatArray, FloatArray]:
+    r"""Evaluate the JLMB (p,n) IAS transition potential of Bauge, Delaroche
+    and Girod, Phys. Rev. C 63, 024607 (2001), Eq. (7):
+
+    .. math::
+        U_{QE}(r) = 2 \sqrt{\frac{α(r)}{A}}
+            \left[λ_V λ_{V_1} V_1(r) + i\, λ_W λ_{W_1} W_1(r)\right],
+
+    where :math:`V_1(r)` and :math:`W_1(r)` are the folded nuclear-matter
+    isovector strengths, with no asymmetry inside the fold. The asymmetry
+    multiplies after folding. With ``asymmetry="local"`` it is
+    ``α(r) = (ρ_n - ρ_p)/ρ`` at ``r``, replaced by ``(N - Z)/A`` wherever
+    ``ρ_p ≥ ρ_n``, as in the paper; with ``"average"`` it is ``(N - Z)/A``
+    everywhere.
+
+    The energy of the nuclear-matter terms follows ``energy_prescription``:
+
+    - ``"paper"``: the constant ``E``. The paper uses ``E = E_p + Q/2``
+      (``Q`` the IAS Q-value), without the Coulomb shift of the proton
+      energy.
+    - ``"local_midpoint"``: ``E - V_C(r)/2``. With ``E = E_p + Q/2`` this is
+      the average of the proton's local energy ``E_p - V_C(r)``, at which its
+      own JLMB potential is evaluated, and the neutron's ``E_p + Q``.
+      Requires ``V_C``.
+
+    The normalizations ``lambda_*`` are evaluated by the caller, at ``E``.
+
+    In Bauge, Delaroche and Girod, Phys. Rev. C 58, 1118 (1998), Eq. (8),
+    the isovector imaginary strength is ``W_1 = (m/m̄) Im N`` and the k-mass
+    factor ``m̃/m`` scales the imaginary part of the elastic potential
+    afterwards. ``k_mass=True`` applies it to ``W_1`` here too, as
+    :func:`potential_JLMB` does for elastic scattering; ``k_mass=False``
+    leaves ``W_1`` as defined in Eq. (8).
+
+    For densities with a constant asymmetry this equals ``2F/sqrt(N - Z)``
+    with ``F`` from :func:`isovector_JLMB`. In general the two differ in
+    where the local asymmetry enters: inside the fold there, after it here.
+    In the convention of :mod:`jitr.xs.quasielastic_pn` the coupling is
+    ``U1 = -U_QE``.
+
+    Args:
+        folder: :class:`~jitr.folding.folding.ILDAFolder` providing the folding grid.
+        rho_n_q: Neutron density sampled on ``folder.r_q``.
+        rho_p_q: Proton density sampled on ``folder.r_q``.
+        target: Target ``(A, Z)`` tuple.
+        E: Energy in MeV at which to evaluate the transition potential.
+        asymmetry: ``"local"`` (the paper's choice) or ``"average"``.
+        energy_prescription: ``"paper"`` or ``"local_midpoint"``.
+        V_C: Proton Coulomb potential sampled on ``folder.r_q``, required for
+            ``energy_prescription="local_midpoint"``.
+        k_mass: Whether ``W_1`` carries the k-mass factor ``m̃/m``.
+        parameterization, coeffs_A, coeffs_B, coeffs_C, coeffs_D, coeffs_F,
+            coeffs_E_F, D_damping, F_damping, lambda_V, lambda_W, lambda_V1,
+            lambda_W1, t_r, t_i, r_out: As in :func:`potential_JLMB`.
+
+    Returns:
+        Tuple of real and imaginary ``U_QE`` in MeV on ``r_out``
+        (``folder.r_q`` if not given).
+    """
+    if asymmetry not in ("local", "average"):
+        raise ValueError(f"asymmetry must be 'local' or 'average', got {asymmetry!r}")
+    if energy_prescription == "paper":
+        projectile, shift = (1, 0), None
+    elif energy_prescription == "local_midpoint":
+        if V_C is None:
+            raise ValueError("energy_prescription='local_midpoint' requires V_C")
+        projectile, shift = (1, 1), 0.5 * np.asarray(V_C, dtype=float)
+    else:
+        raise ValueError(
+            "energy_prescription must be 'paper' or 'local_midpoint', "
+            f"got {energy_prescription!r}"
+        )
+    _, _, _, _, V1_q, W1_q, m_tilde_q = _jlmb_nuclear_matter(
+        folder,
+        rho_n_q,
+        rho_p_q,
+        projectile,
+        E,
+        shift,
+        parameterization,
+        coeffs_A,
+        coeffs_B,
+        coeffs_C,
+        coeffs_D,
+        coeffs_F,
+        coeffs_E_F,
+        D_damping,
+        F_damping,
+    )
+    r = folder.r_q if r_out is None else np.asarray(r_out, dtype=float)
+    V1_r = folder.gaussian_fold(lambda_V * lambda_V1 * V1_q, t=t_r, r_out=r)
+    W1_q = m_tilde_q * W1_q if k_mass else W1_q
+    W1_r = folder.gaussian_fold(lambda_W * lambda_W1 * W1_q, t=t_i, r_out=r)
+
+    A, Z = target
+    alpha_average = (A - 2 * Z) / A
+    alpha = np.full_like(r, alpha_average)
+    if asymmetry == "local":
+        rho_n = np.interp(r, folder.r_q, np.asarray(rho_n_q, dtype=float))
+        rho_p = np.interp(r, folder.r_q, np.asarray(rho_p_q, dtype=float))
+        rho = rho_n + rho_p
+        local = (rho > 1e-12) & (rho_n > rho_p)
+        alpha[local] = (rho_n[local] - rho_p[local]) / rho[local]
+
+    scale = 2.0 * np.sqrt(alpha / A)
+    return (
+        np.asarray(scale * V1_r, dtype=float),
+        np.asarray(scale * W1_r, dtype=float),
+    )

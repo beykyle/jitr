@@ -40,8 +40,8 @@
   },
   "tolerances": {
     "dsdo_mb_per_sr": {
-      "rtol": 0.10,
-      "atol": 10.0
+      "rtol": 0.02,
+      "atol": 1.0
     }
   },
   "reference_run": {
