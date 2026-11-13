@@ -56,6 +56,26 @@ class TestFoldingDensities:
 
 
 class TestJLMHelpers:
+    def test_parameterization_aliases(self):
+        for name in ("jlm1977", "original", "JLM1977"):
+            assert jlm.resolve_parameterization(name) is jlm.JLM1977
+        for name in ("bauge1998", "jlmb1998", "talys"):
+            assert jlm.resolve_parameterization(name) is jlm.BAUGE1998
+        assert jlm.resolve_parameterization(None) is None
+        with pytest.raises(ValueError):
+            jlm.resolve_parameterization("paper")
+
+    def test_jlmb_defaults_to_bauge1998(self):
+        import inspect
+
+        for f in (
+            jlm.potential_JLMB,
+            jlm.isovector_JLMB,
+            jlm.pn_transition_bauge2001,
+        ):
+            default = inspect.signature(f).parameters["parameterization"].default
+            assert jlm.resolve_parameterization(default) is jlm.BAUGE1998
+
     def test_fermi_energy_matches_notebook_reference_value(self):
         assert jlm.fermi_energy_MeV(0.16) == pytest.approx(-24.8448)
 
@@ -277,7 +297,7 @@ class TestJLMPotentials:
             target,
             energy,
             V_C=v_c,
-            parameterization="talys",
+            parameterization="bauge1998",
         )
 
         np.testing.assert_allclose(actual_v, expected_v, rtol=1e-12, atol=1e-12)
@@ -356,6 +376,7 @@ class TestJLMPotentials:
             (1, 0),
             (48, 20),
             energy,
+            parameterization=None,
             r_out=folder.r_q,
         )
 
@@ -427,7 +448,7 @@ class TestJLMPotentials:
             (208, 82),
             energy,
             V_C=v_c_q,
-            parameterization="talys",
+            parameterization="bauge1998",
             r_out=folder.r_q,
         )
 
@@ -474,7 +495,7 @@ class TestJLMBIsovector:
         rho_n_q = TwoParameterFermiDensity(R=6.8, a=0.55, N=Ncount)(folder.r_q)
         rho_p_q = TwoParameterFermiDensity(R=6.7, a=0.55, N=Zcount)(folder.r_q)
         kwargs = dict(
-            parameterization="talys",
+            parameterization="bauge1998",
             lambda_V=0.95,
             lambda_W=1.1,
             lambda_V1=1.3,
@@ -540,7 +561,7 @@ class TestBauge2001Transition:
         rho_p = TwoParameterFermiDensity(R=6.7, a=0.55, N=82)(folder.r_q)
         rho_n = rho_p * 126 / 82  # same shape: alpha = (N - Z)/A everywhere
         target, E = (208, 82), 25.0
-        kw = dict(parameterization="talys", lambda_V=0.95, lambda_V1=1.3)
+        kw = dict(parameterization="bauge1998", lambda_V=0.95, lambda_V1=1.3)
         kw.update(lambda_W=1.1, lambda_W1=0.8, r_out=folder.r_q)
         for asymmetry in ("local", "average"):
             V, W = jlm.pn_transition_bauge2001(

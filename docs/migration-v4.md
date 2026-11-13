@@ -77,6 +77,23 @@ data at different angles at each energy,
 `ws.xs_from_smatrix(S, [angles_0, angles_1, ...])` returns one result per
 energy without recompiling the solve.
 
+## JLM and JLMB
+
+The parameterization bundles are named by author and year:
+
+| v3 | v4 |
+|---|---|
+| `parameterization="original"` (or `"jlm"`, `"paper"`) | `"jlm1977"` (`"original"` still accepted) |
+| `parameterization="talys"` (or `"revised"`, `"jlmb-talys"`) | `"bauge1998"` (`"jlmb1998"`, `"talys"` still accepted) |
+| `ORIGINAL_PARAMETERIZATION`, `TALYS_PARAMETERIZATION` | `JLM1977`, `BAUGE1998` (old names kept) |
+
+`potential_JLMB`, `isovector_JLMB` and `pn_transition_bauge2001` now default to
+`parameterization="bauge1998"`, the refitted imaginary kernels of Bauge,
+Delaroche and Girod (1998) that define JLMB. In v3 the default was no bundle,
+so the original 1977 imaginary kernels were used. Pass
+`parameterization=None` to use explicit `coeffs_*` arguments, which a bundle
+otherwise overrides.
+
 ## Quasi-elastic (p,n)
 
 `jitr.xs.lane_pn` is merged into `jitr.xs.quasielastic_pn`:

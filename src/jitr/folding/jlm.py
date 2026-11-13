@@ -45,7 +45,8 @@ B_N_RE = np.array(
 
 # ---------------------------------------------------------------------------
 # Table III — m̃(ρ, E)/m = 1 − Σ c_ij ρ^i E^(j-1)     [Eq. 29]
-# k-mass ratio (multiplies V_1 and divides W_0, W_1)
+# k-mass ratio. Multiplies V_1 (Bauge 1998 Eq. 6); in JLMB it also multiplies
+# the whole imaginary potential, W_0 + αW_1 (end of Bauge 1998 Sec. II.A).
 # ---------------------------------------------------------------------------
 C_KMASS = np.array(
     [
@@ -57,8 +58,8 @@ C_KMASS = np.array(
 
 # ---------------------------------------------------------------------------
 # Table IV — W̄_0(ρ, E) = [1 + D/(E−ε_F)²]⁻¹ Σ d_ij ρ^i E^(j-1)    [Eq. 30]
-# Imaginary isoscalar kernel, D = 600 MeV²
-# Physical W_0 = (m/m̃) · W̄_0                                     [Eq. 7]
+# Imaginary isoscalar kernel, D = 600 MeV². The fit is W_0 itself, which
+# already contains the E-mass factor: W_0 = (m/m̄) Im M_0 (Bauge 1998 Eq. 7).
 # ---------------------------------------------------------------------------
 D_W0 = np.array(
     [
@@ -73,8 +74,8 @@ D_DAMPING = 600.0  # MeV²
 
 # ---------------------------------------------------------------------------
 # Table V — Im N_1(ρ, E) = [1 + F/(E−ε_F)]⁻¹ Σ f_ij ρ^i E^(j-1)   [Eq. 31]
-# Imaginary isovector kernel, F = 1 MeV
-# Physical W_1 = (m/m̃) · Im N_1                                   [Eq. 12]
+# Imaginary isovector kernel, F = 1 MeV. The fit is Im N; W_1 = (m/m̄) Im N
+# (Bauge 1998 Eq. 8), with the E-mass m̄/m = (m*/m)/(m̃/m) (Eqs. 19-20).
 # ---------------------------------------------------------------------------
 F_N_IM = np.array(
     [
@@ -98,7 +99,18 @@ EPS_F_BLEND_ENERGY = 9.0
 EPS_F_BLEND_WIDTH = 2.0
 
 # ---------------------------------------------------------------------------
-# TALYS revised 1998 imaginary kernels and damping
+# Bauge, Delaroche and Girod, PRC 58, 1118 (1998): refitted imaginary kernels
+# (Tables I and II) and the smooth Fermi energy of Eqs. (21)-(22), with the
+# values of the TALYS implementation (momjlmecis.f), which differ from the
+# printed paper in three places:
+#   - damping D = 126.25 MeV², not the 625 MeV² of Table I (TALYS: "typo in
+#     PRC 58 1118 (1998)");
+#   - the ρ³ coefficient of the low-energy Fermi energy, Eq. (17), is 12435.82,
+#     not 12345;
+#   - the blend of Eq. (22) is centred at E_0 = 9 MeV, not 10 MeV.
+# The paper also states τ = +1 for protons in Eq. (4). TALYS and jitr use +1
+# for neutrons: Re N > 0, so this is the sign that binds protons more strongly
+# in N > Z nuclei, as the Lane model requires.
 # ---------------------------------------------------------------------------
 TALYS_D_W0 = np.array(
     [
@@ -158,8 +170,8 @@ class JLMParameterization:
     local_jlm_real_mode: JLMRealMode = "linearized_delta_c"
 
 
-ORIGINAL_PARAMETERIZATION = JLMParameterization(
-    name="original",
+JLM1977 = JLMParameterization(
+    name="jlm1977",
     coeffs_A=A_V0,
     coeffs_B=B_N_RE,
     coeffs_C=C_KMASS,
@@ -171,8 +183,8 @@ ORIGINAL_PARAMETERIZATION = JLMParameterization(
     local_jlm_real_mode="linearized_delta_c",
 )
 
-TALYS_PARAMETERIZATION = JLMParameterization(
-    name="talys",
+BAUGE1998 = JLMParameterization(
+    name="bauge1998",
     coeffs_A=A_V0,
     coeffs_B=B_N_RE,
     coeffs_C=C_KMASS,
@@ -188,24 +200,48 @@ TALYS_PARAMETERIZATION = JLMParameterization(
     local_jlm_real_mode="shifted",
 )
 
+# Previous names.
+ORIGINAL_PARAMETERIZATION = JLM1977
+TALYS_PARAMETERIZATION = BAUGE1998
+
+_PARAMETERIZATION_ALIASES = {
+    "jlm1977": JLM1977,
+    "original": JLM1977,
+    "bauge1998": BAUGE1998,
+    "jlmb1998": BAUGE1998,
+    "talys": BAUGE1998,
+}
+
 
 def resolve_parameterization(
     parameterization: str | JLMParameterization | None,
 ) -> JLMParameterization | None:
-    """Resolve a named or explicit JLM parameterization bundle."""
+    """Resolve a named or explicit JLM parameterization bundle.
+
+    Names:
+
+    - ``"jlm1977"`` (alias ``"original"``): Jeukenne, Lejeune and Mahaux,
+      Phys. Rev. C 16, 80 (1977). Note that below 10 MeV this bundle keeps
+      the high-energy Fermi energy and ``D = 600 MeV²``, where the original
+      work switched to Lejeune's low-energy fit (``D = 100 MeV²``).
+    - ``"bauge1998"`` (aliases ``"jlmb1998"``, ``"talys"``): the refitted
+      imaginary kernels and smooth Fermi energy of Bauge, Delaroche and
+      Girod, Phys. Rev. C 58, 1118 (1998), as implemented in TALYS. This is
+      the JLMB potential.
+
+    ``None`` means no bundle: the explicit ``coeffs_*`` arguments are used.
+    """
 
     if parameterization is None:
         return None
     if isinstance(parameterization, JLMParameterization):
         return parameterization
     normalized = parameterization.strip().lower()
-    if normalized in {"original", "jlm", "paper"}:
-        return ORIGINAL_PARAMETERIZATION
-    if normalized in {"talys", "revised", "jlmb-talys"}:
-        return TALYS_PARAMETERIZATION
+    if normalized in _PARAMETERIZATION_ALIASES:
+        return _PARAMETERIZATION_ALIASES[normalized]
     raise ValueError(
-        "parameterization must be one of 'original', 'talys', or a "
-        "JLMParameterization instance."
+        f"parameterization must be one of {sorted(_PARAMETERIZATION_ALIASES)}, "
+        "a JLMParameterization instance, or None."
     )
 
 
@@ -485,9 +521,10 @@ def potential_JLM(
         E: Projectile energy in MeV.
         V_C: Coulomb potential sampled on ``rgrid``. Required for proton
             projectiles and ignored for neutrons.
-        parameterization: Named kernel bundle. ``'original'`` preserves the
-            existing paper-style implementation, while ``'talys'`` enables the
-            revised TALYS-compatible low-energy handling.
+        parameterization: Named kernel bundle (see
+            :func:`resolve_parameterization`), e.g. ``'jlm1977'`` or
+            ``'bauge1998'``. If ``None``, the explicit ``coeffs_*`` and
+            damping arguments are used.
         coeffs_A: Real isoscalar coefficient table.
         coeffs_B: Real isovector coefficient table.
         coeffs_C: Momentum-dependent mass coefficient table.
@@ -735,8 +772,9 @@ def spin_orbit_jlmb(
 ) -> FloatArray:
     """Return the JLMB spin-orbit form factor F(r) = (1/r) dρ_SO/dr.
 
-    Uses the Scheerbaum prescription (Nucl. Phys. A257, 77, 1976): the
-    effective spin-orbit density up-weights the minority species:
+    Uses the Scheerbaum prescription (Nucl. Phys. A257, 77, 1976; Bauge et
+    al. 1998, Eq. 30): the effective spin-orbit density weights the nucleons
+    unlike the projectile twice as much as the like nucleons:
 
     - neutron projectile: ``ρ_SO = (2ρ_p + ρ_n) / 3``
     - proton  projectile: ``ρ_SO = (2ρ_n + ρ_p) / 3``
@@ -919,7 +957,7 @@ def potential_JLMB(
     target: Target,
     E: float,
     V_C: FloatArray | None = None,
-    parameterization: str | JLMParameterization | None = None,
+    parameterization: str | JLMParameterization | None = "bauge1998",
     coeffs_A: FloatArray = A_V0,
     coeffs_B: FloatArray = B_N_RE,
     coeffs_C: FloatArray = C_KMASS,
@@ -948,9 +986,11 @@ def potential_JLMB(
         E: Projectile energy in MeV.
         V_C: Coulomb potential sampled on ``folder.r_q``. Required for proton
             projectiles and ignored for neutrons.
-        parameterization: Named kernel bundle. ``'original'`` preserves the
-            existing behavior, while ``'talys'`` enables the revised
-            TALYS-compatible coefficients and low-energy Fermi-energy blend.
+        parameterization: Named kernel bundle (see
+            :func:`resolve_parameterization`). The default ``'bauge1998'`` is
+            JLMB; ``'jlm1977'`` gives the original JLM kernels with the JLMB
+            k-mass and folding. Pass ``None`` to use the explicit
+            ``coeffs_*`` and damping arguments, which are ignored otherwise.
         coeffs_A: Real isoscalar coefficient table.
         coeffs_B: Real isovector coefficient table.
         coeffs_C: Momentum-dependent mass coefficient table.
@@ -1007,7 +1047,7 @@ def isovector_JLMB(
     target: Target,
     E: float,
     V_C: FloatArray | None = None,
-    parameterization: str | JLMParameterization | None = None,
+    parameterization: str | JLMParameterization | None = "bauge1998",
     coeffs_A: FloatArray = A_V0,
     coeffs_B: FloatArray = B_N_RE,
     coeffs_C: FloatArray = C_KMASS,
@@ -1099,7 +1139,7 @@ def pn_transition_bauge2001(
     energy_prescription: Literal["paper", "local_midpoint"] = "paper",
     V_C: FloatArray | None = None,
     k_mass: bool = True,
-    parameterization: str | JLMParameterization | None = None,
+    parameterization: str | JLMParameterization | None = "bauge1998",
     coeffs_A: FloatArray = A_V0,
     coeffs_B: FloatArray = B_N_RE,
     coeffs_C: FloatArray = C_KMASS,

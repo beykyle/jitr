@@ -230,7 +230,7 @@ def _build_jlm_elastic_case(
     if variant != "jlmb":
         raise ValueError(f"{ref.case_id}: unknown JLM variant {variant!r}")
 
-    param = potential.get("parameterization", "talys")
+    param = potential.get("parameterization", "bauge1998")
     density_model = potential.get("density_model", "d1m")
     jlmmode = int(potential.get("jlmmode", 0))
     fw = potential["folding_widths_fm"]
